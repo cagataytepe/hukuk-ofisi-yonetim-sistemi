@@ -1,0 +1,144 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="820" viewBox="0 0 1280 820">
+  <defs>
+    <style>
+      .bg { fill: #f4f7f8; }
+      .panel { fill: #203039; rx: 20; }
+      .card { fill: #ffffff; stroke: #dfe6ea; stroke-width: 1; rx: 16; }
+      .title { font: 700 34px Arial, sans-serif; fill: #203039; }
+      .sub { font: 400 17px Arial, sans-serif; fill: #66747d; }
+      .set-title { font: 700 21px Arial, sans-serif; fill: #203039; }
+      .set-note { font: 400 14px Arial, sans-serif; fill: #66747d; }
+      .menu-text { font: 600 16px Arial, sans-serif; fill: #eaf2f5; }
+      .menu-row { fill: transparent; }
+      .active { fill: #f6fbfc; }
+      .active-text { fill: #203039; }
+      .muted-line { stroke: rgba(255,255,255,.22); stroke-width: 2; }
+      .ico-line { fill: none; stroke: #eaf2f5; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+      .ico-line-active { fill: none; stroke: #203039; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+      .ico-fill { fill: #eaf2f5; }
+      .ico-fill-active { fill: #203039; }
+      .accent { fill: #2f8f8a; }
+      .badge { fill: rgba(255,255,255,.10); stroke: rgba(255,255,255,.18); stroke-width: 1; }
+      .badge-active { fill: #203039; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1280" height="820"/>
+  <text class="title" x="60" y="70">Sol Menü İkon Önerileri</text>
+  <text class="sub" x="60" y="102">Mevcut renklerle uyumlu üç farklı ikon dili. Beğendiğin seti doğrudan menüye uygulayabiliriz.</text>
+
+  <!-- Cards -->
+  <rect class="card" x="54" y="135" width="370" height="625"/>
+  <rect class="card" x="455" y="135" width="370" height="625"/>
+  <rect class="card" x="856" y="135" width="370" height="625"/>
+
+  <text class="set-title" x="82" y="178">Öneri 1: Sade Çizgisel</text>
+  <text class="set-note" x="82" y="204">Kurumsal, hafif, mevcut tasarıma en yakın.</text>
+  <text class="set-title" x="483" y="178">Öneri 2: Rozetli Modern</text>
+  <text class="set-note" x="483" y="204">Daha belirgin, panel içinde okunması kolay.</text>
+  <text class="set-title" x="884" y="178">Öneri 3: Hukuki Karakterli</text>
+  <text class="set-note" x="884" y="204">Büro temasını daha çok hissettirir.</text>
+
+  <!-- Sidebar backgrounds -->
+  <rect class="panel" x="82" y="232" width="314" height="470"/>
+  <rect class="panel" x="483" y="232" width="314" height="470"/>
+  <rect class="panel" x="884" y="232" width="314" height="470"/>
+
+  <!-- Brand separators -->
+  <line class="muted-line" x1="110" y1="286" x2="368" y2="286"/>
+  <line class="muted-line" x1="511" y1="286" x2="769" y2="286"/>
+  <line class="muted-line" x1="912" y1="286" x2="1170" y2="286"/>
+
+  <!-- SET 1 rows -->
+  <g transform="translate(106 312)">
+    <rect class="active" x="0" y="0" width="266" height="44" rx="8"/>
+    <path class="ico-line-active" d="M23 27V17l9-7 9 7v10M28 27v-7h8v7"/>
+    <text class="menu-text active-text" x="58" y="28">Ana Sayfa</text>
+  </g>
+  <g transform="translate(106 367)">
+    <path class="ico-line" d="M20 14h10l4 5h14v17H20z"/>
+    <text class="menu-text" x="58" y="28">Dosyalar</text>
+  </g>
+  <g transform="translate(106 422)">
+    <path class="ico-line" d="M21 15h22v22H21zM21 22h22M28 12v6M36 12v6"/>
+    <text class="menu-text" x="58" y="28">Duruşmalar</text>
+  </g>
+  <g transform="translate(106 477)">
+    <circle class="ico-line" cx="31" cy="25" r="12"/>
+    <path class="ico-line" d="M31 18v8l6 4"/>
+    <text class="menu-text" x="58" y="28">Süreli İşler</text>
+  </g>
+  <g transform="translate(106 532)">
+    <circle class="ico-line" cx="29" cy="23" r="10"/>
+    <path class="ico-line" d="M36 30l8 8"/>
+    <text class="menu-text" x="58" y="28">Arama</text>
+  </g>
+  <g transform="translate(106 587)">
+    <path class="ico-line" d="M22 13h17l7 7v22H22zM39 13v8h7M28 31h12M28 37h8"/>
+    <text class="menu-text" x="58" y="28">Raporlama</text>
+  </g>
+
+  <!-- SET 2 rows -->
+  <g transform="translate(507 312)">
+    <rect class="active" x="0" y="0" width="266" height="44" rx="8"/>
+    <rect class="badge-active" x="14" y="8" width="28" height="28" rx="7"/>
+    <path d="M21 26v-7l7-5 7 5v7h-5v-5h-4v5z" fill="#fff"/>
+    <text class="menu-text active-text" x="58" y="28">Ana Sayfa</text>
+  </g>
+  <g transform="translate(507 367)">
+    <rect class="badge" x="14" y="8" width="28" height="28" rx="7"/>
+    <path class="ico-line" d="M21 18h9l3 4h11v12H21z"/>
+    <text class="menu-text" x="58" y="28">Dosyalar</text>
+  </g>
+  <g transform="translate(507 422)">
+    <rect class="badge" x="14" y="8" width="28" height="28" rx="7"/>
+    <path class="ico-line" d="M22 17h20v18H22zM22 23h20M28 14v6M36 14v6"/>
+    <text class="menu-text" x="58" y="28">Duruşmalar</text>
+  </g>
+  <g transform="translate(507 477)">
+    <rect class="badge" x="14" y="8" width="28" height="28" rx="7"/>
+    <circle class="ico-line" cx="28" cy="22" r="8"/>
+    <path class="ico-line" d="M28 18v5l4 2"/>
+    <text class="menu-text" x="58" y="28">Süreli İşler</text>
+  </g>
+  <g transform="translate(507 532)">
+    <rect class="badge" x="14" y="8" width="28" height="28" rx="7"/>
+    <circle class="ico-line" cx="27" cy="22" r="7"/>
+    <path class="ico-line" d="M32 27l6 6"/>
+    <text class="menu-text" x="58" y="28">Arama</text>
+  </g>
+  <g transform="translate(507 587)">
+    <rect class="badge" x="14" y="8" width="28" height="28" rx="7"/>
+    <path class="ico-line" d="M22 32h20M25 32v-8M31 32V18M37 32V22"/>
+    <text class="menu-text" x="58" y="28">Raporlama</text>
+  </g>
+
+  <!-- SET 3 rows -->
+  <g transform="translate(908 312)">
+    <rect class="active" x="0" y="0" width="266" height="44" rx="8"/>
+    <path class="ico-line-active" d="M20 24h24M24 24v11h16V24M22 20l10-7 10 7"/>
+    <text class="menu-text active-text" x="58" y="28">Ana Sayfa</text>
+  </g>
+  <g transform="translate(908 367)">
+    <path class="ico-line" d="M22 18h20v18H22zM28 18v-4h8v4M22 24h20"/>
+    <text class="menu-text" x="58" y="28">Dosyalar</text>
+  </g>
+  <g transform="translate(908 422)">
+    <path class="ico-line" d="M24 34h18M29 30l-8-8 5-5 8 8M36 21l8 8M30 14l14 14"/>
+    <text class="menu-text" x="58" y="28">Duruşmalar</text>
+  </g>
+  <g transform="translate(908 477)">
+    <path class="ico-line" d="M22 15h20v24H22zM28 15v24M22 23h20M34 31h6"/>
+    <text class="menu-text" x="58" y="28">Süreli İşler</text>
+  </g>
+  <g transform="translate(908 532)">
+    <path class="ico-line" d="M28 16c6 0 10 4 10 10s-4 10-10 10-10-4-10-10 4-10 10-10zM36 34l8 7"/>
+    <path class="ico-line" d="M25 26h6"/>
+    <text class="menu-text" x="58" y="28">Arama</text>
+  </g>
+  <g transform="translate(908 587)">
+    <path class="ico-line" d="M22 14h17l6 6v22H22zM39 14v7h6"/>
+    <path class="ico-line" d="M28 34l4 4 8-11"/>
+    <text class="menu-text" x="58" y="28">Raporlama</text>
+  </g>
+</svg>
