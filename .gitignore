@@ -1,0 +1,37 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Dependencies and build outputs
+node_modules/
+dist/
+.vite/
+
+# Supabase local state
+supabase/.temp/
+
+# Logs and local exports
+*.log
+localstorage-export.json
+database/seed/localstorage-export.json
+
+# Temporary backups and generated QA artifacts
+*.tmp
+*.temp
+*.bak
+*.backup
+*.backup.*
+*.old
+*.orig
+*.pre-*.html
+qa-*.png
+work/
+.agents/
+.codex/
+
+# Operating system files
+.DS_Store
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/

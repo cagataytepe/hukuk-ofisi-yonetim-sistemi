@@ -1,0 +1,21 @@
+{
+  "name": "bkt-hukuk-buro-yonetim-sistemi",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "BKT Hukuk ve Danismanlik Burosu yonetim sistemi Supabase altyapisi.",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "seed:demo": "node database/seed/seed-demo-data.js",
+    "bootstrap:localstorage": "node database/seed/seed-demo-data.js --bootstrap",
+    "import:localstorage": "node database/seed/seed-demo-data.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4"
+  },
+  "devDependencies": {
+    "vite": "^5.4.11"
+  }
+}
