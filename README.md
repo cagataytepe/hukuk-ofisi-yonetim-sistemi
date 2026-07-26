@@ -1,16 +1,59 @@
 # BKT Hukuk Büro Yönetim Sistemi
 
-Bu proje BKT Hukuk ve Danışmanlık Bürosu için Supabase tabanlı hukuk bürosu yönetim sistemidir.
+BKT Hukuk ve Danışmanlık Bürosu için geliştirilen Supabase tabanlı hukuk bürosu yönetim sistemi.
 
-## Runtime Veri Kaynağı
+## Veri Kaynağı
 
-Uygulamanın varsayılan veri kaynağı Supabase'dir. Ana Sayfa, Dosyalar, Duruşmalar, Süreli İşler, Görevler, Müvekkiller, Belgeler, Ödeme Takibi, Takvim, Raporlar ve Ayarlar ekranları merkezi Supabase state kaydından okunur ve değişiklikleri Supabase'e yazar.
+Uygulamanın aktif veri kaynağı Supabase gerçek tablolarıdır. Ana iş verileri artık `public.settings` içindeki merkezi JSON kaydından okunmaz ve oraya yazılmaz.
 
-LocalStorage varsayılan veri kaynağı değildir. Yalnızca Supabase bağlantısı kurulamadığında çevrimdışı yedek/fallback olarak kullanılır.
+Aktif tablolar:
+
+- `files`
+- `clients`
+- `file_parties`
+- `hearings`
+- `deadlines`
+- `tasks`
+- `collections`
+- `payment_plans`
+- `payment_installments`
+- `file_notes`
+- `timeline_events`
+- `profiles`
+- `roles`
+- `user_permissions`
+
+`public.settings` yalnızca gerçek uygulama tercihi/ayar kaydı için kullanılmalıdır. Eski `hukukBurosuTakipDemo.v2` JSON kaydı migration yedeği olarak durabilir; temizleme işlemi dry-run scriptleriyle kontrollü yapılır.
+
+## Kimlik Doğrulama
+
+Giriş sistemi standart Supabase Auth e-posta + şifre akışıyla çalışır.
+
+- Giriş: `supabase.auth.signInWithPassword()`
+- Oturum geri yükleme: `supabase.auth.getSession()`
+- Çıkış: `supabase.auth.signOut()`
+
+Parola hiçbir zaman `localStorage`, `sessionStorage`, cookie veya JavaScript sabiti içinde saklanmaz.
+
+## Repository Mimarisi
+
+Frontend veri akışı:
+
+```text
+HTML ekranları
+↓
+services/browserRepositoryBridge.js
+↓
+repositories/SupabaseRepository.js
+↓
+Supabase tabloları / RPC fonksiyonları
+```
+
+Aktif runtime içinde `LocalStorageRepository` kullanılmaz. Supabase bağlantısı kurulamazsa kullanıcıya bağlantı uyarısı gösterilir; localStorage üzerine otomatik iş verisi yazılmaz.
 
 ## Ortam Değişkenleri
 
-Runtime ve tarayıcı tarafında yalnızca publishable/anon key kullanılır:
+Tarayıcı/runtime tarafında yalnızca publishable/anon key kullanılır:
 
 ```env
 SUPABASE_URL=
@@ -18,61 +61,30 @@ SUPABASE_PUBLISHABLE_KEY=
 SUPABASE_ANON_KEY=
 ```
 
-Service role key tarayıcı, HTML, hosting veya mobil uygulama tarafına yazılmaz.
+Yerel bakım/import scriptleri gerektiğinde `.env` içinden `SUPABASE_SERVICE_ROLE_KEY` okuyabilir. Bu anahtar hiçbir zaman HTML, `src`, `services`, `outputs` veya deploy dosyalarına yazılmamalıdır.
 
-## Supabase Auth
-
-Giriş sistemi standart Supabase Auth e-posta + şifre yöntemiyle çalışır.
-
-Kullanıcı oluşturma yalnızca Supabase Auth üzerinden yapılır:
-
-```js
-supabase.auth.signUp()
-```
-
-Giriş yalnızca Supabase Auth üzerinden yapılır:
-
-```js
-supabase.auth.signInWithPassword()
-```
-
-Uygulama artık username tabanlı giriş, `@bkt.local` e-posta eşlemesi veya SQL ile Auth kullanıcısı oluşturma akışı kullanmaz. `profiles` tablosu yalnızca uygulama içi kullanıcı bilgilerini tutar.
-
-## SQL Migration
-
-Supabase SQL Editor veya CLI için kullanılan aktif migration dosyaları:
-
-- `database/migration/001_initial_schema.sql`
-- `database/migration/002_auth_profiles.sql`
-- `database/migration/003_remove_multi_tenant.sql`
-- `database/migration/007_profiles_display_names_and_permissions.sql`
-- `database/migration/008_standardize_bkt_profile_display_names.sql`
-
-Supabase CLI uyumlu tarihli kopyalar:
-
-- `supabase/migrations/202607150001_initial_schema.sql`
-- `supabase/migrations/202607150002_auth_profiles.sql`
-- `supabase/migrations/202607150003_remove_multi_tenant.sql`
-- `supabase/migrations/202607150007_profiles_display_names_and_permissions.sql`
-- `supabase/migrations/202607150008_standardize_bkt_profile_display_names.sql`
-
-`auth.users` veya `auth.identities` tablolarına SQL ile kullanıcı yazılmaz.
-
-## Repository Katmanı
-
-- `SupabaseRepository` varsayılan repository'dir.
-- `LocalStorageRepository` yalnızca offline fallback olarak kullanılır.
-- Tarayıcı uygulaması `services/browserRepositoryBridge.js` üzerinden Supabase `settings` tablosunu okur/yazar.
-- Supabase bağlantısı kurulamazsa kullanıcıya bağlantı uyarısı gösterilir ve yerel yedek devreye girer.
-
-## Çalıştırma
-
-```bash
-npm run dev
-```
-
-PowerShell execution policy engeline takılırsanız:
+## Komutlar
 
 ```powershell
 npm.cmd run dev
+npm.cmd run build
+```
+
+Eski settings JSON analizi ve kontrollü temizlik:
+
+```powershell
+npm.cmd run analyze:legacy-settings
+npm.cmd run backup:legacy-settings
+npm.cmd run backup:legacy-settings -- --execute
+npm.cmd run cleanup:legacy-settings
+npm.cmd run cleanup:legacy-settings -- --execute
+npm.cmd run restore:legacy-settings -- --input "database/backup/legacy-settings-....json" --confirm
+```
+
+## Doğrulama SQL
+
+Supabase SQL Editor içinde aşağıdaki dosya çalıştırılarak tablo sayıları, orphan kayıtlar, duplicate kayıtlar ve eski settings JSON kalıntıları kontrol edilebilir:
+
+```text
+database/migration/VERIFY_SUPABASE_DATA_CLEANUP.sql
 ```

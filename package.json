@@ -10,12 +10,39 @@
     "preview": "vite preview --host 127.0.0.1",
     "seed:demo": "node database/seed/seed-demo-data.js",
     "bootstrap:localstorage": "node database/seed/seed-demo-data.js --bootstrap",
-    "import:localstorage": "node database/seed/seed-demo-data.js"
+    "import:localstorage": "node database/seed/seed-demo-data.js",
+    "migrate:files:dry-run": "node scripts/migrate-files-dry-run.mjs",
+    "migrate:files:import": "node scripts/import-files-to-supabase.mjs",
+    "migrate:files:rollback": "node scripts/rollback-files-import.mjs",
+    "migrate:hearings:dry-run": "node scripts/migrate-hearings-dry-run.mjs",
+    "migrate:hearings:import": "node scripts/import-hearings-to-supabase.mjs",
+    "migrate:hearings:rollback": "node scripts/rollback-hearings-import.mjs",
+    "migrate:deadlines:dry-run": "node scripts/migrate-deadlines-dry-run.mjs",
+    "migrate:deadlines:import": "node scripts/import-deadlines-to-supabase.mjs",
+    "migrate:deadlines:rollback": "node scripts/rollback-deadlines-import.mjs",
+    "migrate:tasks:dry-run": "node scripts/migrate-tasks-dry-run.mjs",
+    "migrate:tasks:import": "node scripts/import-tasks-to-supabase.mjs",
+    "migrate:tasks:rollback": "node scripts/rollback-tasks-import.mjs",
+    "migrate:parties:dry-run": "node scripts/migrate-parties-dry-run.mjs",
+    "migrate:parties:import": "node scripts/import-parties-to-supabase.mjs",
+    "migrate:parties:rollback": "node scripts/rollback-parties-import.mjs",
+    "analyze:parties:integrity": "node scripts/analyze-parties-integrity.mjs",
+    "repair:parties:integrity": "node scripts/repair-parties-integrity.mjs",
+    "cleanup:documents-json": "node scripts/cleanup-documents-json.mjs",
+    "analyze:legacy-settings": "node scripts/analyze-legacy-settings.mjs",
+    "backup:legacy-settings": "node scripts/backup-legacy-settings.mjs",
+    "cleanup:legacy-settings": "node scripts/cleanup-legacy-settings.mjs",
+    "restore:legacy-settings": "node scripts/restore-legacy-settings.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:smoke": "playwright test tests/e2e/auth.spec.js tests/e2e/dashboard.spec.js --project=desktop",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:report": "playwright show-report test-artifacts/reports"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "vite": "^5.4.11"
   }
 }

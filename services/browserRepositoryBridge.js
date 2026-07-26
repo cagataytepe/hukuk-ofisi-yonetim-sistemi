@@ -1,4 +1,4 @@
-import { supabase } from "../src/supabase.js";
+﻿import { supabase } from "../src/supabase.js";
 
 (function () {
   const config = window.BKT_SUPABASE_CONFIG || {};
@@ -13,23 +13,7 @@ import { supabase } from "../src/supabase.js";
     "Yalnızca Görüntüleme"
   ];
 
-  function createLocalStorageRepository(storage) {
-    return {
-      mode: "localStorage",
-      getItem(key) {
-        return storage.getItem(key);
-      },
-      setItem(key, value) {
-        storage.setItem(key, value);
-      },
-      removeItem(key) {
-        storage.removeItem(key);
-      }
-    };
-  }
-
-  function createSupabaseRepository(storage) {
-    const offlineRepository = createLocalStorageRepository(storage);
+  function createSupabaseRepository() {
     const authClient = supabase;
     const cache = new Map();
 
@@ -42,7 +26,7 @@ import { supabase } from "../src/supabase.js";
       writeQueue: Promise.resolve(),
       getItem(key) {
         if (cache.has(key)) return cache.get(key);
-        return repository.offline ? offlineRepository.getItem(key) : null;
+        return null;
       },
       async getItemAsync(key) {
         await repository.ready;
@@ -52,8 +36,7 @@ import { supabase } from "../src/supabase.js";
         cache.set(key, value);
         return repository.enqueueWrite(async () => {
           await repository.writeSetting(key, value);
-          offlineRepository.setItem(key, value);
-        }, () => offlineRepository.setItem(key, value));
+        });
       },
       async setItemAsync(key, value) {
         await repository.setItem(key, value);
@@ -62,8 +45,7 @@ import { supabase } from "../src/supabase.js";
         cache.delete(key);
         return repository.enqueueWrite(async () => {
           await repository.deleteSetting(key);
-          offlineRepository.removeItem(key);
-        }, () => offlineRepository.removeItem(key));
+        });
       },
       async removeItemAsync(key) {
         await repository.removeItem(key);
@@ -94,7 +76,6 @@ import { supabase } from "../src/supabase.js";
           rows.forEach(row => {
             const value = serializeSettingValue(row.setting_value);
             cache.set(row.setting_key, value);
-            offlineRepository.setItem(row.setting_key, value);
           });
 
           repository.available = true;
@@ -103,7 +84,7 @@ import { supabase } from "../src/supabase.js";
           notifyStatus("online", "Supabase bağlantısı kuruldu.");
           return true;
         } catch (error) {
-          repository.switchToOffline("Supabase bağlantısı kurulamadı. Çevrimdışı yedek veri kullanılıyor.", error);
+          repository.switchToOffline("Supabase bağlantısı kurulamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.", error);
           return false;
         }
       },
@@ -348,6 +329,1351 @@ import { supabase } from "../src/supabase.js";
         if (!profileResponse.ok) throw new Error(`Profil güncellenemedi: ${profileResponse.status}`);
         return true;
       },
+      async getFiles() {
+        const response = await fetch(
+          `${restUrl("files")}?select=*&deleted_at=is.null&order=created_at.desc`,
+          { headers: await authHeaders(repository) }
+        );
+        if (!response.ok) throw new Error(`Dosyalar okunamadı: ${response.status}`);
+        return response.json();
+      },
+      async getFileIdCandidates() {
+        const select = [
+          "id",
+          "legacy_id",
+          "display_id",
+          "record_kind",
+          "file_type",
+          "follow_type",
+          "metadata",
+          "deleted_at",
+          "created_at"
+        ].join(",");
+        const response = await fetch(
+          `${restUrl("files")}?select=${select}&order=created_at.desc`,
+          { headers: await authHeaders(repository) }
+        );
+        if (!response.ok) throw new Error(`Dosya ID adayları okunamadı: ${response.status}`);
+        return response.json();
+      },
+      async getFile(id) {
+        if (!id) return null;
+        const fileSelect = [
+          "id",
+          "legacy_id",
+          "display_id",
+          "record_kind",
+          "file_type",
+          "follow_type",
+          "file_no",
+          "court_or_office",
+          "decision_no",
+          "subject",
+          "status",
+          "opening_date",
+          "responsible_profile_id",
+          "responsible_name",
+          "client_name",
+          "opponent_name",
+          "description",
+          "account_info",
+          "instrument_info",
+          "metadata",
+          "created_at",
+          "updated_at",
+          "deleted_at",
+          "responsible_profile:profiles!files_responsible_profile_id_fkey(id,display_name)"
+        ].join(",");
+        const filter = isUuid(id)
+          ? `id=eq.${encodeURIComponent(id)}`
+          : `or=(legacy_id.eq.${encodeURIComponent(id)},display_id.eq.${encodeURIComponent(id)})`;
+        const response = await fetch(
+          `${restUrl("files")}?select=${fileSelect}&deleted_at=is.null&${filter}&limit=1`,
+          { headers: await authHeaders(repository) }
+        );
+        if (!response.ok) throw new Error(`Dosya okunamadı: ${response.status}`);
+        const rows = await response.json();
+        return rows[0] || null;
+      },
+      async createFile(row) {
+        let payload = fileCreatePayload(row);
+        for (let attempt = 0; attempt < 50; attempt += 1) {
+          const response = await fetch(`${restUrl("files")}`, {
+            method: "POST",
+            headers: {
+              ...(await authHeaders(repository)),
+              "Content-Type": "application/json",
+              "Prefer": "return=representation"
+            },
+            body: JSON.stringify(payload)
+          });
+          if (response.ok) {
+            const rows = await response.json();
+            return rows[0] || null;
+          }
+          const body = await safeResponseText(response);
+          if (!isDuplicateLegacyFileId(response.status, body) || !payload.legacy_id) {
+            throw new Error(`Dosya oluşturulamadı: ${response.status} ${body}`);
+          }
+          const nextPayload = nextFilePayloadWithBumpedLegacyId(payload);
+          if (!nextPayload) throw new Error(`Dosya oluşturulamadı: ${response.status} ${body}`);
+          console.warn("[BKT files create] Legacy ID kullanıldığı için yeni ID deneniyor.", {
+            previousLegacyId: payload.legacy_id,
+            nextLegacyId: nextPayload.legacy_id
+          });
+          payload = nextPayload;
+        }
+        throw new Error("Dosya oluşturulamadı: uygun boş dosya ID değeri bulunamadı.");
+      },
+      async updateFile(id, row) {
+        if (!id) throw new Error("Dosya seçilmedi.");
+        let fileId = id;
+        if (!isUuid(fileId)) {
+          const existing = await repository.getFile(id);
+          fileId = existing?.id || "";
+        }
+        if (!isUuid(fileId)) throw new Error("Dosya UUID değeri çözümlenemedi.");
+        const filter = `id=eq.${encodeURIComponent(fileId)}`;
+        const response = await fetch(`${restUrl("files")}?${filter}`, {
+          method: "PATCH",
+          headers: {
+            ...(await authHeaders(repository)),
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+          },
+          body: JSON.stringify(cleanInsertPayload(row))
+        });
+        if (!response.ok) throw new Error(`Dosya güncellenemedi: ${response.status} ${await safeResponseText(response)}`);
+        const rows = await response.json();
+        return rows[0] || null;
+      },
+      async deleteFile(id) {
+        if (!id) throw new Error("Dosya seçilmedi.");
+        let fileId = id;
+        if (!isUuid(fileId)) {
+          const existing = await repository.getFile(id);
+          fileId = existing?.id || "";
+        }
+        if (!isUuid(fileId)) {
+          console.error("[BKT files delete] File UUID could not be resolved.", { requestedId: id, resolvedId: fileId });
+          throw new Error("File UUID could not be resolved.");
+        }
+        const { data, error, status, statusText } = await authClient.rpc("soft_delete_file", { p_file_id: fileId });
+        if (error) {
+          console.error("[BKT files delete] Supabase RPC soft delete failed.", {
+            requestedId: id,
+            fileId,
+            status,
+            statusText,
+            code: error.code,
+            message: error.message,
+            details: error.details,
+            hint: error.hint
+          });
+          throw error;
+        }
+        const rows = Array.isArray(data) ? data : data ? [data] : [];
+        if (!rows.length) {
+          console.error("[BKT files delete] Supabase RPC soft delete returned no rows.", {
+            requestedId: id,
+            fileId,
+            status,
+            statusText
+          });
+          throw new Error("File was not found or was already deleted.");
+        }
+        return rows[0];
+      },
+      async getDashboardData(filters = {}) {
+        const now = new Date();
+        const todayIso = [
+          now.getFullYear(),
+          String(now.getMonth() + 1).padStart(2, "0"),
+          String(now.getDate()).padStart(2, "0")
+        ].join("-");
+        const fileSelect = "id,legacy_id,display_id,record_kind,file_type,follow_type,file_no,court_or_office,decision_no,subject,status,opening_date,responsible_profile_id,responsible_name,client_name,opponent_name,description,account_info,instrument_info,metadata,created_at,updated_at,deleted_at";
+        const hearingSelect = "id,legacy_id,file_id,court,case_file_no,hearing_date,hearing_time,client_name,party_role,excuse_type,attendee_profile_id,attendee_name,participant_profile_id,participant_name,note,outcome,status,metadata,created_at,updated_at,deleted_at";
+        const deadlineSelect = "id,legacy_id,file_id,title,task,description,responsible_profile_id,responsible_name,start_date,due_date,status,completed_at,completed_late,created_at,updated_at,deleted_at,metadata";
+        const taskSelect = "id,legacy_id,task_type,file_id,title,description,responsible_profile_id,responsible_name,due_date,status,priority,completed_at,created_by_profile_id,created_at,updated_at,deleted_at,metadata";
+        const profileSelect = "id,display_name,email,title,role_id,is_active,deleted_at";
+        const headers = await authHeaders(repository);
+        let profileId = isUuid(filters.profileId) ? filters.profileId : "";
+        if (!profileId && authClient) {
+          try {
+            const { data } = await authClient.auth.getUser();
+            profileId = isUuid(data?.user?.id) ? data.user.id : "";
+          } catch (error) {
+            console.error("[BKT dashboard tasks] Current profile id could not be resolved.", { message: error?.message || String(error) });
+          }
+        }
+        const [filesResponse, upcomingResponse, deadlinesResponse, profilesResponse] = await Promise.all([
+          fetch(`${restUrl("files")}?select=${fileSelect}&deleted_at=is.null&order=created_at.desc`, { headers }),
+          fetch(`${restUrl("hearings")}?select=${hearingSelect}&deleted_at=is.null&hearing_date=gte.${encodeURIComponent(todayIso)}&order=hearing_date.asc.nullslast&order=hearing_time.asc.nullslast`, { headers }),
+          fetch(`${restUrl("deadlines")}?select=${deadlineSelect}&deleted_at=is.null&order=due_date.asc.nullslast&order=created_at.desc`, { headers }),
+          fetch(`${restUrl("profiles")}?select=${profileSelect}&deleted_at=is.null&is_active=eq.true&order=display_name.asc`, { headers })
+        ]);
+        const responses = [
+          ["files", filesResponse],
+          ["upcomingHearings", upcomingResponse],
+          ["deadlines", deadlinesResponse],
+          ["profiles", profilesResponse]
+        ];
+        const failed = responses.find(([, response]) => !response.ok);
+        if (failed) throw new Error(`Dashboard verisi okunamadı (${failed[0]}): ${failed[1].status} ${await safeResponseText(failed[1])}`);
+        const [files, upcomingHearings, deadlines, profiles] = await Promise.all(responses.map(([, response]) => response.json()));
+        let assignedTasks = [];
+        let overdueTasks = [];
+        let taskError = "";
+        try {
+          const taskRequests = [
+            profileId
+              ? fetch(`${restUrl("tasks")}?select=${taskSelect}&deleted_at=is.null&responsible_profile_id=eq.${encodeURIComponent(profileId)}&order=due_date.asc.nullslast&order=created_at.desc`, { headers })
+              : Promise.resolve(null),
+            fetch(`${restUrl("tasks")}?select=${taskSelect}&deleted_at=is.null&due_date=lt.${encodeURIComponent(todayIso)}&order=due_date.asc.nullslast&order=created_at.desc`, { headers })
+          ];
+          const [assignedResponse, overdueResponse] = await Promise.all(taskRequests);
+          if (assignedResponse && !assignedResponse.ok) throw new Error(`assignedTasks: ${assignedResponse.status} ${await safeResponseText(assignedResponse)}`);
+          if (overdueResponse && !overdueResponse.ok) throw new Error(`overdueTasks: ${overdueResponse.status} ${await safeResponseText(overdueResponse)}`);
+          assignedTasks = assignedResponse ? await assignedResponse.json() : [];
+          overdueTasks = overdueResponse ? await overdueResponse.json() : [];
+        } catch (error) {
+          console.error("[BKT dashboard tasks] Supabase task data could not be loaded.", {
+            message: error?.message || String(error)
+          });
+          taskError = "Görev bilgileri yüklenemedi.";
+        }
+        return {
+          files,
+          upcomingHearings,
+          recentFiles: [],
+          recentHearings: [],
+          deadlines,
+          assignedTasks,
+          overdueTasks,
+          deadlineError: "",
+          taskError,
+          profiles,
+          generatedAt: new Date().toISOString()
+        };
+      },
+      async getHearings(filters = {}) {
+        const params = [
+          "select=id,legacy_id,file_id,court,case_file_no,hearing_date,hearing_time,client_name,party_role,excuse_type,attendee_profile_id,attendee_name,participant_profile_id,participant_name,note,outcome,status,metadata,created_at,updated_at,deleted_at",
+          "deleted_at=is.null",
+          "order=hearing_date.asc.nullslast",
+          "order=hearing_time.asc.nullslast"
+        ];
+        if (filters.dateFrom) params.push(`hearing_date=gte.${encodeURIComponent(filters.dateFrom)}`);
+        if (filters.dateTo) params.push(`hearing_date=lte.${encodeURIComponent(filters.dateTo)}`);
+        if (filters.fileId) params.push(`file_id=eq.${encodeURIComponent(filters.fileId)}`);
+        if (filters.status) params.push(`status=eq.${encodeURIComponent(filters.status)}`);
+        if (filters.excuseType) params.push(`excuse_type=eq.${encodeURIComponent(filters.excuseType)}`);
+        if (filters.participantProfileId) params.push(`participant_profile_id=eq.${encodeURIComponent(filters.participantProfileId)}`);
+
+        const response = await fetch(`${restUrl("hearings")}?${params.join("&")}`, {
+          headers: await authHeaders(repository)
+        });
+        if (!response.ok) throw new Error(`Duruşmalar okunamadı: ${response.status} ${await safeResponseText(response)}`);
+        const hearings = await response.json();
+        const [files, profiles] = await Promise.all([
+          repository.getFiles(),
+          repository.listProfiles().catch(() => [])
+        ]);
+        const filesById = new Map((files || []).map(file => [file.id, file]));
+        const profilesById = new Map((profiles || []).map(profile => [profile.id, profile]));
+        return hearings.map(row => ({
+          ...row,
+          file: filesById.get(row.file_id) || null,
+          participant_profile: profilesById.get(row.participant_profile_id || row.attendee_profile_id) || null
+        }));
+      },
+      async getHearing(id) {
+        if (!id) return null;
+        const filter = isUuid(id)
+          ? `id=eq.${encodeURIComponent(id)}`
+          : `legacy_id=eq.${encodeURIComponent(id)}`;
+        const response = await fetch(`${restUrl("hearings")}?select=*&deleted_at=is.null&${filter}&limit=1`, {
+          headers: await authHeaders(repository)
+        });
+        if (!response.ok) throw new Error(`Duruşma okunamadı: ${response.status} ${await safeResponseText(response)}`);
+        const rows = await response.json();
+        return rows[0] || null;
+      },
+      async createHearing(row) {
+        const response = await fetch(`${restUrl("hearings")}`, {
+          method: "POST",
+          headers: {
+            ...(await authHeaders(repository)),
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+          },
+          body: JSON.stringify(cleanInsertPayload(row))
+        });
+        if (!response.ok) {
+          const body = await safeResponseText(response);
+          let parsed = {};
+          try {
+            parsed = JSON.parse(body);
+          } catch {}
+          console.error("[BKT hearings create] Supabase INSERT failed.", {
+            status: response.status,
+            statusText: response.statusText,
+            code: parsed.code,
+            message: parsed.message,
+            details: parsed.details,
+            hint: parsed.hint,
+            payload: {
+              ...row,
+              metadata: row?.metadata ? "[metadata]" : row?.metadata,
+              outcome: row?.outcome ? "[outcome]" : row?.outcome
+            }
+          });
+          throw new Error(`Duruşma oluşturulamadı: ${response.status}`);
+        }
+        const rows = await response.json();
+        if (!rows[0]) {
+          console.error("[BKT hearings create] Supabase INSERT returned no row.", { payload: row });
+          throw new Error("Duruşma oluşturuldu ancak kayıt dönmedi.");
+        }
+        return rows[0];
+      },
+      async updateHearing(id, row) {
+        if (!id) throw new Error("Duruşma seçilmedi.");
+        const filter = isUuid(id)
+          ? `id=eq.${encodeURIComponent(id)}`
+          : `legacy_id=eq.${encodeURIComponent(id)}`;
+        const response = await fetch(`${restUrl("hearings")}?${filter}`, {
+          method: "PATCH",
+          headers: {
+            ...(await authHeaders(repository)),
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+          },
+          body: JSON.stringify({
+            ...row,
+            updated_at: new Date().toISOString()
+          })
+        });
+        if (!response.ok) throw new Error(`Duruşma güncellenemedi: ${response.status} ${await safeResponseText(response)}`);
+        const rows = await response.json();
+        return rows[0] || null;
+      },
+      async deleteHearing(id) {
+        if (!id) throw new Error("Duruşma seçilmedi.");
+        let hearingId = id;
+        if (!isUuid(hearingId)) {
+          const existing = await repository.getHearing(id);
+          hearingId = existing?.id || "";
+        }
+        if (!isUuid(hearingId)) {
+          console.error("[BKT hearings delete] Hearing UUID could not be resolved.", { requestedId: id, resolvedId: hearingId });
+          throw new Error("Hearing UUID could not be resolved.");
+        }
+        const { data, error, status, statusText } = await authClient.rpc("soft_delete_hearing", { p_hearing_id: hearingId });
+        if (error) {
+          console.error("[BKT hearings delete] Supabase RPC soft delete failed.", {
+            requestedId: id,
+            hearingId,
+            status,
+            statusText,
+            code: error.code,
+            message: error.message,
+            details: error.details,
+            hint: error.hint
+          });
+          throw error;
+        }
+        const rows = Array.isArray(data) ? data : data ? [data] : [];
+        if (!rows.length) {
+          console.error("[BKT hearings delete] Supabase RPC soft delete returned no rows.", {
+            requestedId: id,
+            hearingId,
+            status,
+            statusText
+          });
+          throw new Error("Hearing was not found or was already deleted.");
+        }
+        return rows[0];
+      },
+      async completeHearing(id, outcome = {}) {
+        const existing = await repository.getHearing(id);
+        const metadata = existing?.metadata && typeof existing.metadata === "object" ? existing.metadata : {};
+        return repository.updateHearing(id, {
+          status: "completed",
+          outcome: outcome && typeof outcome === "object" ? outcome : { text: String(outcome || "") },
+          metadata: {
+            ...metadata,
+            completedAt: new Date().toISOString()
+          }
+        });
+      },
+      async reopenHearing(id) {
+        const existing = await repository.getHearing(id);
+        const metadata = existing?.metadata && typeof existing.metadata === "object" ? existing.metadata : {};
+        return repository.updateHearing(id, {
+          status: "scheduled",
+          metadata: {
+            ...metadata,
+            reopenedAt: new Date().toISOString()
+          }
+        });
+      },
+      async getDeadlines(filters = {}) {
+        const params = [
+          "select=id,legacy_id,file_id,title,task,description,responsible_profile_id,responsible_name,start_date,due_date,status,completed_at,completed_late,created_at,updated_at,deleted_at,metadata",
+          "deleted_at=is.null",
+          "order=due_date.asc.nullslast",
+          "order=created_at.desc"
+        ];
+        if (filters.dateFrom) params.push(`due_date=gte.${encodeURIComponent(filters.dateFrom)}`);
+        if (filters.dateTo) params.push(`due_date=lte.${encodeURIComponent(filters.dateTo)}`);
+        if (filters.fileId) params.push(`file_id=eq.${encodeURIComponent(filters.fileId)}`);
+        if (filters.status) params.push(`status=eq.${encodeURIComponent(filters.status)}`);
+        if (filters.responsibleProfileId) params.push(`responsible_profile_id=eq.${encodeURIComponent(filters.responsibleProfileId)}`);
+
+        const response = await fetch(`${restUrl("deadlines")}?${params.join("&")}`, {
+          headers: await authHeaders(repository)
+        });
+        if (!response.ok) {
+          const body = await safeResponseText(response);
+          console.error("[BKT deadlines] Supabase SELECT failed.", {
+            status: response.status,
+            statusText: response.statusText,
+            body
+          });
+          throw new Error(`Süreli işler okunamadı: ${response.status}`);
+        }
+        const deadlines = await response.json();
+        const [files, profiles] = await Promise.all([
+          repository.getFiles(),
+          repository.listProfiles().catch(error => {
+            console.error("[BKT deadlines] Profil listesi okunamadı.", { message: error?.message || String(error) });
+            throw error;
+          })
+        ]);
+        const filesById = new Map((files || []).map(file => [file.id, file]));
+        const profilesById = new Map((profiles || []).map(profile => [profile.id, profile]));
+        return deadlines.map(row => ({
+          ...row,
+          file: filesById.get(row.file_id) || null,
+          responsible_profile: profilesById.get(row.responsible_profile_id) || null
+        }));
+      },
+      async getDeadline(id) {
+        if (!id) return null;
+        const filter = isUuid(id)
+          ? `id=eq.${encodeURIComponent(id)}`
+          : `legacy_id=eq.${encodeURIComponent(id)}`;
+        const response = await fetch(`${restUrl("deadlines")}?select=*&deleted_at=is.null&${filter}&limit=1`, {
+          headers: await authHeaders(repository)
+        });
+        if (!response.ok) throw new Error(`Süreli iş okunamadı: ${response.status} ${await safeResponseText(response)}`);
+        const rows = await response.json();
+        return rows[0] || null;
+      },
+      async createDeadline(row) {
+        const response = await fetch(`${restUrl("deadlines")}`, {
+          method: "POST",
+          headers: {
+            ...(await authHeaders(repository)),
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+          },
+          body: JSON.stringify(cleanInsertPayload(row))
+        });
+        if (!response.ok) {
+          const body = await safeResponseText(response);
+          let parsed = {};
+          try {
+            parsed = JSON.parse(body);
+          } catch {}
+          console.error("[BKT deadlines create] Supabase INSERT failed.", {
+            status: response.status,
+            statusText: response.statusText,
+            code: parsed.code,
+            message: parsed.message,
+            details: parsed.details,
+            hint: parsed.hint,
+            payload: {
+              ...row,
+              metadata: row?.metadata ? "[metadata]" : row?.metadata
+            }
+          });
+          throw new Error(`Süreli iş oluşturulamadı: ${response.status}`);
+        }
+        const rows = await response.json();
+        if (!rows[0]) {
+          console.error("[BKT deadlines create] Supabase INSERT returned no row.", { payload: row });
+          throw new Error("Süreli iş oluşturuldu ancak kayıt dönmedi.");
+        }
+        return rows[0];
+      },
+      async updateDeadline(id, row) {
+        if (!id) throw new Error("Süreli iş seçilmedi.");
+        const filter = isUuid(id)
+          ? `id=eq.${encodeURIComponent(id)}`
+          : `legacy_id=eq.${encodeURIComponent(id)}`;
+        const response = await fetch(`${restUrl("deadlines")}?${filter}&deleted_at=is.null`, {
+          method: "PATCH",
+          headers: {
+            ...(await authHeaders(repository)),
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+          },
+          body: JSON.stringify({
+            ...row,
+            updated_at: new Date().toISOString()
+          })
+        });
+        if (!response.ok) {
+          const body = await safeResponseText(response);
+          let parsed = {};
+          try {
+            parsed = JSON.parse(body);
+          } catch {}
+          console.error("[BKT deadlines update] Supabase UPDATE failed.", {
+            requestedId: id,
+            status: response.status,
+            statusText: response.statusText,
+            code: parsed.code,
+            message: parsed.message,
+            details: parsed.details,
+            hint: parsed.hint,
+            payload: {
+              ...row,
+              metadata: row?.metadata ? "[metadata]" : row?.metadata
+            }
+          });
+          throw new Error(`Süreli iş güncellenemedi: ${response.status}`);
+        }
+        const rows = await response.json();
+        return rows[0] || null;
+      },
+      async completeDeadline(id) {
+        const existing = await repository.getDeadline(id);
+        if (!existing) throw new Error("Süreli iş kaydı bulunamadı.");
+        const today = localDateString();
+        const metadata = existing?.metadata && typeof existing.metadata === "object" ? existing.metadata : {};
+        return repository.updateDeadline(id, {
+          status: "Tamamlandı",
+          completed_at: new Date().toISOString(),
+          completed_late: Boolean(existing.due_date && existing.due_date < today),
+          metadata: {
+            ...metadata,
+            completedFromUiAt: new Date().toISOString()
+          }
+        });
+      },
+      async reopenDeadline(id) {
+        const existing = await repository.getDeadline(id);
+        if (!existing) throw new Error("Süreli iş kaydı bulunamadı.");
+        const metadata = existing?.metadata && typeof existing.metadata === "object" ? existing.metadata : {};
+        return repository.updateDeadline(id, {
+          status: "Aktif",
+          completed_at: null,
+          completed_late: false,
+          metadata: {
+            ...metadata,
+            reopenedFromUiAt: new Date().toISOString()
+          }
+        });
+      },
+      async deleteDeadline(id) {
+        if (!id) throw new Error("Süreli iş seçilmedi.");
+        let deadlineId = id;
+        if (!isUuid(deadlineId)) {
+          const existing = await repository.getDeadline(id);
+          deadlineId = existing?.id || "";
+        }
+        if (!isUuid(deadlineId)) {
+          console.error("[BKT deadlines delete] Deadline UUID could not be resolved.", { requestedId: id, resolvedId: deadlineId });
+          throw new Error("Deadline UUID could not be resolved.");
+        }
+        const { data, error, status, statusText } = await authClient.rpc("soft_delete_deadline", { p_deadline_id: deadlineId });
+        if (error) {
+          console.error("[BKT deadlines delete] Supabase RPC soft delete failed.", {
+            requestedId: id,
+            deadlineId,
+            status,
+            statusText,
+            code: error.code,
+            message: error.message,
+            details: error.details,
+            hint: error.hint
+          });
+          throw error;
+        }
+        const rows = Array.isArray(data) ? data : data ? [data] : [];
+        if (!rows.length) {
+          console.error("[BKT deadlines delete] Supabase RPC soft delete returned no rows.", {
+            requestedId: id,
+            deadlineId,
+            status,
+            statusText
+          });
+          throw new Error("Deadline was not found or was already deleted.");
+        }
+        return rows[0];
+      },
+      async getTasks(filters = {}) {
+        const params = [
+          "select=id,legacy_id,task_type,file_id,title,description,responsible_profile_id,responsible_name,due_date,status,priority,completed_at,created_by_profile_id,created_at,updated_at,deleted_at,metadata",
+          "deleted_at=is.null",
+          "order=due_date.asc.nullslast",
+          "order=created_at.desc"
+        ];
+        if (filters.dateFrom) params.push(`due_date=gte.${encodeURIComponent(filters.dateFrom)}`);
+        if (filters.dateTo) params.push(`due_date=lte.${encodeURIComponent(filters.dateTo)}`);
+        if (filters.fileId) params.push(`file_id=eq.${encodeURIComponent(filters.fileId)}`);
+        if (filters.status) params.push(`status=eq.${encodeURIComponent(filters.status)}`);
+        if (filters.taskType) params.push(`task_type=eq.${encodeURIComponent(filters.taskType)}`);
+        if (filters.priority) params.push(`priority=eq.${encodeURIComponent(filters.priority)}`);
+        const responsibleFilter = filters.responsibleProfileId || filters.assignedToProfileId;
+        if (responsibleFilter) params.push(`responsible_profile_id=eq.${encodeURIComponent(responsibleFilter)}`);
+
+        const response = await fetch(`${restUrl("tasks")}?${params.join("&")}`, {
+          headers: await authHeaders(repository)
+        });
+        if (!response.ok) {
+          const body = await safeResponseText(response);
+          console.error("[BKT tasks] Supabase SELECT failed.", {
+            status: response.status,
+            statusText: response.statusText,
+            body
+          });
+          throw new Error(`Görevler okunamadı: ${response.status}`);
+        }
+        const tasks = await response.json();
+        const [files, profiles] = await Promise.all([
+          repository.getFiles(),
+          repository.listProfiles().catch(error => {
+            console.error("[BKT tasks] Profil listesi okunamadı.", { message: error?.message || String(error) });
+            throw error;
+          })
+        ]);
+        const filesById = new Map((files || []).map(file => [file.id, file]));
+        const profilesById = new Map((profiles || []).map(profile => [profile.id, profile]));
+        return tasks.map(row => ({
+          ...row,
+          file: filesById.get(row.file_id) || null,
+          responsible_profile: profilesById.get(row.responsible_profile_id) || null
+        }));
+      },
+      async getTask(id) {
+        if (!id) return null;
+        const filter = isUuid(id)
+          ? `id=eq.${encodeURIComponent(id)}`
+          : `legacy_id=eq.${encodeURIComponent(id)}`;
+        const response = await fetch(`${restUrl("tasks")}?select=*&deleted_at=is.null&${filter}&limit=1`, {
+          headers: await authHeaders(repository)
+        });
+        if (!response.ok) throw new Error(`Görev okunamadı: ${response.status} ${await safeResponseText(response)}`);
+        const rows = await response.json();
+        return rows[0] || null;
+      },
+      async createTask(row) {
+        const response = await fetch(`${restUrl("tasks")}`, {
+          method: "POST",
+          headers: {
+            ...(await authHeaders(repository)),
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+          },
+          body: JSON.stringify(cleanInsertPayload(row))
+        });
+        if (!response.ok) {
+          const body = await safeResponseText(response);
+          let parsed = {};
+          try {
+            parsed = JSON.parse(body);
+          } catch {}
+          console.error("[BKT tasks create] Supabase INSERT failed.", {
+            status: response.status,
+            statusText: response.statusText,
+            code: parsed.code,
+            message: parsed.message,
+            details: parsed.details,
+            hint: parsed.hint,
+            payload: {
+              ...row,
+              metadata: row?.metadata ? "[metadata]" : row?.metadata
+            }
+          });
+          throw new Error(`Görev oluşturulamadı: ${response.status}`);
+        }
+        const rows = await response.json();
+        if (!rows[0]) {
+          console.error("[BKT tasks create] Supabase INSERT returned no row.", {
+            payload: {
+              ...row,
+              metadata: row?.metadata ? "[metadata]" : row?.metadata
+            }
+          });
+          throw new Error("Görev oluşturuldu ancak kayıt dönmedi.");
+        }
+        return rows[0];
+      },
+      async updateTask(id, row) {
+        if (!id) throw new Error("Görev seçilmedi.");
+        const filter = isUuid(id)
+          ? `id=eq.${encodeURIComponent(id)}`
+          : `legacy_id=eq.${encodeURIComponent(id)}`;
+        const response = await fetch(`${restUrl("tasks")}?${filter}&deleted_at=is.null`, {
+          method: "PATCH",
+          headers: {
+            ...(await authHeaders(repository)),
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+          },
+          body: JSON.stringify({
+            ...row,
+            updated_at: new Date().toISOString()
+          })
+        });
+        if (!response.ok) {
+          const body = await safeResponseText(response);
+          let parsed = {};
+          try {
+            parsed = JSON.parse(body);
+          } catch {}
+          console.error("[BKT tasks update] Supabase UPDATE failed.", {
+            requestedId: id,
+            status: response.status,
+            statusText: response.statusText,
+            code: parsed.code,
+            message: parsed.message,
+            details: parsed.details,
+            hint: parsed.hint,
+            payload: {
+              ...row,
+              metadata: row?.metadata ? "[metadata]" : row?.metadata
+            }
+          });
+          throw new Error(`Görev güncellenemedi: ${response.status}`);
+        }
+        const rows = await response.json();
+        return rows[0] || null;
+      },
+      async completeTask(id) {
+        const existing = await repository.getTask(id);
+        if (!existing) throw new Error("Görev kaydı bulunamadı.");
+        const metadata = existing?.metadata && typeof existing.metadata === "object" ? existing.metadata : {};
+        return repository.updateTask(id, {
+          status: "completed",
+          completed_at: new Date().toISOString(),
+          metadata: {
+            ...metadata,
+            completedFromUiAt: new Date().toISOString()
+          }
+        });
+      },
+      async reopenTask(id) {
+        const existing = await repository.getTask(id);
+        if (!existing) throw new Error("Görev kaydı bulunamadı.");
+        const metadata = existing?.metadata && typeof existing.metadata === "object" ? existing.metadata : {};
+        return repository.updateTask(id, {
+          status: "active",
+          completed_at: null,
+          metadata: {
+            ...metadata,
+            reopenedFromUiAt: new Date().toISOString()
+          }
+        });
+      },
+      async deleteTask(id) {
+        if (!id) throw new Error("Görev seçilmedi.");
+        let taskId = id;
+        if (!isUuid(taskId)) {
+          const existing = await repository.getTask(id);
+          taskId = existing?.id || "";
+        }
+        if (!isUuid(taskId)) {
+          console.error("[BKT tasks delete] Task UUID could not be resolved.", { requestedId: id, resolvedId: taskId });
+          throw new Error("Task UUID could not be resolved.");
+        }
+        const { data, error, status, statusText } = await authClient.rpc("soft_delete_task", { p_task_id: taskId });
+        if (error) {
+          console.error("[BKT tasks delete] Supabase RPC soft delete failed.", {
+            requestedId: id,
+            taskId,
+            status,
+            statusText,
+            code: error.code,
+            message: error.message,
+            details: error.details,
+            hint: error.hint
+          });
+          throw error;
+        }
+        const rows = Array.isArray(data) ? data : data ? [data] : [];
+        if (!rows.length) {
+          console.error("[BKT tasks delete] Supabase RPC soft delete returned no rows.", {
+            requestedId: id,
+            taskId,
+            status,
+            statusText
+          });
+          throw new Error("Task was not found or was already deleted.");
+        }
+        return rows[0];
+      },
+      async getClients(filters = {}) {
+        const params = [
+          "select=id,legacy_id,name,tax_id,national_id,phone,email,address,client_type,metadata,created_at,updated_at,deleted_at",
+          "deleted_at=is.null",
+          "order=name.asc"
+        ];
+        if (filters.clientType) params.push(`client_type=eq.${encodeURIComponent(filters.clientType)}`);
+        const response = await fetch(`${restUrl("clients")}?${params.join("&")}`, {
+          headers: await authHeaders(repository)
+        });
+        if (!response.ok) {
+          const body = await safeResponseText(response);
+          console.error("[BKT clients] Supabase SELECT failed.", {
+            filters,
+            status: response.status,
+            statusText: response.statusText,
+            body
+          });
+          throw new Error(`Müvekkiller okunamadı: ${response.status}`);
+        }
+        return response.json();
+      },
+      async getFileParties(filters = {}) {
+        const select = [
+          "id",
+          "legacy_id",
+          "file_id",
+          "client_id",
+          "party_type",
+          "side",
+          "role",
+          "role_label",
+          "name",
+          "tax_id",
+          "phone",
+          "email",
+          "is_primary",
+          "metadata",
+          "created_at",
+          "updated_at",
+          "deleted_at",
+          "client:clients(id,name,tax_id,national_id,phone,email,client_type)"
+        ].join(",");
+        const params = [
+          `select=${select}`,
+          "deleted_at=is.null",
+          "order=is_primary.desc,created_at.asc"
+        ];
+        if (filters.fileId) params.push(`file_id=eq.${encodeURIComponent(filters.fileId)}`);
+        if (filters.clientId) params.push(`client_id=eq.${encodeURIComponent(filters.clientId)}`);
+        const response = await fetch(`${restUrl("file_parties")}?${params.join("&")}`, {
+          headers: await authHeaders(repository)
+        });
+        if (!response.ok) {
+          const body = await safeResponseText(response);
+          console.error("[BKT file parties] Supabase SELECT failed.", {
+            fileId: filters.fileId,
+            status: response.status,
+            statusText: response.statusText,
+            body
+          });
+          throw new Error(`Taraflar okunamadı: ${response.status}`);
+        }
+        return response.json();
+      },
+      async findClientForParty(party = {}) {
+        const name = normalizeTextValue(party.name);
+        const taxId = normalizeTaxIdentifier(party.taxId || party.tax_id);
+        const select = "id,legacy_id,name,tax_id,national_id,client_type,metadata,deleted_at";
+        if (taxId) {
+          const taxResponse = await fetch(`${restUrl("clients")}?select=${select}&deleted_at=is.null&tax_id=eq.${encodeURIComponent(taxId)}&limit=2`, {
+            headers: await authHeaders(repository)
+          });
+          if (!taxResponse.ok) throw new Error(`Müvekkil TC/VKN eşleşmesi okunamadı: ${taxResponse.status} ${await safeResponseText(taxResponse)}`);
+          const taxRows = await taxResponse.json();
+          if (taxRows.length === 1) return taxRows[0];
+        }
+        if (!name) return null;
+        const nameResponse = await fetch(`${restUrl("clients")}?select=${select}&deleted_at=is.null&name=eq.${encodeURIComponent(name)}&limit=2`, {
+          headers: await authHeaders(repository)
+        });
+        if (!nameResponse.ok) throw new Error(`Müvekkil isim eşleşmesi okunamadı: ${nameResponse.status} ${await safeResponseText(nameResponse)}`);
+        const nameRows = await nameResponse.json();
+        return nameRows.length === 1 ? nameRows[0] : null;
+      },
+      async createClient(row) {
+        const response = await fetch(`${restUrl("clients")}`, {
+          method: "POST",
+          headers: {
+            ...(await authHeaders(repository)),
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+          },
+          body: JSON.stringify(cleanInsertPayload(row))
+        });
+        if (!response.ok) throw new Error(`Müvekkil oluşturulamadı: ${response.status} ${await safeResponseText(response)}`);
+        const rows = await response.json();
+        return rows[0] || null;
+      },
+      async createFileParty(row) {
+        const response = await fetch(`${restUrl("file_parties")}`, {
+          method: "POST",
+          headers: {
+            ...(await authHeaders(repository)),
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+          },
+          body: JSON.stringify(cleanInsertPayload(row))
+        });
+        if (!response.ok) throw new Error(`Taraf oluşturulamadı: ${response.status} ${await safeResponseText(response)}`);
+        const rows = await response.json();
+        return rows[0] || null;
+      },
+      async syncFileParties(fileId, parties = []) {
+        if (!isUuid(fileId)) throw new Error("Taraf senkronizasyonu için gerçek dosya UUID gerekli.");
+        const cleanParties = (Array.isArray(parties) ? parties : [])
+          .map(normalizeRepositoryParty)
+          .filter(party => party.name || party.taxId);
+        if (!cleanParties.length) return [];
+
+        const existingParties = typeof repository.getFileParties === "function"
+          ? await repository.getFileParties({ fileId })
+          : [];
+        const existingKeys = new Set(existingParties.map(filePartyIdentityKey));
+        const savedRows = [];
+
+        for (const party of cleanParties) {
+          let client = await repository.findClientForParty(party);
+          if (!client) {
+            client = await repository.createClient({
+              name: party.name || "İsimsiz taraf",
+              tax_id: party.taxId || null,
+              client_type: inferRepositoryClientType(party.name, party.taxId),
+              metadata: {
+                source: "file-form",
+                createdFromFileId: fileId
+              }
+            });
+          }
+
+          const row = {
+            file_id: fileId,
+            client_id: client?.id || null,
+            party_type: party.partyType || "other",
+            side: party.side || "other",
+            role: party.roleLabel || null,
+            role_label: party.roleLabel || null,
+            name: party.name || client?.name || "İsimsiz taraf",
+            tax_id: party.taxId || client?.tax_id || null,
+            phone: party.phone || null,
+            email: party.email || null,
+            is_primary: Boolean(party.isPrimary),
+            metadata: {
+              source: "file-form",
+              clientMatch: client?.id ? "matched-or-created" : "none"
+            }
+          };
+          const key = filePartyIdentityKey(row);
+          if (existingKeys.has(key)) continue;
+          const saved = await repository.createFileParty(row);
+          if (saved) {
+            existingKeys.add(filePartyIdentityKey(saved));
+            savedRows.push(saved);
+          }
+        }
+        return savedRows;
+      },
+      async getCollections(filters = {}) {
+        const params = [
+          "select=id,legacy_id,file_id,payment_plan_id,payment_installment_id,amount,currency,collection_date,payment_kind,description,metadata,created_at,updated_at,deleted_at",
+          "deleted_at=is.null",
+          "order=collection_date.desc",
+          "order=created_at.desc"
+        ];
+        if (filters.fileId) params.push(`file_id=eq.${encodeURIComponent(filters.fileId)}`);
+        if (filters.paymentPlanId) params.push(`payment_plan_id=eq.${encodeURIComponent(filters.paymentPlanId)}`);
+        const response = await fetch(`${restUrl("collections")}?${params.join("&")}`, {
+          headers: await authHeaders(repository)
+        });
+        if (!response.ok) {
+          const body = await safeResponseText(response);
+          console.error("[BKT collections] Supabase SELECT failed.", {
+            filters,
+            status: response.status,
+            statusText: response.statusText,
+            body
+          });
+          throw new Error(`Tahsilatlar okunamadı: ${response.status}`);
+        }
+        return response.json();
+      },
+      async createCollection(row) {
+        const response = await fetch(`${restUrl("collections")}`, {
+          method: "POST",
+          headers: {
+            ...(await authHeaders(repository)),
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+          },
+          body: JSON.stringify(cleanInsertPayload(row))
+        });
+        if (!response.ok) {
+          const body = await safeResponseText(response);
+          console.error("[BKT collections create] Supabase INSERT failed.", { status: response.status, statusText: response.statusText, body });
+          throw new Error(`Tahsilat oluşturulamadı: ${response.status}`);
+        }
+        const rows = await response.json();
+        return rows[0] || null;
+      },
+      async updateCollection(id, row) {
+        if (!id) throw new Error("Tahsilat seçilmedi.");
+        const response = await fetch(`${restUrl("collections")}?id=eq.${encodeURIComponent(id)}&deleted_at=is.null`, {
+          method: "PATCH",
+          headers: {
+            ...(await authHeaders(repository)),
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+          },
+          body: JSON.stringify({
+            ...row,
+            updated_at: new Date().toISOString()
+          })
+        });
+        if (!response.ok) {
+          const body = await safeResponseText(response);
+          console.error("[BKT collections update] Supabase UPDATE failed.", { id, status: response.status, statusText: response.statusText, body });
+          throw new Error(`Tahsilat güncellenemedi: ${response.status}`);
+        }
+        const rows = await response.json();
+        return rows[0] || null;
+      },
+      async deleteCollection(id) {
+        if (!id) throw new Error("Tahsilat seçilmedi.");
+        const { data, error, status, statusText } = await authClient.rpc("soft_delete_collection", { p_collection_id: id });
+        if (error) {
+          console.error("[BKT collections delete] Supabase RPC soft delete failed.", {
+            id,
+            status,
+            statusText,
+            code: error.code,
+            message: error.message,
+            details: error.details,
+            hint: error.hint
+          });
+          throw error;
+        }
+        const rows = Array.isArray(data) ? data : data ? [data] : [];
+        if (!rows.length) {
+          console.error("[BKT collections delete] Supabase RPC soft delete returned no rows.", { id, status, statusText });
+          throw new Error("Collection was not found or was already deleted.");
+        }
+        return rows[0];
+      },
+      async getPaymentPlans(filters = {}) {
+        const select = [
+          "id",
+          "legacy_id",
+          "file_id",
+          "client_id",
+          "plan_type",
+          "party_name",
+          "agreement_amount",
+          "initial_payment",
+          "installment_count",
+          "first_due_date",
+          "currency",
+          "status",
+          "description",
+          "metadata",
+          "created_at",
+          "updated_at",
+          "deleted_at",
+          "client:clients(id,name,tax_id,national_id,client_type)"
+        ].join(",");
+        const params = [
+          `select=${select}`,
+          "deleted_at=is.null",
+          "order=updated_at.desc",
+          "order=created_at.desc"
+        ];
+        if (filters.fileId) params.push(`file_id=eq.${encodeURIComponent(filters.fileId)}`);
+        if (filters.clientId) params.push(`client_id=eq.${encodeURIComponent(filters.clientId)}`);
+        const response = await fetch(`${restUrl("payment_plans")}?${params.join("&")}`, {
+          headers: await authHeaders(repository)
+        });
+        if (!response.ok) {
+          const body = await safeResponseText(response);
+          console.error("[BKT payment plans] Supabase SELECT failed.", {
+            filters,
+            status: response.status,
+            statusText: response.statusText,
+            body
+          });
+          throw new Error(`Ödeme planları okunamadı: ${response.status}`);
+        }
+        const plans = await response.json();
+        const planIds = plans.map(plan => plan.id).filter(Boolean);
+        if (!planIds.length) return plans;
+        const installmentsResponse = await fetch(
+          `${restUrl("payment_installments")}?select=*&payment_plan_id=in.(${planIds.map(encodeURIComponent).join(",")})&deleted_at=is.null&order=sequence_no.asc`,
+          { headers: await authHeaders(repository) }
+        );
+        if (!installmentsResponse.ok) {
+          const body = await safeResponseText(installmentsResponse);
+          console.error("[BKT payment installments] Supabase SELECT failed.", {
+            planIds,
+            status: installmentsResponse.status,
+            statusText: installmentsResponse.statusText,
+            body
+          });
+          throw new Error(`Ödeme taksitleri okunamadı: ${installmentsResponse.status}`);
+        }
+        const installments = await installmentsResponse.json();
+        const installmentsByPlan = new Map();
+        installments.forEach(row => {
+          const list = installmentsByPlan.get(row.payment_plan_id) || [];
+          list.push(row);
+          installmentsByPlan.set(row.payment_plan_id, list);
+        });
+        return plans.map(plan => ({
+          ...plan,
+          installments: installmentsByPlan.get(plan.id) || []
+        }));
+      },
+      async createPaymentPlan(row) {
+        const response = await fetch(`${restUrl("payment_plans")}`, {
+          method: "POST",
+          headers: {
+            ...(await authHeaders(repository)),
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+          },
+          body: JSON.stringify(cleanInsertPayload(row))
+        });
+        if (!response.ok) throw new Error(`Ödeme planı oluşturulamadı: ${response.status} ${await safeResponseText(response)}`);
+        const rows = await response.json();
+        return rows[0] || null;
+      },
+      async updatePaymentPlan(id, row) {
+        if (!id) throw new Error("Ödeme planı seçilmedi.");
+        const response = await fetch(`${restUrl("payment_plans")}?id=eq.${encodeURIComponent(id)}&deleted_at=is.null`, {
+          method: "PATCH",
+          headers: {
+            ...(await authHeaders(repository)),
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+          },
+          body: JSON.stringify({
+            ...row,
+            updated_at: new Date().toISOString()
+          })
+        });
+        if (!response.ok) throw new Error(`Ödeme planı güncellenemedi: ${response.status} ${await safeResponseText(response)}`);
+        const rows = await response.json();
+        return rows[0] || null;
+      },
+      async deletePaymentPlan(id) {
+        if (!id) throw new Error("Ödeme planı seçilmedi.");
+        const response = await fetch(`${restUrl("rpc/soft_delete_payment_plan")}`, {
+          method: "POST",
+          headers: {
+            ...(await authHeaders(repository)),
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+          },
+          body: JSON.stringify({ p_payment_plan_id: id })
+        });
+        if (!response.ok) throw new Error(`Ödeme planı silinemedi: ${response.status} ${await safeResponseText(response)}`);
+        const rows = await response.json();
+        if (!Array.isArray(rows) || !rows.length) throw new Error("Ödeme planı silinemedi: RPC boş sonuç döndürdü.");
+        return true;
+      },
+      async replacePaymentInstallments(paymentPlanId, installments = []) {
+        if (!paymentPlanId) return [];
+        const now = new Date().toISOString();
+        const deleteResponse = await fetch(`${restUrl("payment_installments")}?payment_plan_id=eq.${encodeURIComponent(paymentPlanId)}&deleted_at=is.null`, {
+          method: "PATCH",
+          headers: {
+            ...(await authHeaders(repository)),
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal"
+          },
+          body: JSON.stringify({ deleted_at: now, updated_at: now })
+        });
+        if (!deleteResponse.ok) throw new Error(`Ödeme taksitleri temizlenemedi: ${deleteResponse.status} ${await safeResponseText(deleteResponse)}`);
+        const rows = installments.map((installment, index) => ({
+          payment_plan_id: paymentPlanId,
+          sequence_no: installment.sequence || index + 1,
+          due_date: installment.dueDate || installment.due_date || todayIso(),
+          amount: installment.amount ?? 0,
+          paid_amount: installment.paidAmount ?? 0,
+          paid_date: installment.paidDate || null,
+          status: installment.status || null,
+          payments: Array.isArray(installment.payments) ? installment.payments : [],
+          metadata: installment.metadata || {}
+        }));
+        if (!rows.length) return [];
+        const response = await fetch(`${restUrl("payment_installments")}`, {
+          method: "POST",
+          headers: {
+            ...(await authHeaders(repository)),
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+          },
+          body: JSON.stringify(rows)
+        });
+        if (!response.ok) throw new Error(`Ödeme taksitleri kaydedilemedi: ${response.status} ${await safeResponseText(response)}`);
+        return response.json();
+      },
+      async updatePaymentInstallment(id, row) {
+        if (!id) return null;
+        const response = await fetch(`${restUrl("payment_installments")}?id=eq.${encodeURIComponent(id)}&deleted_at=is.null`, {
+          method: "PATCH",
+          headers: {
+            ...(await authHeaders(repository)),
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+          },
+          body: JSON.stringify({ ...row, updated_at: new Date().toISOString() })
+        });
+        if (!response.ok) throw new Error(`Ödeme taksiti güncellenemedi: ${response.status} ${await safeResponseText(response)}`);
+        const rows = await response.json();
+        return rows[0] || null;
+      },
+      async getFileNotes(filters = {}) {
+        if (!filters.fileId) return [];
+        const select = [
+          "id",
+          "legacy_id",
+          "file_id",
+          "note_text",
+          "author_profile_id",
+          "author_name",
+          "created_at",
+          "updated_at",
+          "deleted_at",
+          "author_profile:profiles!file_notes_author_profile_id_fkey(id,display_name)"
+        ].join(",");
+        const response = await fetch(`${restUrl("file_notes")}?select=${select}&file_id=eq.${encodeURIComponent(filters.fileId)}&deleted_at=is.null&order=created_at.desc`, {
+          headers: await authHeaders(repository)
+        });
+        if (!response.ok) {
+          const body = await safeResponseText(response);
+          console.error("[BKT file notes] Supabase SELECT failed.", {
+            fileId: filters.fileId,
+            status: response.status,
+            statusText: response.statusText,
+            body
+          });
+          throw new Error(`Dosya notları okunamadı: ${response.status}`);
+        }
+        return response.json();
+      },
+      async createFileNote(row) {
+        const response = await fetch(`${restUrl("file_notes")}`, {
+          method: "POST",
+          headers: {
+            ...(await authHeaders(repository)),
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+          },
+          body: JSON.stringify(cleanInsertPayload(row))
+        });
+        if (!response.ok) {
+          const body = await safeResponseText(response);
+          console.error("[BKT file notes create] Supabase INSERT failed.", { status: response.status, statusText: response.statusText, body });
+          throw new Error(`Dosya notu oluşturulamadı: ${response.status}`);
+        }
+        const rows = await response.json();
+        return rows[0] || null;
+      },
+      async updateFileNote(id, row) {
+        if (!id) throw new Error("Dosya notu seçilmedi.");
+        const response = await fetch(`${restUrl("file_notes")}?id=eq.${encodeURIComponent(id)}&deleted_at=is.null`, {
+          method: "PATCH",
+          headers: {
+            ...(await authHeaders(repository)),
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+          },
+          body: JSON.stringify({
+            ...row,
+            updated_at: new Date().toISOString()
+          })
+        });
+        if (!response.ok) throw new Error(`Dosya notu güncellenemedi: ${response.status} ${await safeResponseText(response)}`);
+        const rows = await response.json();
+        return rows[0] || null;
+      },
+      async deleteFileNote(id) {
+        if (!id) throw new Error("Dosya notu seçilmedi.");
+        const response = await fetch(`${restUrl("file_notes")}?id=eq.${encodeURIComponent(id)}`, {
+          method: "PATCH",
+          headers: {
+            ...(await authHeaders(repository)),
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal"
+          },
+          body: JSON.stringify({
+            deleted_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+        });
+        if (!response.ok) throw new Error(`Dosya notu silinemedi: ${response.status} ${await safeResponseText(response)}`);
+        return true;
+      },
+      async getTimelineEvents(filters = {}) {
+        if (!filters.fileId) return [];
+        const select = [
+          "id",
+          "legacy_id",
+          "file_id",
+          "event_type",
+          "title",
+          "description",
+          "event_date",
+          "actor_profile_id",
+          "actor_name",
+          "metadata",
+          "created_at",
+          "updated_at",
+          "deleted_at",
+          "actor_profile:profiles!timeline_events_actor_profile_id_fkey(id,display_name)"
+        ].join(",");
+        const response = await fetch(`${restUrl("timeline_events")}?select=${select}&file_id=eq.${encodeURIComponent(filters.fileId)}&deleted_at=is.null&order=event_date.desc&order=created_at.desc`, {
+          headers: await authHeaders(repository)
+        });
+        if (!response.ok) {
+          const body = await safeResponseText(response);
+          console.error("[BKT timeline events] Supabase SELECT failed.", {
+            fileId: filters.fileId,
+            status: response.status,
+            statusText: response.statusText,
+            body
+          });
+          throw new Error(`Zaman çizelgesi okunamadı: ${response.status}`);
+        }
+        return response.json();
+      },
+      async createTimelineEvent(row) {
+        const response = await fetch(`${restUrl("timeline_events")}`, {
+          method: "POST",
+          headers: {
+            ...(await authHeaders(repository)),
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+          },
+          body: JSON.stringify(cleanInsertPayload(row))
+        });
+        if (!response.ok) {
+          const body = await safeResponseText(response);
+          console.error("[BKT timeline events create] Supabase INSERT failed.", { status: response.status, statusText: response.statusText, body });
+          throw new Error(`Zaman çizelgesi kaydı oluşturulamadı: ${response.status}`);
+        }
+        const rows = await response.json();
+        return rows[0] || null;
+      },
       async fetchRole(roleId) {
         if (!roleId) return null;
         const response = await fetch(`${restUrl("roles")}?select=id,name,metadata,is_system&id=eq.${encodeURIComponent(roleId)}&deleted_at=is.null&limit=1`, {
@@ -368,24 +1694,21 @@ import { supabase } from "../src/supabase.js";
         if (!response.ok) return [];
         return response.json();
       },
-      enqueueWrite(operation, offlineOperation) {
+      enqueueWrite(operation) {
         repository.writeQueue = repository.writeQueue
           .then(async () => {
             const session = await repository.getSession();
             if (!session) {
-              offlineOperation();
-              return false;
+              throw new Error("Supabase oturumu bulunamadı.");
             }
             if (repository.offline) {
-              offlineOperation();
-              return false;
+              throw new Error("Supabase bağlantısı kurulamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.");
             }
             await operation();
             return true;
           })
           .catch(error => {
-            repository.switchToOffline("Supabase bağlantısı kesildi. Değişiklikler çevrimdışı yedeğe alındı.", error);
-            offlineOperation();
+            repository.switchToOffline("Supabase bağlantısı kurulamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.", error);
             return false;
           });
         return repository.writeQueue;
@@ -426,9 +1749,8 @@ import { supabase } from "../src/supabase.js";
       switchToOffline(message, error = null) {
         repository.available = false;
         repository.offline = true;
-        repository.mode = "localStorage";
+        repository.mode = "supabase-unavailable";
         if (error) console.warn(message, error);
-        hydrateCacheFromOffline(offlineRepository, cache);
         notifyStatus("offline", message);
         showConnectionWarning(message);
       }
@@ -534,19 +1856,135 @@ import { supabase } from "../src/supabase.js";
     return [...byId.values()];
   }
 
-  function hydrateCacheFromOffline(offlineRepository, cache) {
-    [
-      "hukukBurosuTakipDemo.v2",
-      "hukukBurosuKullanicilar.v1",
-      "hukukBurosuTakipDemo.backup.preFiles.20260611"
-    ].forEach(key => {
-      const value = offlineRepository.getItem(key);
-      if (value !== null) cache.set(key, value);
-    });
+  function normalizeTextValue(value) {
+    return String(value || "").trim().replace(/\s+/g, " ");
+  }
+
+  function normalizeTaxIdentifier(value) {
+    return String(value || "").replace(/\s+/g, "").trim();
+  }
+
+  function inferRepositoryClientType(name, taxId) {
+    const normalizedName = normalizeTextValue(name).toLocaleLowerCase("tr-TR");
+    const normalizedTax = normalizeTaxIdentifier(taxId);
+    if (/\b(a\.?ş\.?|anonim|limited|ltd|şti|şirket|sanayi|ticaret|kooperatif|bankası|belediyesi)\b/i.test(normalizedName)) {
+      return "company";
+    }
+    if (normalizedTax.length === 10) return "company";
+    if (normalizedTax.length === 11) return "person";
+    return "unknown";
+  }
+
+  function repositoryPartyTypeFromRole(role = "", fallbackType = "other") {
+    const normalized = normalizeTextValue(role)
+      .toLocaleLowerCase("tr-TR")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+    if (normalized.includes("davaci")) return "plaintiff";
+    if (normalized.includes("davali")) return "defendant";
+    if (normalized.includes("alacakli")) return "creditor";
+    if (normalized.includes("borclu")) return "debtor";
+    if (normalized.includes("sanik")) return "accused";
+    if (normalized.includes("musteki") || normalized.includes("sikayetci") || normalized.includes("magdur")) return "complainant";
+    return fallbackType || "other";
+  }
+
+  function normalizeRepositoryParty(party = {}) {
+    const roleLabel = normalizeTextValue(party.roleLabel || party.role || "");
+    const fallbackType = party.partyType || (party.side === "represented" ? "client" : party.side === "opposing" ? "opponent" : "other");
+    return {
+      name: normalizeTextValue(party.name),
+      taxId: normalizeTaxIdentifier(party.taxId || party.tax_id),
+      roleLabel,
+      partyType: repositoryPartyTypeFromRole(roleLabel, fallbackType),
+      side: party.side || "other",
+      phone: normalizeTextValue(party.phone),
+      email: normalizeTextValue(party.email),
+      isPrimary: Boolean(party.isPrimary)
+    };
+  }
+
+  function filePartyIdentityKey(row = {}) {
+    return [
+      row.file_id || "",
+      row.client_id || "",
+      normalizeTextValue(row.name).toLocaleLowerCase("tr-TR"),
+      normalizeTaxIdentifier(row.tax_id || row.taxId),
+      normalizeTextValue(row.party_type || row.partyType).toLocaleLowerCase("tr-TR"),
+      normalizeTextValue(row.side).toLocaleLowerCase("tr-TR"),
+      normalizeTextValue(row.role_label || row.role || row.roleLabel).toLocaleLowerCase("tr-TR")
+    ].join("|");
   }
 
   function restUrl(table) {
     return `${supabaseUrl.replace(/\/$/, "")}/rest/v1/${table}`;
+  }
+
+  function isUuid(value) {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""));
+  }
+
+  function localDateString(date = new Date()) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  async function safeResponseText(response) {
+    try {
+      return await response.text();
+    } catch {
+      return "";
+    }
+  }
+
+  function cleanInsertPayload(row = {}) {
+    const payload = { ...row };
+    if ("legacy_id" in payload) delete payload.legacy_id;
+    return payload;
+  }
+
+  function fileCreatePayload(row = {}) {
+    const payload = cleanInsertPayload(row);
+    const legacyId = String(payload.legacy_id || "").trim();
+    const displayId = String(payload.display_id || "").trim();
+    if (legacyId && displayId && legacyId === displayId) {
+      delete payload.legacy_id;
+    }
+    return payload;
+  }
+
+  function isDuplicateLegacyFileId(status, body) {
+    return Number(status) === 409 && /files_legacy_id_key|duplicate key/i.test(String(body || ""));
+  }
+
+  function incrementLegacyFileId(value) {
+    const text = String(value || "").trim();
+    const match = text.match(/^(.+?-)(\d+)$/);
+    if (!match) return "";
+    return `${match[1]}${String(Number(match[2]) + 1).padStart(match[2].length, "0")}`;
+  }
+
+  function nextFilePayloadWithBumpedLegacyId(row = {}) {
+    const oldLegacyId = row.legacy_id || row.display_id || "";
+    const nextLegacyId = incrementLegacyFileId(oldLegacyId);
+    if (!nextLegacyId) return null;
+    const metadata = row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+      ? { ...row.metadata }
+      : row.metadata;
+    if (metadata && Array.isArray(metadata.timeline)) {
+      metadata.timeline = metadata.timeline.map(item => ({
+        ...item,
+        id: String(item.id || "").replace(oldLegacyId, nextLegacyId)
+      }));
+    }
+    return {
+      ...row,
+      legacy_id: nextLegacyId,
+      display_id: !row.display_id || row.display_id === oldLegacyId ? nextLegacyId : row.display_id,
+      metadata
+    };
   }
 
   async function authHeaders(repository) {
@@ -633,7 +2071,7 @@ import { supabase } from "../src/supabase.js";
 
   window.BKTHukukRepository = {
     createBrowserRepository() {
-      return createSupabaseRepository(window.localStorage);
+      return createSupabaseRepository();
     }
   };
 }());

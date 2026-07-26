@@ -1,6 +1,7 @@
 # Environment and secrets
 .env
 .env.*
+.env.test.local
 !.env.example
 
 # Dependencies and build outputs
@@ -15,6 +16,8 @@ supabase/.temp/
 *.log
 localstorage-export.json
 database/seed/localstorage-export.json
+database/backup/
+database/backup/*.json
 
 # Temporary backups and generated QA artifacts
 *.tmp
@@ -27,6 +30,8 @@ database/seed/localstorage-export.json
 *.pre-*.html
 qa-*.png
 work/
+test-artifacts/
+playwright-report/
 .agents/
 .codex/
 
