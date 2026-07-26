@@ -4,21 +4,37 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Hukuk Bürosu Duruşma ve Süre Takip Sistemi</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
   <style>
     :root {
-      --ink: #172026;
-      --muted: #5d6972;
-      --line: #d9e0e4;
+      /* Metin */
+      --ink: #1b2430;
+      --muted: #64707c;
+      --faint: #8b96a1;
+      /* Yüzey */
+      --line: #e4e1d9;
+      --line-strong: #d5d1c7;
       --panel: #ffffff;
-      --bg: #f4f7f8;
-      --nav: #203039;
-      --nav-soft: #2b424e;
-      --teal: #1f8a83;
-      --blue: #356ea7;
-      --gold: #b37a20;
-      --red: #c84646;
+      --bg: #f4f2ec;
+      /* Navigasyon (koyu antrasit-lacivert) */
+      --nav: #17273a;
+      --nav-soft: #22374f;
+      /* Ana vurgu (kontrollü koyu mavi) */
+      --teal: #2b5c8a;
+      --blue: #2b5c8a;
+      --accent: #2b5c8a;
+      --accent-strong: #234d76;
+      --accent-soft: #eaf1f8;
+      /* İkincil vurgu (ölçülü altın / bronz) */
+      --gold: #9a7529;
+      --gold-soft: #f4ecd9;
+      /* Durum renkleri */
+      --red: #bb3b34;
       --dark-red: #7e1f2a;
-      --green: #2f855a;
+      --green: #2f7d54;
+      --amber: #b06f12;
       --shadow: 0 14px 35px rgba(21, 32, 38, 0.1);
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
@@ -2286,16 +2302,16 @@
     }
     /* File-centric workspace */
     :root {
-      --fc-navy: #123047;
-      --fc-navy-2: #1b4059;
-      --fc-teal: #149b96;
-      --fc-teal-soft: #e6f6f4;
-      --fc-bg: #f3f6f8;
+      --fc-navy: #234d76;
+      --fc-navy-2: #2b5c8a;
+      --fc-teal: #2b5c8a;
+      --fc-teal-soft: #eaf1f8;
+      --fc-bg: #f4f2ec;
       --fc-card: #ffffff;
-      --fc-line: #dbe4e8;
-      --fc-text: #17252f;
-      --fc-muted: #687983;
-      --fc-shadow: 0 8px 24px rgba(20, 48, 66, 0.08);
+      --fc-line: #e4e1d9;
+      --fc-text: #1b2430;
+      --fc-muted: #64707c;
+      --fc-shadow: 0 8px 24px rgba(20, 33, 48, 0.07);
     }
     body { background: var(--fc-bg); color: var(--fc-text); }
     main { max-width: none; }
