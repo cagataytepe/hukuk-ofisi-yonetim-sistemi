@@ -7677,6 +7677,984 @@
       .topbar-tools { grid-template-columns: minmax(0, 1fr) auto; }
       .notification-trigger { grid-column: 2; }
     }
+
+    /* =====================================================================
+       DASHBOARD KOMUTA MERKEZİ — yeniden tasarım katmanı
+       ===================================================================== */
+    :root {
+      --dsh-bg: #f2f5f7;
+      --dsh-card: #ffffff;
+      --dsh-ink: #14212b;
+      --dsh-ink-2: #3c4a55;
+      --dsh-muted: #64757f;
+      --dsh-muted-2: #8b9aa4;
+      --dsh-line: #e2e9ed;
+      --dsh-line-soft: #edf2f4;
+      --dsh-nav: #16232e;
+      --dsh-nav-2: #1e2f3c;
+      --dsh-critical: #c2413c;
+      --dsh-critical-soft: #fdf1f0;
+      --dsh-warn: #b5761c;
+      --dsh-warn-soft: #fdf5e9;
+      --dsh-info: #2a6199;
+      --dsh-info-soft: #eef4fa;
+      --dsh-ok: #2c7a5a;
+      --dsh-ok-soft: #eef7f2;
+      --dsh-r: 10px;
+      --dsh-r-lg: 14px;
+      --dsh-sh: 0 1px 2px rgba(20, 33, 43, .04), 0 6px 16px rgba(20, 33, 43, .05);
+    }
+
+    body.is-authenticated { background: var(--dsh-bg); }
+    .app > main { background: var(--dsh-bg); }
+
+    /* ---------- ÜST BAR: kompakt, tek baseline ---------- */
+    .app main .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      flex-wrap: wrap;
+      padding: 14px 0 16px;
+      margin-bottom: 4px;
+      border-bottom: 1px solid var(--dsh-line);
+      background: transparent;
+      box-shadow: none;
+    }
+    .app main .topbar .page-heading { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+    .app main .topbar h1 {
+      font-size: 1.6rem;
+      line-height: 1.2;
+      font-weight: 650;
+      letter-spacing: -.018em;
+      color: var(--dsh-ink);
+      margin: 0;
+    }
+    .app main .topbar #pageLead {
+      margin: 0;
+      font-size: .82rem;
+      color: var(--dsh-muted);
+      letter-spacing: .002em;
+    }
+    .app main .topbar-tools {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: nowrap;
+    }
+    .app main .global-search {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: clamp(240px, 30vw, 400px);
+      height: 40px;
+      padding: 0 10px 0 12px;
+      border: 1px solid var(--dsh-line);
+      border-radius: var(--dsh-r);
+      background: var(--dsh-card);
+      transition: border-color .15s ease, box-shadow .15s ease;
+    }
+    .app main .global-search:focus-within {
+      border-color: var(--dsh-info);
+      box-shadow: 0 0 0 3px rgba(42, 97, 153, .12);
+    }
+    .app main .global-search > span[aria-hidden] { color: var(--dsh-muted-2); font-size: 1rem; line-height: 1; }
+    .app main .global-search input {
+      flex: 1;
+      min-width: 0;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      font-size: .85rem;
+      color: var(--dsh-ink);
+      height: 100%;
+    }
+    .app main .global-search .search-kbd {
+      flex: none;
+      font-size: .64rem;
+      font-weight: 600;
+      letter-spacing: .04em;
+      color: var(--dsh-muted);
+      background: var(--dsh-line-soft);
+      border: 1px solid var(--dsh-line);
+      border-radius: 5px;
+      padding: 3px 6px;
+      font-family: inherit;
+      box-shadow: none;
+    }
+    .app main .quick-action-trigger,
+    .app main .btn.primary.quick-action-trigger {
+      height: 40px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 16px;
+      border-radius: var(--dsh-r);
+      background: var(--dsh-nav);
+      border: 1px solid var(--dsh-nav);
+      color: #fff;
+      font-size: .85rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      list-style: none;
+    }
+    .app main .quick-action-trigger:hover { background: var(--dsh-nav-2); }
+    .app main .notification-trigger {
+      position: relative;
+      width: 40px;
+      height: 40px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      border: 1px solid var(--dsh-line);
+      border-radius: var(--dsh-r);
+      background: var(--dsh-card);
+      color: var(--dsh-ink-2);
+    }
+    .app main .notification-trigger:hover { background: var(--dsh-line-soft); color: var(--dsh-ink); }
+    .app main .notification-trigger svg { width: 19px; height: 19px; fill: none; stroke: currentColor; }
+    .app main .sync-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 40px;
+      padding: 0 12px;
+      border-radius: 999px;
+      background: var(--dsh-ok-soft);
+      border: 1px solid #d3e8dd;
+      color: var(--dsh-ok);
+      font-size: .74rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .app main .sync-status > span[aria-hidden] {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--dsh-ok);
+      flex: none;
+    }
+
+    /* ---------- BİLDİRİM ŞERİDİ ---------- */
+    .app main .alert-band {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      padding: 12px 16px;
+      margin: 16px 0 0;
+      background: var(--dsh-card);
+      border: 1px solid var(--dsh-line);
+      border-left: 3px solid var(--dsh-info);
+      border-radius: var(--dsh-r);
+      box-shadow: none;
+    }
+    .app main .alert-summary-title {
+      font-size: .68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .09em;
+      color: var(--dsh-muted);
+      flex: none;
+    }
+    .app main .alert-summary-items { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0; }
+    .app main .alert-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px 6px 10px;
+      border-radius: 999px;
+      background: var(--dsh-line-soft);
+      border: 1px solid var(--dsh-line);
+      font-size: .78rem;
+    }
+    .app main .alert-item .alert-icon { display: inline-flex; flex: none; color: var(--dsh-muted); }
+    .app main .alert-item .alert-icon svg { width: 15px; height: 15px; stroke: currentColor; fill: none; }
+    .app main .alert-item > div { display: inline-flex; align-items: baseline; gap: 6px; }
+    .app main .alert-item strong { font-size: .78rem; font-weight: 650; color: var(--dsh-ink); }
+    .app main .alert-item span { color: var(--dsh-muted); }
+    .app main .alert-item.critical { background: var(--dsh-critical-soft); border-color: #f2d5d3; }
+    .app main .alert-item.critical .alert-icon, .app main .alert-item.critical strong { color: var(--dsh-critical); }
+    .app main .alert-item.warning { background: var(--dsh-warn-soft); border-color: #f0e0c4; }
+    .app main .alert-item.warning .alert-icon, .app main .alert-item.warning strong { color: var(--dsh-warn); }
+
+    /* ---------- ÖNCELİK PANOSU ---------- */
+    #dashboard { display: flex; flex-direction: column; gap: 16px; padding-top: 16px; }
+
+    #dashboard .metric-grid.priority-board {
+      display: grid;
+      grid-template-columns: minmax(0, .85fr) minmax(0, 1fr) minmax(0, 1fr);
+      gap: 14px;
+      margin: 0;
+      padding: 0;
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+    }
+    #dashboard .priority-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 14px;
+      background: var(--dsh-card);
+      border: 1px solid var(--dsh-line);
+      border-radius: var(--dsh-r-lg);
+      box-shadow: var(--dsh-sh);
+      min-width: 0;
+    }
+    #dashboard .priority-group.is-critical {
+      background: linear-gradient(180deg, var(--dsh-critical-soft), var(--dsh-card) 62%);
+      border-color: #f0cfcd;
+    }
+    #dashboard .priority-group-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    #dashboard .priority-group-head h2 {
+      margin: 0;
+      font-size: .78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      color: var(--dsh-ink-2);
+    }
+    #dashboard .priority-flag {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      flex: none;
+      background: var(--dsh-muted-2);
+    }
+    #dashboard .is-critical .priority-flag { background: var(--dsh-critical); box-shadow: 0 0 0 3px rgba(194, 65, 60, .16); }
+    #dashboard .is-today .priority-flag { background: var(--dsh-warn); box-shadow: 0 0 0 3px rgba(181, 118, 28, .15); }
+    #dashboard .is-upcoming .priority-flag { background: var(--dsh-info); box-shadow: 0 0 0 3px rgba(42, 97, 153, .14); }
+    #dashboard .is-critical .priority-group-head h2 { color: var(--dsh-critical); }
+    #dashboard .priority-hint {
+      margin-left: auto;
+      font-size: .68rem;
+      color: var(--dsh-muted-2);
+      white-space: nowrap;
+    }
+    #dashboard .priority-group-body { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    #dashboard .is-critical .priority-group-body { grid-template-columns: 1fr; }
+
+    #dashboard .metric.priority-card {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      margin: 0;
+      padding: 12px;
+      min-width: 0;
+      background: var(--dsh-line-soft);
+      border: 1px solid transparent;
+      border-radius: var(--dsh-r);
+      box-shadow: none;
+      cursor: pointer;
+      text-align: left;
+      transition: background .15s ease, border-color .15s ease, transform .15s ease;
+    }
+    #dashboard .metric.priority-card:hover { transform: translateY(-1px); border-color: var(--dsh-line); background: #fff; }
+    #dashboard .metric.priority-card .metric-icon {
+      width: 34px;
+      height: 34px;
+      flex: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 9px;
+      background: #fff;
+      border: 1px solid var(--dsh-line);
+      color: var(--dsh-muted);
+    }
+    #dashboard .metric.priority-card .metric-icon svg { width: 17px; height: 17px; stroke: currentColor; fill: none; }
+    #dashboard .metric.priority-card .metric-copy { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+    #dashboard .metric.priority-card .metric-copy span {
+      font-size: .72rem;
+      font-weight: 500;
+      color: var(--dsh-muted);
+      letter-spacing: .004em;
+      line-height: 1.3;
+    }
+    #dashboard .metric.priority-card .metric-copy strong {
+      font-size: 1.5rem;
+      font-weight: 680;
+      line-height: 1.1;
+      letter-spacing: -.02em;
+      color: var(--dsh-ink);
+      font-variant-numeric: tabular-nums;
+    }
+    /* Kritik kart: en yüksek görsel ağırlık */
+    #dashboard .is-critical .metric.priority-card {
+      background: var(--dsh-card);
+      border-color: #eec9c7;
+      padding: 16px;
+      gap: 14px;
+    }
+    #dashboard .is-critical .metric.priority-card .metric-icon {
+      width: 44px;
+      height: 44px;
+      background: var(--dsh-critical);
+      border-color: var(--dsh-critical);
+      color: #fff;
+    }
+    #dashboard .is-critical .metric.priority-card .metric-icon svg { width: 22px; height: 22px; }
+    #dashboard .is-critical .metric.priority-card .metric-copy strong { font-size: 2.4rem; color: var(--dsh-critical); }
+    #dashboard .is-critical .metric.priority-card .metric-copy span { font-weight: 600; color: var(--dsh-ink-2); }
+
+    /* ---------- 12 KOLON ANA DÜZEN ---------- */
+    #dashboard .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 14px;
+      align-items: start;
+    }
+    #dashboard .dashboard-col-main {
+      grid-column: span 8;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      min-width: 0;
+    }
+    #dashboard .dashboard-col-side {
+      grid-column: span 4;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      min-width: 0;
+    }
+    @media (max-width: 1180px) {
+      #dashboard .dashboard-col-main, #dashboard .dashboard-col-side { grid-column: span 12; }
+    }
+
+    #dashboard .panel {
+      background: var(--dsh-card);
+      border: 1px solid var(--dsh-line);
+      border-radius: var(--dsh-r-lg);
+      box-shadow: var(--dsh-sh);
+      padding: 0;
+      overflow: hidden;
+      min-width: 0;
+    }
+    #dashboard .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      margin: 0;
+      border-bottom: 1px solid var(--dsh-line-soft);
+      background: transparent;
+    }
+    #dashboard .panel-header h2 {
+      margin: 0;
+      font-size: .95rem;
+      font-weight: 650;
+      letter-spacing: -.008em;
+      color: var(--dsh-ink);
+      line-height: 1.3;
+    }
+    #dashboard .panel-sub {
+      margin: 1px 0 0;
+      font-size: .72rem;
+      color: var(--dsh-muted-2);
+    }
+    #dashboard .panel-header .btn {
+      flex: none;
+      height: 30px;
+      padding: 0 11px;
+      font-size: .75rem;
+      font-weight: 600;
+      color: var(--dsh-ink-2);
+      background: var(--dsh-card);
+      border: 1px solid var(--dsh-line);
+      border-radius: 7px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    #dashboard .panel-header .btn:hover { background: var(--dsh-line-soft); color: var(--dsh-ink); }
+
+    /* ---------- TABLO → AJANDA / ÖNCELİK LİSTESİ ---------- */
+    #dashboard .agenda-wrap { overflow: visible; padding: 10px; border: 0; }
+    /* eski .table-wrap table { min-width: 760px } kuralını sıfırla: ajanda kartları yatay kaymaz */
+    #dashboard .agenda-table {
+      display: block;
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
+      border-collapse: collapse;
+      border-spacing: 0;
+      background: transparent;
+      table-layout: auto;
+    }
+    #dashboard .agenda-table thead {
+      position: absolute;
+      width: 1px; height: 1px;
+      padding: 0; margin: -1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+      border: 0;
+    }
+    #dashboard .agenda-table tbody { display: flex; flex-direction: column; gap: 7px; width: 100%; }
+    #dashboard .agenda-table tbody tr { display: block; background: transparent; border: 0; }
+
+    /* boş / hata / yükleniyor satırları: kompakt kart, grid uygulanmaz */
+    #dashboard .agenda-table tbody tr:not(.dashboard-data-row) > td { display: block; border: 0; padding: 0; }
+    #dashboard .agenda-table .dashboard-empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 22px 16px;
+      border: 1px dashed var(--dsh-line);
+      border-radius: var(--dsh-r);
+      background: var(--dsh-line-soft);
+      color: var(--dsh-muted);
+      font-size: .82rem;
+      text-align: center;
+    }
+
+    #dashboard .agenda-table tbody tr.dashboard-data-row {
+      display: grid;
+      gap: 3px 14px;
+      padding: 11px 13px;
+      background: var(--dsh-card);
+      border: 1px solid var(--dsh-line);
+      border-left: 3px solid var(--dsh-info);
+      border-radius: var(--dsh-r);
+      cursor: pointer;
+      transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+    }
+    #dashboard .agenda-table tbody tr.dashboard-data-row:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 14px rgba(20, 33, 43, .07);
+    }
+    #dashboard .agenda-table tbody tr.dashboard-data-row > td {
+      display: block;
+      border: 0;
+      padding: 0;
+      font-size: .82rem;
+      color: var(--dsh-ink-2);
+      min-width: 0;
+      overflow-wrap: anywhere;
+      background: transparent;
+    }
+    #dashboard .agenda-table tbody tr.dashboard-data-row > td::before {
+      content: attr(data-label);
+      display: block;
+      font-size: .6rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      color: var(--dsh-muted-2);
+      margin-bottom: 1px;
+    }
+    #dashboard .agenda-table tbody tr.dashboard-data-row > td.is-plain::before { content: none; }
+
+    /* --- DURUŞMA AJANDASI: 3 kolon (saat rayı | ana | meta) --- */
+    #dashboard .agenda-hearings tbody tr.dashboard-data-row {
+      grid-template-columns: 92px minmax(0, 1fr) minmax(0, auto);
+    }
+    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(5) { grid-area: 1 / 1; }
+    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(4) { grid-area: 2 / 1; }
+    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(2) { grid-area: 1 / 2; }
+    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(3) { grid-area: 2 / 2; }
+    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(1) { grid-area: 3 / 2; }
+    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(6) { grid-area: 1 / 3; text-align: right; }
+    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(7) { grid-area: 2 / 3; text-align: right; }
+    /* saat rayı */
+    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(5)::before,
+    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(4)::before,
+    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(2)::before { content: none; }
+    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(5) .dashboard-time,
+    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(5) {
+      font-size: 1.12rem;
+      font-weight: 680;
+      letter-spacing: -.02em;
+      color: var(--dsh-ink);
+      font-variant-numeric: tabular-nums;
+      line-height: 1.15;
+    }
+    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(4) {
+      font-size: .74rem;
+      color: var(--dsh-muted);
+      font-variant-numeric: tabular-nums;
+    }
+    /* mahkeme = birincil başlık */
+    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(2) {
+      font-size: .9rem;
+      font-weight: 640;
+      color: var(--dsh-ink);
+      line-height: 1.35;
+    }
+    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(1) { font-size: .72rem; color: var(--dsh-muted-2); }
+    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(1) strong { font-weight: 600; color: var(--dsh-muted); }
+    /* mazeret çipi */
+    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(6) {
+      font-size: .72rem;
+      font-weight: 600;
+      color: var(--dsh-ink-2);
+      white-space: nowrap;
+    }
+
+    /* --- SÜRELİ İŞLER: kalan gün rayı öne çıkar --- */
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row {
+      grid-template-columns: 108px minmax(0, 1fr) minmax(0, auto);
+      border-left-color: var(--dsh-warn);
+    }
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(6) { grid-area: 1 / 1; }
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(5) { grid-area: 2 / 1; }
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(4) { grid-area: 1 / 2; }
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(2) { grid-area: 2 / 2; }
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(3) { grid-area: 3 / 2; }
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(7) { grid-area: 1 / 3; text-align: right; }
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(1) { grid-area: 3 / 3; text-align: right; }
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(6)::before,
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(4)::before,
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(2)::before { content: none; }
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(4) {
+      font-size: .9rem;
+      font-weight: 640;
+      color: var(--dsh-ink);
+      line-height: 1.35;
+    }
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(5) {
+      font-size: .74rem;
+      color: var(--dsh-muted);
+      font-variant-numeric: tabular-nums;
+    }
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(2) { font-size: .78rem; color: var(--dsh-muted); }
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(1) { font-size: .7rem; color: var(--dsh-muted-2); }
+
+    /* kalan gün rozeti */
+    #dashboard .agenda-table .dashboard-due {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: .72rem;
+      font-weight: 680;
+      letter-spacing: .002em;
+      white-space: nowrap;
+      background: var(--dsh-info-soft);
+      color: var(--dsh-info);
+      border: 1px solid #d5e3f0;
+    }
+    #dashboard .agenda-table .dashboard-due.is-soon {
+      background: var(--dsh-warn-soft);
+      color: var(--dsh-warn);
+      border-color: #f0e0c4;
+    }
+    #dashboard .agenda-table .dashboard-due.is-overdue {
+      background: var(--dsh-critical);
+      color: #fff;
+      border-color: var(--dsh-critical);
+    }
+    /* satır sol şeridi aciliyete göre renklenir */
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row:has(.dashboard-due.is-overdue) {
+      border-left-color: var(--dsh-critical);
+      background: linear-gradient(90deg, var(--dsh-critical-soft), var(--dsh-card) 46%);
+    }
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row:has(.dashboard-due.is-soon) { border-left-color: var(--dsh-warn); }
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row:not(:has(.is-overdue)):not(:has(.is-soon)) { border-left-color: var(--dsh-info); }
+    #dashboard .agenda-table .dashboard-secondary { color: inherit; }
+
+    /* ---------- GÖREV KARTLARI ---------- */
+    #dashboard .task-panel .dashboard-list {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      padding: 10px;
+      margin: 0;
+    }
+    #dashboard .dashboard-task-item {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      width: 100%;
+      padding: 11px 12px;
+      text-align: left;
+      background: var(--dsh-card);
+      border: 1px solid var(--dsh-line);
+      border-left: 3px solid var(--dsh-info);
+      border-radius: var(--dsh-r);
+      cursor: pointer;
+      transition: box-shadow .15s ease, transform .15s ease;
+    }
+    #dashboard .dashboard-task-item:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(20, 33, 43, .07); }
+    #dashboard .dashboard-task-item:has(.is-overdue) { border-left-color: var(--dsh-critical); }
+    #dashboard .dashboard-task-item:has(.is-soon) { border-left-color: var(--dsh-warn); }
+    #dashboard .dashboard-task-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+    #dashboard .dashboard-task-main strong {
+      font-size: .84rem;
+      font-weight: 640;
+      color: var(--dsh-ink);
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+    #dashboard .dashboard-task-main small { font-size: .7rem; color: var(--dsh-muted-2); line-height: 1.35; }
+    #dashboard .dashboard-task-timing { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex: none; }
+    #dashboard .dashboard-task-timing strong {
+      font-size: .7rem;
+      font-weight: 680;
+      color: var(--dsh-info);
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--dsh-info-soft);
+      white-space: nowrap;
+    }
+    #dashboard .dashboard-task-timing small { font-size: .66rem; color: var(--dsh-muted-2); font-variant-numeric: tabular-nums; }
+    #dashboard .dashboard-task-timing.is-soon strong { color: var(--dsh-warn); background: var(--dsh-warn-soft); }
+    #dashboard .dashboard-task-timing.is-overdue strong { color: #fff; background: var(--dsh-critical); }
+    #dashboard .detail-empty {
+      margin: 10px;
+      padding: 20px 14px;
+      border: 1px dashed var(--dsh-line);
+      border-radius: var(--dsh-r);
+      background: var(--dsh-line-soft);
+      color: var(--dsh-muted);
+      font-size: .8rem;
+      text-align: center;
+    }
+
+    /* ---------- FİNANS ÖZETİ (düşük görsel ağırlık) ---------- */
+    #dashboard .finance-brief-panel .panel-header h2 { font-size: .88rem; }
+    #dashboard .finance-brief {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      padding: 0;
+      margin: 0;
+      background: var(--dsh-line-soft);
+    }
+    #dashboard .finance-brief > div {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      padding: 13px 14px;
+      background: var(--dsh-card);
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
+    }
+    #dashboard .finance-brief > div span {
+      font-size: .68rem;
+      font-weight: 500;
+      color: var(--dsh-muted);
+      text-transform: none;
+      letter-spacing: .002em;
+      line-height: 1.3;
+    }
+    #dashboard .finance-brief > div strong {
+      font-size: .98rem;
+      font-weight: 660;
+      color: var(--dsh-ink);
+      letter-spacing: -.012em;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ---------- DAĞILIM GRAFİKLERİ ---------- */
+    #dashboard .dashboard-charts {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      align-items: start;
+    }
+    @media (max-width: 900px) { #dashboard .dashboard-charts { grid-template-columns: 1fr; } }
+
+    #dashboard .status-distribution { padding: 14px 16px 16px; }
+    #dashboard .distribution-shell { display: flex; flex-direction: column; gap: 12px; }
+    #dashboard .distribution-visual {
+      display: grid;
+      grid-template-columns: 150px minmax(0, 1fr);
+      gap: 18px;
+      align-items: center;
+    }
+    #dashboard .distribution-donut { width: 150px; height: 150px; }
+    #dashboard .distribution-donut svg { width: 100%; height: 100%; overflow: visible; }
+    #dashboard .donut-track { fill: none; stroke: var(--dsh-line-soft); stroke-width: 11; }
+    #dashboard .donut-segment {
+      fill: none;
+      stroke-width: 11;
+      stroke-linecap: butt;
+      cursor: pointer;
+      transition: stroke-width .15s ease, opacity .15s ease;
+    }
+    #dashboard .donut-segment:hover, #dashboard .donut-segment:focus-visible { stroke-width: 15; outline: none; }
+    #dashboard .donut-total-number {
+      font-size: 1.55rem;
+      font-weight: 680;
+      fill: var(--dsh-ink);
+      text-anchor: middle;
+      letter-spacing: -.02em;
+    }
+    #dashboard .donut-total-label {
+      font-size: .58rem;
+      font-weight: 600;
+      fill: var(--dsh-muted-2);
+      text-anchor: middle;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+    }
+    #dashboard .distribution-legend { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+    #dashboard .distribution-legend-row {
+      display: grid;
+      grid-template-columns: 9px minmax(0, 1fr) auto auto;
+      align-items: center;
+      gap: 9px;
+      width: 100%;
+      padding: 6px 7px;
+      background: transparent;
+      border: 0;
+      border-radius: 6px;
+      cursor: pointer;
+      text-align: left;
+      font-size: .78rem;
+    }
+    #dashboard .distribution-legend-row:hover { background: var(--dsh-line-soft); }
+    #dashboard .distribution-legend-swatch {
+      width: 9px;
+      height: 9px;
+      border-radius: 2px;
+      background: var(--legend-color);
+      flex: none;
+    }
+    #dashboard .distribution-legend-name {
+      color: var(--dsh-ink-2);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
+    #dashboard .distribution-legend-count {
+      font-weight: 660;
+      color: var(--dsh-ink);
+      font-variant-numeric: tabular-nums;
+      min-width: 22px;
+      text-align: right;
+    }
+    #dashboard .distribution-legend-percent {
+      font-size: .7rem;
+      color: var(--dsh-muted-2);
+      font-variant-numeric: tabular-nums;
+      min-width: 34px;
+      text-align: right;
+    }
+    #dashboard .distribution-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding-top: 11px;
+      border-top: 1px solid var(--dsh-line-soft);
+      font-size: .74rem;
+      color: var(--dsh-muted);
+    }
+    #dashboard .distribution-footer strong {
+      font-size: .92rem;
+      font-weight: 660;
+      color: var(--dsh-ink);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ---------- SIDEBAR RAFİNASYONU ---------- */
+    .sidebar { background: var(--dsh-nav); border-right: 1px solid rgba(255, 255, 255, .06); }
+    .sidebar .nav-group-label {
+      font-size: .62rem;
+      font-weight: 600;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, .34);
+      padding: 0 14px;
+      margin: 14px 0 5px;
+    }
+    .sidebar .nav { padding: 4px 8px 8px; }
+    .sidebar .nav button[data-section] {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 9px 11px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: rgba(255, 255, 255, .74);
+      font-size: .84rem;
+      font-weight: 500;
+      letter-spacing: .004em;
+      cursor: pointer;
+      position: relative;
+      transition: background .14s ease, color .14s ease;
+    }
+    .sidebar .nav button[data-section] svg { width: 17px; height: 17px; flex: none; stroke: currentColor; fill: none; opacity: .82; }
+    .sidebar .nav button[data-section]:hover { background: rgba(255, 255, 255, .07); color: #fff; }
+    .sidebar .nav button[data-section].active {
+      background: rgba(255, 255, 255, .11);
+      color: #fff;
+      font-weight: 600;
+    }
+    .sidebar .nav button[data-section].active svg { opacity: 1; }
+    .sidebar .nav button[data-section].active::before {
+      content: "";
+      position: absolute;
+      left: -8px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 3px;
+      height: 20px;
+      border-radius: 0 3px 3px 0;
+      background: var(--dsh-info);
+    }
+    .sidebar .session-card {
+      background: rgba(255, 255, 255, .045);
+      border: 1px solid rgba(255, 255, 255, .07);
+      border-radius: var(--dsh-r);
+      box-shadow: none;
+    }
+    .sidebar .nav::-webkit-scrollbar { width: 6px; }
+    .sidebar .nav::-webkit-scrollbar-track { background: transparent; }
+    .sidebar .nav::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .16); border-radius: 999px; }
+    .sidebar .nav::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, .28); }
+    .sidebar .nav { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .2) transparent; }
+
+    /* ---------- MOBİL ALT NAVİGASYON ---------- */
+    .mobile-tabbar { display: none; }
+    body:not(.is-authenticated) .mobile-tabbar { display: none !important; }
+    @media (max-width: 900px) {
+      body.is-authenticated .mobile-tabbar {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 70;
+        gap: 2px;
+        padding: 6px 6px calc(6px + env(safe-area-inset-bottom, 0px));
+        background: rgba(255, 255, 255, .97);
+        backdrop-filter: saturate(140%) blur(8px);
+        border-top: 1px solid var(--dsh-line);
+        box-shadow: 0 -2px 12px rgba(20, 33, 43, .07);
+      }
+      .mobile-tabbar button {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+        min-height: 48px;
+        padding: 5px 2px;
+        border: 0;
+        border-radius: 9px;
+        background: transparent;
+        color: var(--dsh-muted);
+        cursor: pointer;
+        font-family: inherit;
+      }
+      .mobile-tabbar button svg { width: 20px; height: 20px; stroke: currentColor; fill: none; }
+      .mobile-tabbar button span {
+        font-size: .6rem;
+        font-weight: 600;
+        letter-spacing: .01em;
+        line-height: 1;
+      }
+      .mobile-tabbar button.active { background: var(--dsh-info-soft); color: var(--dsh-info); }
+      body.is-authenticated { padding-bottom: 68px; }
+    }
+
+    /* ---------- MOBİL DÜZEN (390x844) ---------- */
+    @media (max-width: 900px) {
+      #dashboard { gap: 12px; padding-top: 12px; }
+      .app main .topbar { padding: 12px 0 13px; gap: 12px; }
+      .app main .topbar h1 { font-size: 1.32rem; }
+      .app main .topbar #pageLead { font-size: .76rem; }
+      .app main .topbar-tools { width: 100%; flex-wrap: wrap; gap: 8px; }
+      .app main .global-search { width: 100%; order: 3; }
+      .app main .quick-action-menu, .app main .quick-actions { flex: 1; }
+      .app main .quick-action-trigger, .app main .btn.primary.quick-action-trigger { width: 100%; justify-content: center; }
+      .app main .sync-status { display: none; }
+
+      /* öncelik panosu: kritik + 3 KPI önce, tek kolon akış */
+      #dashboard .metric-grid.priority-board { grid-template-columns: 1fr; gap: 10px; }
+      #dashboard .priority-group { padding: 12px; gap: 9px; }
+      #dashboard .priority-hint { display: none; }
+      #dashboard .is-critical .metric.priority-card { padding: 13px; }
+      #dashboard .is-critical .metric.priority-card .metric-copy strong { font-size: 2rem; }
+      #dashboard .metric.priority-card .metric-copy strong { font-size: 1.35rem; }
+
+      #dashboard .dashboard-grid { grid-template-columns: 1fr; gap: 12px; }
+      #dashboard .dashboard-col-main, #dashboard .dashboard-col-side { grid-column: auto; gap: 12px; }
+      /* mobil sıra: ajanda → görevler → finans */
+      #dashboard .dashboard-col-main { order: 1; }
+      #dashboard .dashboard-col-side { order: 2; }
+      #dashboard .task-panel { order: 1; }
+      #dashboard .finance-brief-panel { order: 2; }
+      #dashboard .dashboard-charts { order: 3; }
+
+      /* yatay tablo yok: her satır tek kolon kart */
+      #dashboard .agenda-wrap { padding: 8px; }
+      #dashboard .agenda-hearings tbody tr.dashboard-data-row,
+      #dashboard .agenda-deadlines tbody tr.dashboard-data-row {
+        grid-template-columns: minmax(0, 1fr) minmax(0, auto);
+        gap: 4px 10px;
+        padding: 11px 12px;
+      }
+      /* duruşma: saat+mazeret üst satır, geri kalanı akış */
+      #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(5) { grid-area: 1 / 1; }
+      #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(6) { grid-area: 1 / 2; }
+      #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(2) { grid-area: 2 / 1 / 3 / 3; }
+      #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(4) { grid-area: 3 / 1; text-align: left; }
+      #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(3) { grid-area: 3 / 2; text-align: right; }
+      #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(7) { grid-area: 4 / 1; text-align: left; }
+      #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(1) { grid-area: 4 / 2; text-align: right; }
+      /* süreli iş: rozet+sorumlu üst satır */
+      #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(6) { grid-area: 1 / 1; }
+      #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(7) { grid-area: 1 / 2; }
+      #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(4) { grid-area: 2 / 1 / 3 / 3; }
+      #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(2) { grid-area: 3 / 1 / 4 / 3; }
+      #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(5) { grid-area: 4 / 1; }
+      #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(3) { grid-area: 4 / 2; text-align: right; }
+      #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(1) { grid-area: 5 / 2; text-align: right; }
+
+      #dashboard .distribution-visual { grid-template-columns: 1fr; gap: 12px; justify-items: center; }
+      #dashboard .distribution-donut { width: 132px; height: 132px; }
+      #dashboard .distribution-legend { width: 100%; }
+      #dashboard .finance-brief { grid-template-columns: 1fr 1fr; }
+    }
+
+    @media (max-width: 420px) {
+      #dashboard .priority-group-body { grid-template-columns: 1fr; }
+      .mobile-tabbar button span { font-size: .56rem; }
+    }
+
+    /* komut paleti ve bildirim merkezi: mobilde tam ekran */
+    @media (max-width: 640px) {
+      #commandPalette {
+        width: 100vw;
+        max-width: 100vw;
+        height: 100dvh;
+        max-height: 100dvh;
+        margin: 0;
+        border-radius: 0;
+        top: 0;
+        left: 0;
+        transform: none;
+      }
+      .notification-drawer {
+        width: 100vw !important;
+        max-width: 100vw !important;
+        border-radius: 0 !important;
+      }
+    }
+
+    @media print {
+      .mobile-tabbar { display: none !important; }
+    }
   </style>
 </head>
 <body>
@@ -7721,6 +8699,29 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg>
     </button>
   </div>
+
+  <nav class="mobile-tabbar" id="mobileTabbar" aria-label="Hızlı bölüm navigasyonu">
+    <button type="button" data-section-link="dashboard" data-tab="dashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>
+      <span>Ana Sayfa</span>
+    </button>
+    <button type="button" data-section-link="cases" data-tab="cases">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h5l2 3h5a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/></svg>
+      <span>Dosyalar</span>
+    </button>
+    <button type="button" data-section-link="hearings" data-tab="hearings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>
+      <span>Duruşma</span>
+    </button>
+    <button type="button" data-section-link="deadlines" data-tab="deadlines">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg>
+      <span>Süreler</span>
+    </button>
+    <button type="button" data-section-link="tasks" data-tab="tasks">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5h14v14H5z"/><path d="m8 12 2.2 2.2L16 9"/></svg>
+      <span>Görevler</span>
+    </button>
+  </nav>
 
   <div class="sidebar-backdrop" id="sidebarBackdrop" hidden></div>
 
@@ -7864,64 +8865,114 @@
       </section>
 
       <section id="dashboard" class="section active">
-        <div class="metric-grid">
-          <div class="metric metric-hearings" data-dashboard-section="hearings" aria-label="Haftanın Duruşmaları"><span class="metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg></span><div class="metric-copy"><span>Haftanın Duruşmaları</span><strong id="todayHearings">0</strong></div></div>
-          <div class="metric metric-tasks" data-dashboard-section="tasks" aria-label="Bana Atanmış Görevler"><span class="metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5h14v14H5z"/><path d="m8 12 2.2 2.2L16 9"/></svg></span><div class="metric-copy"><span>Bana Atanmış Görevler</span><strong id="assignedTasks">0</strong></div></div>
-          <div class="metric metric-deadlines" data-dashboard-section="deadlines" aria-label="Yaklaşan Süreler"><span class="metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg></span><div class="metric-copy"><span>Yaklaşan Süreler</span><strong id="soonDeadlines">0</strong></div></div>
-          <div class="metric metric-overdue overdue-metric" data-dashboard-section="deadlines" aria-label="Süresi Geçmiş İşler"><span class="metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v6"/><path d="M12 17h.01"/><path d="M10.3 3.9 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg></span><div class="metric-copy"><span>Süresi Geçmiş İşler</span><strong id="lateDeadlines">0</strong></div></div>
+        <div class="metric-grid priority-board" aria-label="Öncelik panosu">
+          <div class="priority-group is-critical">
+            <div class="priority-group-head">
+              <span class="priority-flag" aria-hidden="true"></span>
+              <h2>Kritik</h2>
+              <span class="priority-hint">Hemen müdahale gerekli</span>
+            </div>
+            <div class="priority-group-body">
+              <div class="metric metric-overdue overdue-metric priority-card" data-dashboard-section="deadlines" aria-label="Süresi Geçmiş İşler">
+                <span class="metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v6"/><path d="M12 17h.01"/><path d="M10.3 3.9 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg></span>
+                <div class="metric-copy"><span>Süresi Geçmiş İşler</span><strong id="lateDeadlines">0</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="priority-group is-today">
+            <div class="priority-group-head">
+              <span class="priority-flag" aria-hidden="true"></span>
+              <h2>Bugün</h2>
+              <span class="priority-hint">Günü kapatmadan önce</span>
+            </div>
+            <div class="priority-group-body">
+              <div class="metric metric-deadlines priority-card" data-dashboard-section="deadlines" aria-label="Bugün Son Gün">
+                <span class="metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg></span>
+                <div class="metric-copy"><span>Bugün Son Gün</span><strong id="todayDeadlines">0</strong></div>
+              </div>
+              <div class="metric metric-tasks priority-card" data-dashboard-section="tasks" aria-label="Bana Atanmış Görevler">
+                <span class="metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5h14v14H5z"/><path d="m8 12 2.2 2.2L16 9"/></svg></span>
+                <div class="metric-copy"><span>Atanmış Görevler</span><strong id="assignedTasks">0</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="priority-group is-upcoming">
+            <div class="priority-group-head">
+              <span class="priority-flag" aria-hidden="true"></span>
+              <h2>Yaklaşan</h2>
+              <span class="priority-hint">Önümüzdeki 7 gün</span>
+            </div>
+            <div class="priority-group-body">
+              <div class="metric metric-hearings priority-card" data-dashboard-section="hearings" aria-label="Haftanın Duruşmaları">
+                <span class="metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg></span>
+                <div class="metric-copy"><span>Haftanın Duruşmaları</span><strong id="todayHearings">0</strong></div>
+              </div>
+              <div class="metric metric-deadlines priority-card" data-dashboard-section="deadlines" aria-label="Yaklaşan Süreler">
+                <span class="metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 1-9 9"/><path d="M3 3v6h6"/><path d="M12 8v5l3 2"/></svg></span>
+                <div class="metric-copy"><span>Yaklaşan Süreler</span><strong id="soonDeadlines">0</strong></div>
+              </div>
+            </div>
+          </div>
           <strong id="weekHearings" hidden>0</strong>
-          <strong id="todayDeadlines" hidden>0</strong>
         </div>
 
-        <div class="dashboard-primary-grid">
-          <div class="panel dashboard-upcoming-panel" id="upcomingHearingsPanel">
-            <div class="panel-header">
-              <div><h2>Yaklaşan Duruşmalar</h2></div>
-              <button class="btn" data-section-link="hearings">Tümünü Gör</button>
+        <div class="dashboard-grid">
+          <div class="dashboard-col-main">
+            <div class="panel agenda-panel" id="upcomingHearingsPanel">
+              <div class="panel-header">
+                <div><h2>Bugünün Ajandası</h2><p class="panel-sub">Yaklaşan duruşmalar</p></div>
+                <button class="btn" data-section-link="hearings">Tümünü Gör</button>
+              </div>
+              <div class="table-wrap agenda-wrap">
+                <table class="agenda-table agenda-hearings">
+                  <thead><tr><th>Dosya ID</th><th>Mahkeme</th><th>Dosya No</th><th>Tarih</th><th>Saat</th><th>Mazeret Durumu</th><th>Katılacak Kişi</th></tr></thead>
+                  <tbody id="hearingRows"></tbody>
+                </table>
+              </div>
             </div>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>Dosya ID</th><th>Mahkeme</th><th>Dosya No</th><th>Tarih</th><th>Saat</th><th>Mazeret Durumu</th><th>Katılacak Kişi</th></tr></thead>
-                <tbody id="hearingRows"></tbody>
-              </table>
+
+            <div class="panel agenda-panel">
+              <div class="panel-header">
+                <div><h2>Yaklaşan Süreler</h2><p class="panel-sub">Öncelik sırasına göre</p></div>
+                <button class="btn" data-section-link="deadlines">Tümünü Gör</button>
+              </div>
+              <div class="table-wrap agenda-wrap">
+                <table class="agenda-table agenda-deadlines">
+                  <thead><tr><th>Dosya ID</th><th>Mahkeme / İcra Dairesi</th><th>Dosya No</th><th>İş</th><th>Son Gün</th><th>Kalan</th><th>Sorumlu</th></tr></thead>
+                  <tbody id="deadlineRows"></tbody>
+                </table>
+              </div>
             </div>
           </div>
-          <div class="dashboard-operational-grid">
-          <div class="panel dashboard-deadline-panel">
-            <div class="panel-header">
-              <div><h2>Yaklaşan Süreler</h2></div>
-              <button class="btn" data-section-link="deadlines">Tümünü Gör</button>
+
+          <aside class="dashboard-col-side" aria-label="Görevler ve finans">
+            <div class="panel task-panel">
+              <div class="panel-header"><div><h2>Bana Atanmış Görevler</h2></div><button class="btn" data-section-link="tasks">Tümünü Gör</button></div>
+              <div class="dashboard-list" id="dashboardTasks"></div>
             </div>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>Dosya ID</th><th>Mahkeme / İcra Dairesi</th><th>Dosya No</th><th>İş</th><th>Son Gün</th><th>Kalan</th><th>Sorumlu</th></tr></thead>
-                <tbody id="deadlineRows"></tbody>
-              </table>
+
+            <div class="panel finance-brief-panel">
+              <div class="panel-header"><div><h2>Finans Özeti</h2></div><button class="btn" data-section-link="payments">Ödemeleri Aç</button></div>
+              <div class="finance-brief">
+                <div><span>Beklenen tahsilat</span><strong id="dashboardPaymentExpected">0,00 ₺</strong></div>
+                <div><span>Bu ay tahsil edilen</span><strong id="dashboardPaymentMonthlyCollected">0,00 ₺</strong></div>
+                <div><span>Geciken taksit</span><strong id="dashboardPaymentOverdue">0</strong></div>
+                <div><span>Bekleyen ödeme</span><strong id="dashboardPaymentPending">0,00 ₺</strong></div>
+              </div>
             </div>
-          </div>
-          <div class="panel">
-            <div class="panel-header"><div><h2>Bana Atanmış Görevler</h2></div><button class="btn" data-section-link="tasks">Tümünü Gör</button></div>
-            <div class="dashboard-list" id="dashboardTasks"></div>
-          </div>
-          </div>
+          </aside>
         </div>
-        <div class="dashboard-command-grid">
+
+        <div class="dashboard-charts">
           <div class="panel dashboard-distribution-panel">
-            <div class="panel-header"><h2>Dava Dosyaları Durum Dağılımı</h2></div>
+            <div class="panel-header"><div><h2>Dava Dosyaları</h2><p class="panel-sub">Durum dağılımı</p></div></div>
             <div class="status-distribution" id="fileStatusDistribution"></div>
           </div>
           <div class="panel dashboard-distribution-panel">
-            <div class="panel-header"><h2>İcra Dosyaları Durum Dağılımı</h2></div>
+            <div class="panel-header"><div><h2>İcra Dosyaları</h2><p class="panel-sub">Durum dağılımı</p></div></div>
             <div class="status-distribution" id="criticalWarnings"></div>
-          </div>
-          <div class="panel finance-brief-panel">
-            <div class="panel-header"><h2>Kısa Finansal Özet</h2><button class="btn" data-section-link="payments">Ödemeleri Aç</button></div>
-            <div class="finance-brief">
-              <div><span>Beklenen tahsilat</span><strong id="dashboardPaymentExpected">0,00 ₺</strong></div>
-              <div><span>Bu ay tahsil edilen</span><strong id="dashboardPaymentMonthlyCollected">0,00 ₺</strong></div>
-              <div><span>Geciken taksit</span><strong id="dashboardPaymentOverdue">0</strong></div>
-              <div><span>Bekleyen ödeme</span><strong id="dashboardPaymentPending">0,00 ₺</strong></div>
-            </div>
           </div>
         </div>
       </section>
@@ -9607,6 +10658,12 @@
       if (topbarInitials) topbarInitials.textContent = initials;
       const syncStatus = document.getElementById("syncStatus");
       if (syncStatus) syncStatus.title = `${user.displayName || "Kullanıcı"} İçin Senkronize Aktif`;
+      if (activeSection === "dashboard") {
+        const title = document.getElementById("pageTitle");
+        const lead = document.getElementById("pageLead");
+        if (title) title.textContent = dashboardGreeting();
+        if (lead) lead.textContent = dashboardGreetingLead();
+      }
     }
 
     function openAuthenticatedApp(user, rememberSession = null) {
@@ -10669,7 +11726,7 @@
     function showToast(message, type = toastTypeFromMessage(message)) {
       const region = document.getElementById("toastRegion");
       if (!region || !message) return;
-      const titles = { success: "İşlem başarılı", error: "İşlem tamamlanamadı", warning: "Dikkat", info: "Bilgilendirme" };
+      const titles = { success: "İşlem başarıl��", error: "İşlem tamamlanamadı", warning: "Dikkat", info: "Bilgilendirme" };
       const icons = { success: "✓", error: "!", warning: "!", info: "i" };
       const toast = document.createElement("div");
       toast.className = `v1-toast ${type}`;
@@ -17894,6 +18951,25 @@
       }
     }
 
+    function dashboardGreetingName() {
+      const full = String(currentUser?.displayName || "").trim();
+      if (!full) return "";
+      return full.split(/\s+/)[0];
+    }
+
+    function dashboardGreeting() {
+      const hour = new Date().getHours();
+      const part = hour < 6 ? "İyi geceler" : hour < 12 ? "Günaydın" : hour < 18 ? "İyi günler" : "İyi akşamlar";
+      const name = dashboardGreetingName();
+      return name ? `${part}, ${name}` : part;
+    }
+
+    function dashboardGreetingLead() {
+      const now = new Date();
+      const dayLabel = now.toLocaleDateString("tr-TR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+      return `${dayLabel.charAt(0).toLocaleUpperCase("tr-TR")}${dayLabel.slice(1)} · Ofis komuta merkezi`;
+    }
+
     function switchSection(id) {
       if (id === "reports" && !requirePermission("reports", "Raporlama ekranına erişim")) return;
       if (id === "users" && !requirePermission("manageUsers", "Kullanıcı yönetimine erişim")) return;
@@ -17906,8 +18982,13 @@
       activeSection = id;
       document.querySelectorAll(".section").forEach(s => s.classList.toggle("active", s.id === id));
       document.querySelectorAll(".nav button").forEach(b => b.classList.toggle("active", b.dataset.section === id));
-      document.getElementById("pageTitle").textContent = titles[id][0];
-      document.getElementById("pageLead").textContent = titles[id][1];
+      document.getElementById("pageTitle").textContent = id === "dashboard" ? dashboardGreeting() : titles[id][0];
+      document.getElementById("pageLead").textContent = id === "dashboard" ? dashboardGreetingLead() : titles[id][1];
+      document.querySelectorAll(".mobile-tabbar button[data-tab]").forEach(tab => {
+        const isActive = tab.dataset.tab === id;
+        tab.classList.toggle("active", isActive);
+        tab.setAttribute("aria-current", isActive ? "page" : "false");
+      });
       const globalSearch = document.querySelector(".global-search input");
       if (globalSearch) globalSearch.value = "";
       const alertBand = document.querySelector(".alert-band");
