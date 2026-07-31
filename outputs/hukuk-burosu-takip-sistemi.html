@@ -8259,15 +8259,32 @@
       letter-spacing: .01em;
       color: var(--dsh-muted-2);
     }
-    /* mazeret: etiketsiz, sadece değer */
-    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(6)::before { content: none; }
-    /* mazeret çipi */
-    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(6) {
-      font-size: .72rem;
+    /* Mazeret sadece bir istisna olduğunda görünür.
+       "Yok" normal durumdur; her satırda tekrar etmesi gürültü yaratıyordu. */
+    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td[data-excuse="none"] { visibility: hidden; }
+    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td[data-excuse="filed"] {
+      display: flex;
+      align-items: baseline;
+      justify-content: flex-end;
+      gap: 5px;
+      font-size: .73rem;
       font-weight: 600;
-      color: var(--dsh-ink-2);
-      white-space: nowrap;
+      color: var(--dsh-warn);
+      line-height: 1.3;
     }
+    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td[data-excuse="filed"]::before {
+      display: inline;
+      margin: 0;
+      flex: none;
+      font-size: .66rem;
+      font-weight: 600;
+      text-transform: none;
+      letter-spacing: .01em;
+      color: var(--dsh-muted-2);
+    }
+    /* mazeret hücresi: renk ve görünürlük yukarıdaki [data-excuse] kurallarında,
+       burada yalnızca satır kırılmasını engelliyoruz */
+    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(6) { white-space: nowrap; }
 
     /* --- SÜRELİ İŞLER: kalan gün rayı öne çıkar --- */
     #dashboard .agenda-deadlines tbody tr.dashboard-data-row {
@@ -8764,7 +8781,7 @@
 
     /* ---------- ÖNCELİK PANOSU: 8 çerçeve → 1 yüzey ----------
        Eskiden 3 grup kartı + içlerinde 5 metrik kartı vardı (iç içe kutu).
-       Artık tek kâğıt yüzey, sütunlar saç teli çizgiyle ayrılıyor. */
+       Artık tek kâğ��t yüzey, sütunlar saç teli çizgiyle ayrılıyor. */
     #dashboard .metric-grid.priority-board {
       grid-template-columns: minmax(0, .9fr) minmax(0, 1.05fr) minmax(0, 1.05fr);
       gap: 0;
@@ -8931,6 +8948,12 @@
     #dashboard .agenda-deadlines tbody tr.dashboard-data-row { grid-template-columns: 118px minmax(0, 1fr) minmax(0, auto); }
     #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(4),
     #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(5) { white-space: nowrap; }
+    /* "Son Gün" etiketi gereksiz: hemen üstündeki "3 gün gecikti" aynı bilgiyi veriyor */
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(5)::before { content: none; }
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(5) {
+      font-size: .755rem;
+      color: var(--dsh-muted-2);
+    }
     #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(2),
     #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(4) {
       font-size: .875rem;
@@ -18068,7 +18091,7 @@
           <td data-label="Dosya No">${escapeHtml(caseNo)}</td>
           <td data-label="Tarih">${escapeHtml(formatDate(hearing.date))}</td>
           <td data-label="Saat"><span class="dashboard-time">${escapeHtml(hearing.time || "--:--")}</span></td>
-          <td data-label="Mazeret Durumu">${escapeHtml(excuse)}</td>
+          <td data-label="Mazeret" data-excuse="${excuse === "Yok" ? "none" : "filed"}">${escapeHtml(excuse)}</td>
           <td data-label="Katılacak Kişi">${escapeHtml(person)}</td>
         </tr>
       `;
