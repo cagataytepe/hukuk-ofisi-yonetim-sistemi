@@ -1663,6 +1663,73 @@ export class SupabaseRepository {
     return this.getOfficeExpenseDashboardData(filters);
   }
 
+  async globalSearch(query, options = {}) {
+    const term = String(query || "").trim();
+    if (term.length < 2) return { query: term, groups: [], total: 0 };
+    const limit = Math.min(Math.max(Number(options.limit) || 5, 1), 10);
+    const specs = [
+      ["files", "id,display_id,legacy_id,file_no,court_or_office,client_name,opponent_name,subject,file_type,status", ["display_id", "legacy_id", "file_no", "court_or_office", "client_name", "opponent_name", "subject"], "Dosyalar", "cases", "file"],
+      ["clients", "id,name,client_type,tax_id,national_id", ["name", "tax_id", "national_id"], "Müvekkiller", "clients", "client"],
+      ["hearings", "id,file_id,hearing_date,hearing_time,court,case_file_no,participant_name,attendee_name,note", ["court", "case_file_no", "participant_name", "attendee_name", "note"], "Duruşmalar", "hearings", "hearing"],
+      ["deadlines", "id,file_id,title,description,due_date,responsible_name,status", ["title", "description", "responsible_name"], "Süreli İşler", "deadlines", "deadline"],
+      ["tasks", "id,file_id,title,description,due_date,responsible_name,status", ["title", "description", "responsible_name"], "Görevler", "tasks", "task"],
+      ["payment_plans", "id,file_id,client_id,party_name,plan_type,status,agreement_amount,currency", ["party_name", "plan_type", "description"], "Ödeme Planları", "payments", "payment"],
+      ["collections", "id,file_id,payment_plan_id,description,payment_kind,amount,currency,collection_date", ["description", "payment_kind"], "Tahsilatlar", "payments", "collection"],
+      ["office_expenses", "id,title,description,vendor,expense_date,due_date,amount,status,payment_source", ["title", "description", "vendor"], "Ofis Giderleri", "officeExpenses", "officeExpense"]
+    ];
+    const rows = await Promise.all(specs.map(async spec => {
+      const [table, fields, searchFields] = spec;
+      const orFilter = searchFields.map(field => `${field}.ilike.%${term.replace(/[%_,()]/g, " ")}%`).join(",");
+      const { data, error } = await this.supabase.from(table).select(fields).is("deleted_at", null).or(orFilter).limit(limit);
+      if (error) throw error;
+      return data || [];
+    }));
+    const groups = rows.map((items, index) => ({ name: specs[index][3], section: specs[index][4], type: specs[index][5], items })).filter(group => group.items.length);
+    return { query: term, groups, total: groups.reduce((sum, group) => sum + group.items.length, 0) };
+  }
+
+  async markNotificationRead(notificationKey) {
+    const { data: auth } = await this.supabase.auth.getUser();
+    if (!auth?.user?.id || !notificationKey) return null;
+    const { data, error } = await this.supabase.from("user_notification_reads").upsert({ profile_id: auth.user.id, notification_key: notificationKey, read_at: new Date().toISOString(), updated_at: new Date().toISOString() }, { onConflict: "profile_id,notification_key" }).select().single();
+    if (error) throw error;
+    return data;
+  }
+
+  async getNotificationCenterData() {
+    const { data: auth } = await this.supabase.auth.getUser();
+    const profileId = auth?.user?.id;
+    if (!profileId) throw new Error("Aktif kullanıcı profili bulunamadı.");
+    const today = this.localDateString();
+    const future = days => { const date = new Date(`${today}T12:00:00`); date.setDate(date.getDate() + days); return this.localDateString(date); };
+    const [hearings, deadlines, tasks, expenses, readResult] = await Promise.all([
+      this.getHearings({ dateFrom: today, dateTo: future(3) }),
+      this.getDeadlines({ dateTo: future(3) }),
+      this.getTasks({ responsibleProfileId: profileId, dateTo: future(3) }),
+      this.getOfficeExpenses({ dateTo: future(15) }),
+      this.supabase.from("user_notification_reads").select("notification_key,read_at").eq("profile_id", profileId)
+    ]);
+    if (readResult.error) throw readResult.error;
+    const completed = value => ["tamamlandı", "tamamlandi", "completed", "paid", "ödendi", "odendi", "cancelled"].includes(String(value || "").trim().toLocaleLowerCase("tr-TR"));
+    const notifications = [];
+    hearings.forEach(item => notifications.push({ key: `hearing:${item.id}:${item.hearing_date}`, type: "hearing", section: "hearings", recordId: item.id, fileId: item.file_id, date: item.hearing_date, severity: item.hearing_date === today ? "urgent" : "info", title: item.hearing_date === today ? "Bugünkü duruşma" : "Yaklaşan duruşma", description: [item.hearing_time?.slice(0, 5), item.court, item.case_file_no].filter(Boolean).join(" · ") }));
+    deadlines.filter(item => !completed(item.status) && item.due_date <= future(3)).forEach(item => notifications.push({ key: `deadline:${item.id}:${item.due_date}`, type: "deadline", section: "deadlines", recordId: item.id, fileId: item.file_id, date: item.due_date, severity: item.due_date < today ? "urgent" : "warning", title: item.due_date < today ? "Süresi geçmiş iş" : "Yaklaşan süre", description: item.title || item.description || "Süreli iş" }));
+    tasks.filter(item => !completed(item.status) && item.due_date && item.due_date <= future(3)).forEach(item => notifications.push({ key: `task:${item.id}:${item.due_date}`, type: "task", section: "tasks", recordId: item.id, fileId: item.file_id, date: item.due_date, severity: item.due_date < today ? "urgent" : "warning", title: item.due_date < today ? "Gecikmiş görev" : "Yaklaşan görev", description: item.title || "Görev" }));
+    expenses.filter(item => !completed(item.status) && item.due_date && item.due_date >= today && item.due_date <= future(15)).forEach(item => notifications.push({ key: `expense:${item.id}:${item.due_date}`, type: "expense", section: "officeExpenses", recordId: item.id, date: item.due_date, severity: item.due_date <= future(3) ? "warning" : "info", title: "Yaklaşan ofis ödemesi", description: item.title || "Gider" }));
+    const readKeys = new Set((readResult.data || []).map(item => item.notification_key));
+    notifications.forEach(item => { item.read = readKeys.has(item.key); });
+    notifications.sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
+    return { notifications, unreadCount: notifications.filter(item => !item.read).length, generatedAt: new Date().toISOString() };
+  }
+
+  async getUnreadNotificationCount() {
+    return (await this.getNotificationCenterData()).unreadCount;
+  }
+
+  async markAllNotificationsRead(keys = []) {
+    return Promise.all([...new Set(keys.filter(Boolean))].map(key => this.markNotificationRead(key)));
+  }
+
   normalizeOfficeExpenseContribution(row = {}, profileKey = "paid_by_profile_id") {
     const contributionKeys = ["payment_source", "contributes_to_partner_share", "payment_method", profileKey];
     if (!contributionKeys.some(key => Object.prototype.hasOwnProperty.call(row, key))) return row;

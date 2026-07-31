@@ -753,10 +753,7 @@
         const deadlines = await response.json();
         const [files, profiles] = await Promise.all([
           repository.getFiles(),
-          repository.listProfiles().catch(error => {
-            console.error("[BKT deadlines] Profil listesi okunamadı.", { message: error?.message || String(error) });
-            throw error;
-          })
+          repository.listProfiles().catch(() => [])
         ]);
         const filesById = new Map((files || []).map(file => [file.id, file]));
         const profilesById = new Map((profiles || []).map(profile => [profile.id, profile]));
@@ -953,10 +950,7 @@
         const tasks = await response.json();
         const [files, profiles] = await Promise.all([
           repository.getFiles(),
-          repository.listProfiles().catch(error => {
-            console.error("[BKT tasks] Profil listesi okunamadı.", { message: error?.message || String(error) });
-            throw error;
-          })
+          repository.listProfiles().catch(() => [])
         ]);
         const filesById = new Map((files || []).map(file => [file.id, file]));
         const profilesById = new Map((profiles || []).map(profile => [profile.id, profile]));
@@ -1884,6 +1878,95 @@
       async getOfficeExpenseReportData(filters = {}) {
         return repository.getOfficeExpenseDashboardData(filters);
       },
+      async globalSearch(query, options = {}) {
+        const term = String(query || "").trim();
+        if (term.length < 2) return { query: term, groups: [], total: 0 };
+        const limit = Math.min(Math.max(Number(options.limit) || 5, 1), 10);
+        const pattern = `*${escapePostgrestValue(term)}*`;
+        const select = (table, fields, searchFields, order = "created_at.desc") => officeExpenseSelect(repository, table, {
+          select: fields,
+          deleted_at: "is.null",
+          or: `(${searchFields.map(field => `${field}.ilike.${pattern}`).join(",")})`,
+          order,
+          limit
+        });
+        const results = await Promise.all([
+          select("files", "id,display_id,legacy_id,file_no,court_or_office,client_name,opponent_name,subject,file_type,status", ["display_id", "legacy_id", "file_no", "court_or_office", "client_name", "opponent_name", "subject"]),
+          select("clients", "id,name,client_type,tax_id,national_id", ["name", "tax_id", "national_id"], "name.asc"),
+          select("hearings", "id,file_id,hearing_date,hearing_time,court,case_file_no,participant_name,attendee_name,note", ["court", "case_file_no", "participant_name", "attendee_name", "note"], "hearing_date.desc"),
+          select("deadlines", "id,file_id,title,description,due_date,responsible_name,status", ["title", "description", "responsible_name"], "due_date.asc"),
+          select("tasks", "id,file_id,title,description,due_date,responsible_name,status", ["title", "description", "responsible_name"], "due_date.asc"),
+          select("payment_plans", "id,file_id,client_id,party_name,plan_type,status,agreement_amount,currency", ["party_name", "plan_type", "description"]),
+          select("collections", "id,file_id,payment_plan_id,description,payment_kind,amount,currency,collection_date", ["description", "payment_kind"], "collection_date.desc"),
+          select("office_expenses", "id,title,description,vendor,expense_date,due_date,amount,status,payment_source", ["title", "description", "vendor"], "expense_date.desc")
+        ]);
+        const names = ["Dosyalar", "Müvekkiller", "Duruşmalar", "Süreli İşler", "Görevler", "Ödeme Planları", "Tahsilatlar", "Ofis Giderleri"];
+        const sections = ["cases", "clients", "hearings", "deadlines", "tasks", "payments", "payments", "officeExpenses"];
+        const types = ["file", "client", "hearing", "deadline", "task", "payment", "collection", "officeExpense"];
+        const groups = results.map((items, index) => ({ name: names[index], section: sections[index], type: types[index], items: items || [] })).filter(group => group.items.length);
+        return { query: term, groups, total: groups.reduce((sum, group) => sum + group.items.length, 0) };
+      },
+      async getNotificationCenterData() {
+        const current = await repository.getCurrentUser();
+        const profileId = current?.id;
+        if (!profileId) throw new Error("Aktif kullanıcı profili bulunamadı.");
+        const today = localDateString();
+        const addDays = days => {
+          const date = new Date(`${today}T12:00:00`);
+          date.setDate(date.getDate() + days);
+          return localDateString(date);
+        };
+        const [hearings, deadlines, tasks, installments, plans, expenses, reads] = await Promise.all([
+          repository.getHearings({ dateFrom: today, dateTo: addDays(3) }),
+          repository.getDeadlines({ dateTo: addDays(3) }),
+          repository.getTasks({ responsibleProfileId: profileId, dateTo: addDays(3) }),
+          officeExpenseSelect(repository, "payment_installments", { select: "id,payment_plan_id,sequence_no,due_date,amount,paid_amount,status", deleted_at: "is.null", due_date: `lte.${addDays(7)}`, order: "due_date.asc" }),
+          repository.getPaymentPlans(),
+          repository.getOfficeExpenses({ dateTo: addDays(15) }),
+          officeExpenseSelect(repository, "user_notification_reads", { select: "notification_key,read_at", profile_id: `eq.${profileId}` })
+        ]);
+        const completed = value => ["tamamlandı", "tamamlandi", "completed", "ödendi", "odendi", "paid", "cancelled"].includes(String(value || "").trim().toLocaleLowerCase("tr-TR"));
+        const notifications = [];
+        (hearings || []).forEach(item => notifications.push({ key: `hearing:${item.id}:${item.hearing_date}`, type: "hearing", section: "hearings", recordId: item.id, fileId: item.file_id, date: item.hearing_date, severity: item.hearing_date === today ? "urgent" : "info", title: item.hearing_date === today ? "Bugünkü duruşma" : "Yaklaşan duruşma", description: [item.hearing_time?.slice(0, 5), item.court, item.case_file_no].filter(Boolean).join(" · ") }));
+        (deadlines || []).filter(item => !completed(item.status) && item.due_date <= addDays(3)).forEach(item => notifications.push({ key: `deadline:${item.id}:${item.due_date}`, type: "deadline", section: "deadlines", recordId: item.id, fileId: item.file_id, date: item.due_date, severity: item.due_date < today ? "urgent" : "warning", title: item.due_date < today ? "Süresi geçmiş iş" : "Yaklaşan süre", description: item.title || item.description || "Süreli iş" }));
+        (tasks || []).filter(item => !completed(item.status) && item.due_date && item.due_date <= addDays(3)).forEach(item => notifications.push({ key: `task:${item.id}:${item.due_date}`, type: "task", section: "tasks", recordId: item.id, fileId: item.file_id, date: item.due_date, severity: item.due_date < today ? "urgent" : "warning", title: item.due_date < today ? "Gecikmiş görev" : "Yaklaşan görev", description: item.title || "Görev" }));
+        const planMap = new Map((plans || []).map(plan => [plan.id, plan]));
+        (installments || [])
+          .filter(item => !completed(item.status) && Number(item.paid_amount || 0) < Number(item.amount || 0))
+          .forEach(item => {
+            const plan = planMap.get(item.payment_plan_id);
+            notifications.push({
+              key: `installment:${item.id}:${item.due_date}`,
+              type: "payment",
+              section: "payments",
+              recordId: item.payment_plan_id,
+              fileId: plan?.file_id,
+              date: item.due_date,
+              severity: item.due_date < today ? "urgent" : "warning",
+              title: item.due_date < today ? "Gecikmiş taksit" : "Yaklaşan taksit",
+              description: `${plan?.party_name || "Ödeme planı"} · ${Number(item.amount || 0).toLocaleString("tr-TR", { style: "currency", currency: plan?.currency || "TRY" })}`
+            });
+          });
+        (expenses || []).filter(item => !completed(item.status) && item.due_date && item.due_date >= today && item.due_date <= addDays(15)).forEach(item => notifications.push({ key: `expense:${item.id}:${item.due_date}`, type: "expense", section: "officeExpenses", recordId: item.id, date: item.due_date, severity: item.due_date <= addDays(3) ? "warning" : "info", title: "Yaklaşan ofis ödemesi", description: `${item.title || "Gider"} · ${Number(item.amount || 0).toLocaleString("tr-TR", { style: "currency", currency: "TRY" })}` }));
+        const readKeys = new Set((reads || []).map(item => item.notification_key));
+        notifications.forEach(item => { item.read = readKeys.has(item.key); });
+        notifications.sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")) || (a.read === b.read ? 0 : a.read ? 1 : -1));
+        return { notifications, unreadCount: notifications.filter(item => !item.read).length, generatedAt: new Date().toISOString() };
+      },
+      async markNotificationRead(notificationKey) {
+        const current = await repository.getCurrentUser();
+        if (!current?.id || !notificationKey) return null;
+        const response = await fetch(`${restUrl("user_notification_reads")}?on_conflict=profile_id,notification_key`, { method: "POST", headers: { ...(await authHeaders(repository)), "Content-Type": "application/json", "Prefer": "resolution=merge-duplicates,return=representation" }, body: JSON.stringify({ profile_id: current.id, notification_key: notificationKey, read_at: new Date().toISOString(), updated_at: new Date().toISOString() }) });
+        if (!response.ok) throw new Error(`Bildirim okundu bilgisi kaydedilemedi: ${response.status}`);
+        return (await response.json())[0] || null;
+      },
+      async markAllNotificationsRead(keys = []) {
+        const uniqueKeys = [...new Set(keys.filter(Boolean))];
+        return Promise.all(uniqueKeys.map(key => repository.markNotificationRead(key)));
+      },
+      async getUnreadNotificationCount() {
+        return (await repository.getNotificationCenterData()).unreadCount;
+      },
       async fetchRole(roleId) {
         if (!roleId) return null;
         const response = await fetch(`${restUrl("roles")}?select=id,name,metadata,is_system&id=eq.${encodeURIComponent(roleId)}&deleted_at=is.null&limit=1`, {
@@ -2140,6 +2223,10 @@
 
   function restUrl(table) {
     return `${supabaseUrl.replace(/\/$/, "")}/rest/v1/${table}`;
+  }
+
+  function escapePostgrestValue(value) {
+    return String(value || "").replace(/[%,()*]/g, " ").replace(/\s+/g, " ").trim();
   }
 
   async function officeExpenseSelect(repository, table, query = {}) {

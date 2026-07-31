@@ -7371,6 +7371,52 @@
       .skeleton-row::after, .skeleton-inline::after { display: none; }
       .section.active, .v1-toast, .quick-action-dropdown, .file-detail-action-list { transform: none !important; }
     }
+    .notification-trigger { position: relative; width: 40px; height: 40px; padding: 0; display: inline-grid; place-items: center; }
+    .notification-trigger svg { width: 18px; height: 18px; stroke: currentColor; fill: none; }
+    .notification-badge { position: absolute; top: -5px; right: -5px; min-width: 19px; height: 19px; padding: 0 5px; border: 2px solid var(--surface, #fffdf8); border-radius: 999px; background: #b33a3a; color: #fff; font-size: 10px; font-weight: 800; line-height: 15px; }
+    .notification-badge[hidden] { display: none; }
+    .command-palette { width: min(680px, calc(100vw - 32px)); max-height: min(680px, calc(100vh - 48px)); margin: 8vh auto 0; padding: 0; border: 1px solid #d8d1c5; border-radius: 8px; background: #fffdf9; box-shadow: 0 24px 70px rgba(13, 35, 51, .24); color: #152d40; overflow: hidden; }
+    .command-palette::backdrop { background: rgba(10, 24, 36, .48); backdrop-filter: blur(2px); }
+    .command-palette-header { display: flex; align-items: center; gap: 10px; padding: 14px; border-bottom: 1px solid #e4ded4; }
+    .command-palette-header svg { width: 20px; height: 20px; stroke: #526878; fill: none; flex: none; }
+    .command-palette-input { width: 100%; border: 0; outline: 0; background: transparent; color: #102f46; font: inherit; font-size: 16px; }
+    .command-palette-kbd { border: 1px solid #d8d1c5; border-radius: 4px; padding: 3px 6px; background: #f7f3ec; color: #657581; font-size: 11px; white-space: nowrap; }
+    .command-palette-body { max-height: min(560px, calc(100vh - 145px)); overflow: auto; padding: 8px; }
+    .command-group-title { padding: 10px 10px 5px; color: #7a6b59; font-size: 11px; font-weight: 800; text-transform: uppercase; }
+    .command-item { width: 100%; min-height: 48px; display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 8px 10px; border: 0; border-radius: 6px; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+    .command-item:hover, .command-item.active { background: #eef4f6; }
+    .command-item-icon { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 5px; background: #e5eff2; color: #173f57; font-weight: 800; }
+    .command-item-copy { min-width: 0; }
+    .command-item-title, .command-item-meta { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .command-item-title { font-size: 13px; font-weight: 750; }
+    .command-item-meta { margin-top: 2px; color: #70808b; font-size: 11px; }
+    .command-empty { padding: 34px 20px; color: #6e7b84; text-align: center; }
+    .notification-backdrop { position: fixed; inset: 0; z-index: 1190; background: rgba(10, 24, 36, .32); }
+    .notification-drawer { position: fixed; z-index: 1200; top: 0; right: 0; width: min(420px, 100vw); height: 100vh; display: flex; flex-direction: column; background: #fffdf9; border-left: 1px solid #d8d1c5; box-shadow: -18px 0 50px rgba(13, 35, 51, .16); transform: translateX(100%); transition: transform .2s ease; }
+    .notification-drawer.open { transform: translateX(0); }
+    .notification-drawer-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 17px 18px; border-bottom: 1px solid #e4ded4; }
+    .notification-drawer-header h2 { margin: 0; font-size: 17px; }
+    .notification-drawer-tools { display: flex; align-items: center; gap: 6px; }
+    .notification-tabs { display: flex; gap: 4px; padding: 10px 14px; border-bottom: 1px solid #e4ded4; }
+    .notification-tab { border: 0; border-radius: 5px; padding: 7px 10px; background: transparent; color: #60717d; font-weight: 700; cursor: pointer; }
+    .notification-tab.active { background: #e7f0f2; color: #123c55; }
+    .notification-list { flex: 1; overflow: auto; padding: 10px; }
+    .notification-item { width: 100%; display: grid; grid-template-columns: 10px minmax(0, 1fr); gap: 10px; padding: 12px; border: 0; border-bottom: 1px solid #ece6dc; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+    .notification-item:hover { background: #f5f7f5; }
+    .notification-dot { width: 8px; height: 8px; margin-top: 5px; border-radius: 50%; background: #aab4ba; }
+    .notification-item.unread .notification-dot { background: #0e6b75; }
+    .notification-item.warning .notification-dot { background: #b7791f; }
+    .notification-item.urgent .notification-dot { background: #b33a3a; }
+    .notification-item strong, .notification-item span, .notification-item time { display: block; }
+    .notification-item strong { font-size: 13px; }
+    .notification-item span { margin-top: 3px; color: #5f707b; font-size: 12px; }
+    .notification-item time { margin-top: 6px; color: #8a7563; font-size: 11px; }
+    @media (max-width: 700px) {
+      .command-palette { width: 100vw; height: 100dvh; max-height: none; margin: 0; border: 0; border-radius: 0; }
+      .command-palette-body { max-height: calc(100dvh - 69px); }
+      .notification-drawer { width: 100vw; }
+    }
+    @media (prefers-reduced-motion: reduce) { .notification-drawer { transition: none; } }
   </style>
 </head>
 <body>
@@ -7529,6 +7575,10 @@
               </div>
             </details>
           </div>
+          <button class="btn notification-trigger" id="notificationCenterButton" type="button" aria-label="Bildirim merkezini aç" title="Bildirimler">
+            <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
+            <span class="notification-badge" id="notificationUnreadBadge" hidden>0</span>
+          </button>
           <div class="sync-status" id="syncStatus" title="Senkronize Aktif">
             <span aria-hidden="true"></span>
             Senkronize
@@ -8435,6 +8485,34 @@
         </div>
       </section>
     </main>
+
+    <dialog class="command-palette" id="commandPalette" aria-labelledby="commandPaletteTitle">
+      <div class="command-palette-header">
+        <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input class="command-palette-input" id="commandPaletteInput" type="search" autocomplete="off" placeholder="Komut veya kayıt ara..." aria-label="Komut veya kayıt ara">
+        <span class="command-palette-kbd">Esc</span>
+      </div>
+      <h2 id="commandPaletteTitle" hidden>Komut Paleti</h2>
+      <div class="command-palette-body" id="commandPaletteResults"></div>
+    </dialog>
+
+    <div class="notification-backdrop" id="notificationBackdrop" hidden></div>
+    <aside class="notification-drawer" id="notificationDrawer" aria-labelledby="notificationDrawerTitle" aria-hidden="true">
+      <div class="notification-drawer-header">
+        <h2 id="notificationDrawerTitle">Bildirimler</h2>
+        <div class="notification-drawer-tools">
+          <button class="btn" id="markAllNotificationsRead" type="button">Tümünü Okundu İşaretle</button>
+          <button class="icon-btn" id="closeNotificationDrawer" type="button" aria-label="Bildirimleri kapat">×</button>
+        </div>
+      </div>
+      <div class="notification-tabs" role="tablist" aria-label="Bildirim filtreleri">
+        <button class="notification-tab active" type="button" data-notification-filter="all">Tümü</button>
+        <button class="notification-tab" type="button" data-notification-filter="urgent">Acil</button>
+        <button class="notification-tab" type="button" data-notification-filter="today">Bugün</button>
+        <button class="notification-tab" type="button" data-notification-filter="upcoming">Yaklaşan</button>
+      </div>
+      <div class="notification-list" id="notificationList"><div class="command-empty">Bildirimler yükleniyor.</div></div>
+    </aside>
   </div>
 
   <dialog class="calculation-dialog" id="calculationToolsDialog">
@@ -9285,6 +9363,7 @@
       renderUsers();
       refreshUserManagementData();
       switchSection("dashboard");
+      window.setTimeout(() => refreshNotificationCenter(), 250);
     }
 
     function syncAuthenticatedUser(user) {
@@ -18939,6 +19018,187 @@
       toggle.title = visible ? "Şifreyi göster" : "Şifreyi gizle";
     });
 
+    const commandDefinitions = [
+      { title: "Ana Sayfaya Git", section: "dashboard", keywords: "dashboard ana sayfa" },
+      { title: "Dosyalara Git", section: "cases", keywords: "dosya dava icra" },
+      { title: "Duruşmalara Git", section: "hearings", keywords: "duruşma" },
+      { title: "Süreli İşlere Git", section: "deadlines", keywords: "süreli iş" },
+      { title: "Görevlere Git", section: "tasks", keywords: "görev" },
+      { title: "Müvekkillere Git", section: "clients", keywords: "müvekkil taraf" },
+      { title: "Ödeme Takibine Git", section: "payments", keywords: "ödeme tahsilat" },
+      { title: "Ofis Giderlerine Git", section: "officeExpenses", keywords: "gider finans" },
+      { title: "Takvime Git", section: "calendar", keywords: "takvim ajanda" },
+      { title: "Raporlara Git", section: "reports", permission: "reports", keywords: "rapor" },
+      { title: "Ayarlara Git", section: "users", permission: "manageUsers", keywords: "ayar kullanıcı yetki" },
+      { title: "Yeni Dosya", section: "cases", actionId: "openNewFileForm", permission: "create", keywords: "ekle oluştur" },
+      { title: "Yeni Duruşma", section: "hearings", actionId: "openNewHearingForm", permission: "create", keywords: "ekle oluştur" },
+      { title: "Yeni Süreli İş", section: "deadlines", actionId: "openNewDeadlineForm", permission: "create", keywords: "ekle oluştur" },
+      { title: "Yeni Görev", section: "tasks", actionId: "openNewTaskForm", permission: "create", keywords: "ekle oluştur" },
+      { title: "Yeni Tahsilat", section: "payments", actionId: "newPaymentPlan", permission: "create", keywords: "ödeme ekle" },
+      { title: "Yeni Ofis Gideri", section: "officeExpenses", actionId: "newOfficeExpense", permission: "create", keywords: "gider ekle" },
+      { title: "Yeni Not", section: "cases", permission: "create", keywords: "dosya not" }
+    ];
+    let commandSearchTimer = 0;
+    let commandRows = [];
+    let commandActiveIndex = 0;
+    let notificationState = { notifications: [], unreadCount: 0 };
+    let notificationFilter = "all";
+
+    function visibleCommandDefinitions(query = "") {
+      const normalized = query.toLocaleLowerCase("tr-TR");
+      return commandDefinitions.filter(command => (!command.permission || can(command.permission)) && (!normalized || `${command.title} ${command.keywords || ""}`.toLocaleLowerCase("tr-TR").includes(normalized)));
+    }
+
+    function commandResultLabel(type, item) {
+      if (type === "file") return { title: item.display_id || item.legacy_id || item.file_no || "Dosya", meta: [item.court_or_office, item.file_no, item.client_name].filter(Boolean).join(" · ") };
+      if (type === "client") return { title: item.name || "Müvekkil", meta: item.client_type === "organization" ? "Tüzel kişi" : "Gerçek kişi" };
+      if (type === "hearing") return { title: [item.court, item.case_file_no].filter(Boolean).join(" · ") || "Duruşma", meta: [item.hearing_date, item.hearing_time?.slice(0, 5)].filter(Boolean).join(" · ") };
+      if (type === "deadline") return { title: item.title || "Süreli iş", meta: [item.due_date, item.responsible_name].filter(Boolean).join(" · ") };
+      if (type === "task") return { title: item.title || "Görev", meta: [item.due_date, item.responsible_name].filter(Boolean).join(" · ") };
+      if (type === "payment") return { title: item.party_name || "Ödeme planı", meta: item.plan_type || "" };
+      if (type === "collection") return { title: item.description || item.payment_kind || "Tahsilat", meta: [item.collection_date, Number(item.amount || 0).toLocaleString("tr-TR", { style: "currency", currency: item.currency || "TRY" })].filter(Boolean).join(" · ") };
+      return { title: item.title || item.vendor || "Ofis gideri", meta: [item.expense_date, Number(item.amount || 0).toLocaleString("tr-TR", { style: "currency", currency: "TRY" })].filter(Boolean).join(" · ") };
+    }
+
+    function renderCommandPalette(payload = null) {
+      const input = document.getElementById("commandPaletteInput");
+      const query = input?.value.trim() || "";
+      const commands = visibleCommandDefinitions(query.length >= 2 ? query : "");
+      commandRows = commands.map(command => ({ kind: "command", command }));
+      let html = `<div class="command-group-title">Hızlı Komutlar</div>${commands.map((command, index) => `<button class="command-item${index === commandActiveIndex ? " active" : ""}" type="button" data-command-index="${index}"><span class="command-item-icon">›</span><span class="command-item-copy"><span class="command-item-title">${escapeHtml(command.title)}</span><span class="command-item-meta">${command.actionId ? "Yeni kayıt" : "Bölüme git"}</span></span></button>`).join("")}`;
+      if (!query) {
+        try {
+          const recentSearches = JSON.parse(localStorage.getItem("bkt.ui.recentSearches") || "[]").slice(0, 5);
+          if (recentSearches.length) html += `<div class="command-group-title">Son Aramalar</div>${recentSearches.map(value => `<button class="command-item" type="button" data-recent-search="${escapeHtml(value)}"><span class="command-item-icon">↺</span><span class="command-item-copy"><span class="command-item-title">${escapeHtml(value)}</span><span class="command-item-meta">Tekrar ara</span></span></button>`).join("")}`;
+        } catch (_) {}
+      }
+      if (query.length >= 2) {
+        if (!payload) html += `<div class="command-empty">Kayıtlar aranıyor...</div>`;
+        else if (!payload.total) html += `<div class="command-empty">Sonuç bulunamadı.</div>`;
+        else payload.groups.forEach(group => {
+          html += `<div class="command-group-title">${escapeHtml(group.name)}</div>`;
+          group.items.forEach(item => {
+            const label = commandResultLabel(group.type, item);
+            const index = commandRows.length;
+            commandRows.push({ kind: "result", group, item, label });
+            html += `<button class="command-item${index === commandActiveIndex ? " active" : ""}" type="button" data-command-index="${index}"><span class="command-item-icon">${escapeHtml(group.name.slice(0, 1))}</span><span class="command-item-copy"><span class="command-item-title">${escapeHtml(label.title)}</span><span class="command-item-meta">${escapeHtml(label.meta)}</span></span><span class="command-item-meta">${escapeHtml(group.name)}</span></button>`;
+          });
+        });
+      }
+      document.getElementById("commandPaletteResults").innerHTML = html;
+    }
+
+    function openCommandPalette(seed = "") {
+      const dialog = document.getElementById("commandPalette");
+      const input = document.getElementById("commandPaletteInput");
+      if (!dialog.open) dialog.showModal();
+      input.value = seed;
+      commandActiveIndex = 0;
+      renderCommandPalette();
+      window.setTimeout(() => input.focus(), 0);
+      if (seed.length >= 2) runUniversalSearch(seed);
+    }
+
+    function closeCommandPalette() {
+      const dialog = document.getElementById("commandPalette");
+      if (dialog.open) dialog.close();
+    }
+
+    async function runUniversalSearch(query) {
+      try {
+        const payload = await appRepository.globalSearch(query, { limit: 5 });
+        if (!/\d{10,}/.test(query)) {
+          try {
+            const previous = JSON.parse(localStorage.getItem("bkt.ui.recentSearches") || "[]");
+            localStorage.setItem("bkt.ui.recentSearches", JSON.stringify([query, ...previous.filter(value => value !== query)].slice(0, 5)));
+          } catch (_) {}
+        }
+        if (document.getElementById("commandPaletteInput").value.trim() === query) renderCommandPalette(payload);
+      } catch (error) {
+        console.error("Evrensel arama başarısız.", { code: error?.code, message: error?.message, details: error?.details, hint: error?.hint });
+        document.getElementById("commandPaletteResults").innerHTML = `<div class="command-empty">Arama sonuçları yüklenemedi.</div>`;
+      }
+    }
+
+    function executeCommandRow(row) {
+      if (!row) return;
+      closeCommandPalette();
+      if (row.kind === "command") {
+        const command = row.command;
+        switchSection(command.section);
+        if (command.title === "Yeni Not") { showToast("Not eklemek için bir dosya kartını açın.", "info"); return; }
+        if (command.actionId) window.setTimeout(() => document.getElementById(command.actionId)?.click(), 80);
+        return;
+      }
+      switchSection(row.group.section);
+      const safeRecent = { title: row.label.title, meta: row.label.meta, section: row.group.section, type: row.group.type, id: row.item.id };
+      try { localStorage.setItem("bkt.ui.recentItems", JSON.stringify([safeRecent, ...JSON.parse(localStorage.getItem("bkt.ui.recentItems") || "[]").filter(item => item.id !== safeRecent.id)].slice(0, 5))); } catch (_) {}
+      if (row.group.type === "file" && typeof openFileDetail === "function") window.setTimeout(() => openFileDetail(row.item.id), 100);
+      const searchTargets = {
+        client: ["clientSearch", row.item.name],
+        hearing: ["hearingViewSearch", row.item.case_file_no || row.item.court],
+        deadline: ["deadlineViewSearch", row.item.title],
+        task: ["taskViewSearch", row.item.title],
+        payment: ["paymentSearch", row.item.party_name],
+        collection: ["paymentSearch", row.item.description || row.item.payment_kind],
+        officeExpense: ["officeExpenseSearch", row.item.title || row.item.vendor]
+      };
+      const target = searchTargets[row.group.type];
+      if (target) window.setTimeout(() => {
+        const input = document.getElementById(target[0]);
+        if (!input) return;
+        input.value = target[1] || "";
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+        input.focus();
+      }, 120);
+    }
+
+    function notificationDateLabel(value) {
+      if (!value) return "";
+      return new Intl.DateTimeFormat("tr-TR", { day: "2-digit", month: "long", year: "numeric" }).format(new Date(`${value}T12:00:00`));
+    }
+
+    function renderNotificationCenter() {
+      const today = currentIsoDate();
+      const items = notificationState.notifications.filter(item => notificationFilter === "all" || item.severity === notificationFilter || (notificationFilter === "today" && item.date === today) || (notificationFilter === "upcoming" && item.date > today));
+      document.getElementById("notificationList").innerHTML = items.length ? items.map((item, index) => `<button class="notification-item ${item.read ? "" : "unread"} ${escapeHtml(item.severity || "")}" type="button" data-notification-index="${index}" data-notification-key="${escapeHtml(item.key)}"><span class="notification-dot" aria-hidden="true"></span><span><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.description || "")}</span><time>${escapeHtml(notificationDateLabel(item.date))}</time></span></button>`).join("") : `<div class="command-empty">Bu filtrede bildirim bulunmuyor.</div>`;
+      document.querySelectorAll("[data-notification-filter]").forEach(button => button.classList.toggle("active", button.dataset.notificationFilter === notificationFilter));
+      updateNotificationBadge(notificationState.unreadCount);
+    }
+
+    function updateNotificationBadge(count) {
+      const badge = document.getElementById("notificationUnreadBadge");
+      badge.textContent = count > 99 ? "99+" : String(count || 0);
+      badge.hidden = !count;
+    }
+
+    async function refreshNotificationCenter({ render = false } = {}) {
+      if (!currentUser || typeof appRepository.getNotificationCenterData !== "function") return;
+      try {
+        notificationState = await appRepository.getNotificationCenterData();
+        updateNotificationBadge(notificationState.unreadCount);
+        if (render) renderNotificationCenter();
+      } catch (error) {
+        console.error("Bildirim merkezi yüklenemedi.", { code: error?.code, message: error?.message, details: error?.details, hint: error?.hint });
+        if (render) document.getElementById("notificationList").innerHTML = `<div class="command-empty">Bildirimler yüklenemedi.</div>`;
+      }
+    }
+
+    function openNotificationDrawer() {
+      document.getElementById("notificationBackdrop").hidden = false;
+      const drawer = document.getElementById("notificationDrawer");
+      drawer.classList.add("open"); drawer.setAttribute("aria-hidden", "false");
+      document.getElementById("notificationList").innerHTML = `<div class="command-empty">Bildirimler yükleniyor.</div>`;
+      refreshNotificationCenter({ render: true });
+    }
+
+    function closeNotificationDrawer() {
+      document.getElementById("notificationBackdrop").hidden = true;
+      const drawer = document.getElementById("notificationDrawer");
+      drawer.classList.remove("open"); drawer.setAttribute("aria-hidden", "true");
+    }
+
     document.getElementById("logoutButton").addEventListener("click", logoutCurrentUser);
     document.getElementById("accountButton").addEventListener("click", async () => {
       if (!currentUser || !requirePermission("manageUsers", "Hesap bilgilerine erişim")) return;
@@ -19050,17 +19310,86 @@
       button.setAttribute("title", collapsed ? "Menüyü genişlet" : "Menüyü daralt");
     });
 
-    document.querySelector(".global-search input")?.addEventListener("keydown", event => {
-      if (event.key !== "Enter") return;
-      event.preventDefault();
+    const topbarSearchInput = document.querySelector(".global-search input");
+    topbarSearchInput?.addEventListener("focus", event => {
       const value = event.currentTarget.value.trim();
-      if (!value) return;
-      switchSection("cases");
-      const fileSearch = document.getElementById("fileListSearch");
-      if (fileSearch) {
-        fileSearch.value = value;
-        renderFileList(filterCasesByType());
-        fileSearch.focus();
+      event.currentTarget.blur();
+      openCommandPalette(value);
+    });
+    topbarSearchInput?.addEventListener("click", () => openCommandPalette());
+    document.addEventListener("keydown", event => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase("tr-TR") === "k") {
+        event.preventDefault();
+        openCommandPalette();
+      }
+    });
+    document.getElementById("commandPaletteInput")?.addEventListener("input", event => {
+      const query = event.currentTarget.value.trim();
+      commandActiveIndex = 0;
+      window.clearTimeout(commandSearchTimer);
+      renderCommandPalette();
+      if (query.length >= 2) commandSearchTimer = window.setTimeout(() => runUniversalSearch(query), 280);
+    });
+    document.getElementById("commandPaletteInput")?.addEventListener("keydown", event => {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const direction = event.key === "ArrowDown" ? 1 : -1;
+        commandActiveIndex = Math.max(0, Math.min(commandRows.length - 1, commandActiveIndex + direction));
+        document.querySelectorAll("[data-command-index]").forEach((row, index) => row.classList.toggle("active", index === commandActiveIndex));
+        document.querySelector(`[data-command-index="${commandActiveIndex}"]`)?.scrollIntoView({ block: "nearest" });
+      } else if (event.key === "Enter") {
+        event.preventDefault();
+        executeCommandRow(commandRows[commandActiveIndex]);
+      }
+    });
+    document.getElementById("commandPaletteResults")?.addEventListener("click", event => {
+      const recent = event.target.closest("[data-recent-search]");
+      if (recent) {
+        const input = document.getElementById("commandPaletteInput");
+        input.value = recent.dataset.recentSearch;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        return;
+      }
+      const button = event.target.closest("[data-command-index]");
+      if (button) executeCommandRow(commandRows[Number(button.dataset.commandIndex)]);
+    });
+    document.getElementById("commandPalette")?.addEventListener("click", event => {
+      if (event.target === event.currentTarget) closeCommandPalette();
+    });
+    document.getElementById("notificationCenterButton")?.addEventListener("click", openNotificationDrawer);
+    document.getElementById("closeNotificationDrawer")?.addEventListener("click", closeNotificationDrawer);
+    document.getElementById("notificationBackdrop")?.addEventListener("click", closeNotificationDrawer);
+    document.querySelector(".notification-tabs")?.addEventListener("click", event => {
+      const button = event.target.closest("[data-notification-filter]");
+      if (!button) return;
+      notificationFilter = button.dataset.notificationFilter;
+      renderNotificationCenter();
+    });
+    document.getElementById("notificationList")?.addEventListener("click", async event => {
+      const button = event.target.closest("[data-notification-key]");
+      if (!button) return;
+      const item = notificationState.notifications.find(notification => notification.key === button.dataset.notificationKey);
+      if (!item) return;
+      try {
+        if (!item.read) await appRepository.markNotificationRead(item.key);
+        item.read = true;
+        notificationState.unreadCount = notificationState.notifications.filter(notification => !notification.read).length;
+      } catch (error) { console.error("Bildirim okundu olarak işaretlenemedi.", error); }
+      closeNotificationDrawer();
+      switchSection(item.section);
+      if (item.fileId && item.section === "cases" && typeof openFileDetail === "function") window.setTimeout(() => openFileDetail(item.fileId), 100);
+    });
+    document.getElementById("markAllNotificationsRead")?.addEventListener("click", async () => {
+      const unreadKeys = notificationState.notifications.filter(item => !item.read).map(item => item.key);
+      if (!unreadKeys.length) return;
+      try {
+        await appRepository.markAllNotificationsRead(unreadKeys);
+        notificationState.notifications.forEach(item => { item.read = true; });
+        notificationState.unreadCount = 0;
+        renderNotificationCenter();
+      } catch (error) {
+        console.error("Bildirimler okundu olarak işaretlenemedi.", error);
+        showToast("Bildirim durumu güncellenemedi.", "error");
       }
     });
 

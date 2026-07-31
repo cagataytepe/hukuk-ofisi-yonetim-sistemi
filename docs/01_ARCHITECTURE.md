@@ -74,3 +74,12 @@ Bağımsız Belgeler modülü aktif mimarinin parçası değildir. Dava ve icra 
 ## Gelecek Geliştirme Kuralı
 
 Yeni modül veya değişikliklerde önce bu doküman okunmalı; kararlar yukarıdaki veri akışı ve tablo merkezli mimariye göre verilmelidir.
+
+## Üretkenlik Katmanı
+
+- Komut paleti `Ctrl/Cmd + K` ile açılır; komutlar oturumdaki işlem yetkilerine göre gösterilir.
+- Evrensel arama `appRepository.globalSearch()` üzerinden gerçek Supabase tablolarında çalışır. En az iki karakter, debounce ve grup başına sonuç sınırı uygular.
+- Arama geçmişinde yalnızca güvenli arayüz metadatası tutulabilir. Token, parola, TCKN/VKN veya kayıt gövdesi tarayıcı depolamasına yazılmaz.
+- Bildirimler kalıcı kopyalar halinde saklanmaz; duruşma, süreli iş, görev, taksit ve ofis gideri tablolarından dinamik üretilir.
+- Kullanıcı bazlı okundu durumu `user_notification_reads` tablosunda `(profile_id, notification_key)` benzersizliğiyle tutulur. RLS kullanıcının yalnızca kendi kayıtlarına erişmesine izin verir.
+- Bildirim merkezi polling veya Realtime kullanmaz; oturum açılışında ve çekmece açıldığında yenilenir.

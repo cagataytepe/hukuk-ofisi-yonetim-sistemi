@@ -2,6 +2,13 @@
 
 BKT Hukuk ve Danışmanlık Bürosu için geliştirilen Supabase tabanlı hukuk bürosu yönetim sistemi.
 
+## Hızlı Kullanım
+
+- `Ctrl+K` (macOS: `Cmd+K`) komut paletini açar.
+- Üst bardaki arama alanı dosya, müvekkil, duruşma, süreli iş, görev ve finans kayıtlarında evrensel arama yapar.
+- Zil simgesi yaklaşan ve gecikmiş işlerden dinamik üretilen bildirim merkezini açar.
+- Bildirim okundu bilgileri kullanıcıya özeldir; başka kullanıcıların durumu etkilenmez.
+
 ## Veri Kaynağı
 
 Uygulamanın aktif veri kaynağı Supabase gerçek tablolarıdır. Ana iş verileri artık `public.settings` içindeki merkezi JSON kaydından okunmaz ve oraya yazılmaz.
