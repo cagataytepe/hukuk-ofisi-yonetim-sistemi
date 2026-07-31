@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { attachDiagnostics, expectNoVisibleUuid, gotoSection, login } from "./support/app.js";
 
-test("Dashboard Supabase verileriyle yüklenir ve kart navigasyonu çalışır", async ({ page }) => {
+test("Dashboard Supabase verileriyle yüklenir ve bilgi kartları navigasyon yapmaz", async ({ page }) => {
   const diagnostics = attachDiagnostics(page);
   await login(page);
 
@@ -13,8 +13,10 @@ test("Dashboard Supabase verileriyle yüklenir ve kart navigasyonu çalışır",
   await expect(page.locator("#hearingRows")).toBeVisible();
   await expect(page.locator("#deadlineRows")).toBeVisible();
 
-  await page.locator('[data-dashboard-section="tasks"]').first().click();
-  await expect(page.locator("section#tasks")).toHaveClass(/active/);
+  const taskMetric = page.locator('.metric-grid [data-dashboard-section="tasks"]');
+  await expect(taskMetric).toHaveCount(1);
+  await taskMetric.click();
+  await expect(page.locator("section#dashboard")).toHaveClass(/active/);
   await expectNoVisibleUuid(page);
   diagnostics.assertClean();
 });

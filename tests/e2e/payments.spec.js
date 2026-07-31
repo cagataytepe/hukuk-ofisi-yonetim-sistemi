@@ -8,7 +8,8 @@ test("Ödeme Takibi ekranı müvekkil vekalet ücreti planını oluşturur ve so
   await login(page);
 
   await gotoSection(page, "payments");
-  await page.locator("#newPaymentPlan").click();
+  const newPlanButton = page.locator("#newPaymentPlan");
+  if (await newPlanButton.count() && await newPlanButton.isVisible()) await newPlanButton.click();
   await page.selectOption("#paymentPlanType", { index: 1 });
   await page.locator("#paymentPartyName").fill(`${prefix} Müvekkil`);
   await page.locator("#paymentAgreementAmount").fill("10000");

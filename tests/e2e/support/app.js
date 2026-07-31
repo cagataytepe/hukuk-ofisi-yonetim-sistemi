@@ -159,6 +159,7 @@ export async function createLawsuitFile(page, prefix) {
   await page.locator("#caseStepNext").click();
   await expect(page.locator("#lawClientPartyRows .law-party-name").first()).toBeVisible();
   await page.locator("#lawClientPartyRows .law-party-name").first().fill(`${prefix} Müvekkil`);
+  await page.locator("#lawClientPartyRows .party-represented").first().check();
   await page.locator("#lawOpponentPartyRows .law-party-name").first().fill(`${prefix} Karşı Taraf`);
   await page.locator("#caseStepNext").click();
   await page.locator("#caseSubmit").click();

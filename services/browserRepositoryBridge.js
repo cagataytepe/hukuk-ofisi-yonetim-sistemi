@@ -491,6 +491,13 @@
           String(now.getMonth() + 1).padStart(2, "0"),
           String(now.getDate()).padStart(2, "0")
         ].join("-");
+        const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
+        const weekStartIso = [
+          weekStart.getFullYear(),
+          String(weekStart.getMonth() + 1).padStart(2, "0"),
+          String(weekStart.getDate()).padStart(2, "0")
+        ].join("-");
         const fileSelect = "id,legacy_id,display_id,record_kind,file_type,follow_type,file_no,court_or_office,decision_no,subject,status,opening_date,responsible_profile_id,responsible_name,client_name,opponent_name,description,account_info,instrument_info,metadata,created_at,updated_at,deleted_at";
         const hearingSelect = "id,legacy_id,file_id,court,case_file_no,hearing_date,hearing_time,client_name,party_role,excuse_type,attendee_profile_id,attendee_name,participant_profile_id,participant_name,note,outcome,status,metadata,created_at,updated_at,deleted_at";
         const deadlineSelect = "id,legacy_id,file_id,title,task,description,responsible_profile_id,responsible_name,start_date,due_date,status,completed_at,completed_late,created_at,updated_at,deleted_at,metadata";
@@ -508,7 +515,7 @@
         }
         const [filesResponse, upcomingResponse, deadlinesResponse, profilesResponse] = await Promise.all([
           fetch(`${restUrl("files")}?select=${fileSelect}&deleted_at=is.null&order=created_at.desc`, { headers }),
-          fetch(`${restUrl("hearings")}?select=${hearingSelect}&deleted_at=is.null&hearing_date=gte.${encodeURIComponent(todayIso)}&order=hearing_date.asc.nullslast&order=hearing_time.asc.nullslast`, { headers }),
+          fetch(`${restUrl("hearings")}?select=${hearingSelect}&deleted_at=is.null&hearing_date=gte.${encodeURIComponent(weekStartIso)}&order=hearing_date.asc.nullslast&order=hearing_time.asc.nullslast`, { headers }),
           fetch(`${restUrl("deadlines")}?select=${deadlineSelect}&deleted_at=is.null&order=due_date.asc.nullslast&order=created_at.desc`, { headers }),
           fetch(`${restUrl("profiles")}?select=${profileSelect}&deleted_at=is.null&is_active=eq.true&order=display_name.asc`, { headers })
         ]);
@@ -1154,6 +1161,8 @@
           "phone",
           "email",
           "is_primary",
+          "represented_by_office",
+          "notes",
           "metadata",
           "created_at",
           "updated_at",
@@ -1167,6 +1176,7 @@
         ];
         if (filters.fileId) params.push(`file_id=eq.${encodeURIComponent(filters.fileId)}`);
         if (filters.clientId) params.push(`client_id=eq.${encodeURIComponent(filters.clientId)}`);
+        if (typeof filters.representedByOffice === "boolean") params.push(`represented_by_office=eq.${filters.representedByOffice}`);
         const response = await fetch(`${restUrl("file_parties")}?${params.join("&")}`, {
           headers: await authHeaders(repository)
         });
@@ -1182,12 +1192,23 @@
         }
         return response.json();
       },
+      async getRepresentedClients() {
+        const parties = await this.getFileParties({ representedByOffice: true });
+        const byId = new Map();
+        parties.forEach(party => {
+          if (party.client?.id && !byId.has(party.client.id)) byId.set(party.client.id, party.client);
+        });
+        return [...byId.values()].sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "tr"));
+      },
       async findClientForParty(party = {}) {
         const name = normalizeTextValue(party.name);
+        const nationalId = normalizeTaxIdentifier(party.nationalId || party.national_id);
         const taxId = normalizeTaxIdentifier(party.taxId || party.tax_id);
         const select = "id,legacy_id,name,tax_id,national_id,client_type,metadata,deleted_at";
-        if (taxId) {
-          const taxResponse = await fetch(`${restUrl("clients")}?select=${select}&deleted_at=is.null&tax_id=eq.${encodeURIComponent(taxId)}&limit=2`, {
+        const identifierColumn = nationalId ? "national_id" : taxId ? "tax_id" : "";
+        const identifier = nationalId || taxId;
+        if (identifierColumn) {
+          const taxResponse = await fetch(`${restUrl("clients")}?select=${select}&deleted_at=is.null&${identifierColumn}=eq.${encodeURIComponent(identifier)}&limit=2`, {
             headers: await authHeaders(repository)
           });
           if (!taxResponse.ok) throw new Error(`Müvekkil TC/VKN eşleşmesi okunamadı: ${taxResponse.status} ${await safeResponseText(taxResponse)}`);
@@ -1216,6 +1237,20 @@
         const rows = await response.json();
         return rows[0] || null;
       },
+      async updateClient(id, row) {
+        const response = await fetch(`${restUrl("clients")}?id=eq.${encodeURIComponent(id)}&deleted_at=is.null`, {
+          method: "PATCH",
+          headers: {
+            ...(await authHeaders(repository)),
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+          },
+          body: JSON.stringify(cleanInsertPayload(row))
+        });
+        if (!response.ok) throw new Error(`Müvekkil güncellenemedi: ${response.status} ${await safeResponseText(response)}`);
+        const rows = await response.json();
+        return rows[0] || null;
+      },
       async createFileParty(row) {
         const response = await fetch(`${restUrl("file_parties")}`, {
           method: "POST",
@@ -1230,17 +1265,31 @@
         const rows = await response.json();
         return rows[0] || null;
       },
+      async updateFileParty(id, row) {
+        const response = await fetch(`${restUrl("file_parties")}?id=eq.${encodeURIComponent(id)}&deleted_at=is.null`, {
+          method: "PATCH",
+          headers: {
+            ...(await authHeaders(repository)),
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+          },
+          body: JSON.stringify(cleanInsertPayload(row))
+        });
+        if (!response.ok) throw new Error(`Taraf güncellenemedi: ${response.status} ${await safeResponseText(response)}`);
+        const rows = await response.json();
+        return rows[0] || null;
+      },
       async syncFileParties(fileId, parties = []) {
         if (!isUuid(fileId)) throw new Error("Taraf senkronizasyonu için gerçek dosya UUID gerekli.");
         const cleanParties = (Array.isArray(parties) ? parties : [])
           .map(normalizeRepositoryParty)
-          .filter(party => party.name || party.taxId);
+          .filter(party => party.name || party.nationalId || party.taxId);
         if (!cleanParties.length) return [];
 
         const existingParties = typeof repository.getFileParties === "function"
           ? await repository.getFileParties({ fileId })
           : [];
-        const existingKeys = new Set(existingParties.map(filePartyIdentityKey));
+        const existingByKey = new Map(existingParties.map(party => [filePartyIdentityKey(party), party]));
         const savedRows = [];
 
         for (const party of cleanParties) {
@@ -1248,11 +1297,28 @@
           if (!client) {
             client = await repository.createClient({
               name: party.name || "İsimsiz taraf",
-              tax_id: party.taxId || null,
-              client_type: inferRepositoryClientType(party.name, party.taxId),
+              national_id: party.clientType === "person" ? party.nationalId || null : null,
+              tax_id: party.clientType === "organization" ? party.taxId || null : null,
+              phone: party.phone || null,
+              email: party.email || null,
+              client_type: party.clientType || "unknown",
               metadata: {
                 source: "file-form",
                 createdFromFileId: fileId
+              }
+            });
+          } else {
+            client = await repository.updateClient(client.id, {
+              name: party.name || client.name,
+              national_id: party.clientType === "person" ? party.nationalId || null : null,
+              tax_id: party.clientType === "organization" ? party.taxId || null : null,
+              phone: party.phone || client.phone || null,
+              email: party.email || client.email || null,
+              client_type: party.clientType || "unknown",
+              metadata: {
+                ...(client.metadata || {}),
+                source: "file-form",
+                updatedFromFileId: fileId
               }
             });
           }
@@ -1266,19 +1332,24 @@
             role_label: party.roleLabel || null,
             name: party.name || client?.name || "İsimsiz taraf",
             tax_id: party.taxId || client?.tax_id || null,
-            phone: party.phone || null,
-            email: party.email || null,
+            phone: party.phone || client?.phone || null,
+            email: party.email || client?.email || null,
             is_primary: Boolean(party.isPrimary),
+            represented_by_office: typeof party.representedByOffice === "boolean" ? party.representedByOffice : null,
+            notes: party.notes || null,
             metadata: {
               source: "file-form",
-              clientMatch: client?.id ? "matched-or-created" : "none"
+              clientMatch: client?.id ? "matched-or-created" : "none",
+              clientType: party.clientType || "unknown"
             }
           };
           const key = filePartyIdentityKey(row);
-          if (existingKeys.has(key)) continue;
-          const saved = await repository.createFileParty(row);
+          const existing = existingByKey.get(key);
+          const saved = existing
+            ? await repository.updateFileParty(existing.id, row)
+            : await repository.createFileParty(row);
           if (saved) {
-            existingKeys.add(filePartyIdentityKey(saved));
+            existingByKey.set(filePartyIdentityKey(saved), saved);
             savedRows.push(saved);
           }
         }
@@ -1674,6 +1745,145 @@
         const rows = await response.json();
         return rows[0] || null;
       },
+      async getOfficeExpenseCategories() {
+        return officeExpenseSelect(repository, "office_expense_categories", {
+          select: "*",
+          deleted_at: "is.null",
+          active: "eq.true",
+          order: "sort_order.asc,name.asc"
+        });
+      },
+      async createOfficeExpenseCategory(row) {
+        return officeExpenseWrite(repository, "office_expense_categories", "POST", row);
+      },
+      async updateOfficeExpenseCategory(id, row) {
+        return officeExpenseWrite(repository, "office_expense_categories", "PATCH", row, id);
+      },
+      async deleteOfficeExpenseCategory(id) {
+        return officeExpenseWrite(repository, "office_expense_categories", "PATCH", { deleted_at: new Date().toISOString() }, id);
+      },
+      async getOfficeExpenses(filters = {}) {
+        const query = {
+          select: "*,category:office_expense_categories!office_expenses_category_id_fkey(id,name,slug,color),subcategory:office_expense_categories!office_expenses_subcategory_id_fkey(id,name,slug,color),paid_by_profile:profiles!office_expenses_paid_by_profile_id_fkey(id,display_name),created_by_profile:profiles!office_expenses_created_by_profile_id_fkey(id,display_name)",
+          deleted_at: "is.null",
+          order: "expense_date.desc,created_at.desc"
+        };
+        if (filters.id) query.id = `eq.${filters.id}`;
+        const rangeFilters = [];
+        if (filters.dateFrom) rangeFilters.push(`expense_date.gte.${filters.dateFrom}`);
+        if (filters.dateTo) rangeFilters.push(`expense_date.lte.${filters.dateTo}`);
+        if (filters.categoryId) query.category_id = `eq.${filters.categoryId}`;
+        if (filters.subcategoryId) query.subcategory_id = `eq.${filters.subcategoryId}`;
+        if (filters.paidByProfileId) query.paid_by_profile_id = `eq.${filters.paidByProfileId}`;
+        if (filters.paymentMethod) query.payment_method = `eq.${filters.paymentMethod}`;
+        if (filters.status) query.status = `eq.${filters.status}`;
+        if (filters.minAmount !== undefined && filters.minAmount !== "") rangeFilters.push(`amount.gte.${Number(filters.minAmount)}`);
+        if (filters.maxAmount !== undefined && filters.maxAmount !== "") rangeFilters.push(`amount.lte.${Number(filters.maxAmount)}`);
+        if (rangeFilters.length) query.and = `(${rangeFilters.join(",")})`;
+        return officeExpenseSelect(repository, "office_expenses", query);
+      },
+      async getOfficeExpense(id) {
+        const rows = await repository.getOfficeExpenses({ id });
+        return rows[0] || null;
+      },
+      async createOfficeExpense(row) {
+        return officeExpenseWrite(repository, "office_expenses", "POST", normalizeOfficeExpenseContribution(row));
+      },
+      async updateOfficeExpense(id, row) {
+        return officeExpenseWrite(repository, "office_expenses", "PATCH", normalizeOfficeExpenseContribution(row), id);
+      },
+      async markOfficeExpensePaid(id, row = {}) {
+        return repository.updateOfficeExpense(id, { ...row, status: "paid", paid_at: row.paid_at || new Date().toISOString() });
+      },
+      async reopenOfficeExpense(id) {
+        return repository.updateOfficeExpense(id, { status: "pending", paid_at: null });
+      },
+      async deleteOfficeExpense(id) {
+        return officeExpenseRpc(repository, "soft_delete_office_expense", { p_id: id });
+      },
+      async getRecurringOfficeExpenses(filters = {}) {
+        const query = {
+          select: "*,category:office_expense_categories!office_expense_recurring_templates_category_id_fkey(id,name,slug,color),subcategory:office_expense_categories!office_expense_recurring_templates_subcategory_id_fkey(id,name,slug,color)",
+          deleted_at: "is.null",
+          order: "next_due_date.asc.nullslast,created_at.desc"
+        };
+        if (filters.active !== undefined) query.active = `eq.${Boolean(filters.active)}`;
+        if (filters.categoryId) query.category_id = `eq.${filters.categoryId}`;
+        return officeExpenseSelect(repository, "office_expense_recurring_templates", query);
+      },
+      async createRecurringOfficeExpense(row) {
+        return officeExpenseWrite(repository, "office_expense_recurring_templates", "POST", normalizeOfficeExpenseContribution(row, "default_paid_by_profile_id"));
+      },
+      async updateRecurringOfficeExpense(id, row) {
+        return officeExpenseWrite(repository, "office_expense_recurring_templates", "PATCH", normalizeOfficeExpenseContribution(row, "default_paid_by_profile_id"), id);
+      },
+      async deleteRecurringOfficeExpense(id) {
+        return officeExpenseRpc(repository, "soft_delete_office_expense_recurring_template", { p_id: id });
+      },
+      async generateDueOfficeExpenses(untilDate = localDateString()) {
+        return Number(await officeExpenseRpc(repository, "generate_due_office_expenses", { p_until: untilDate }) || 0);
+      },
+      async getOfficeExpenseBudgets(filters = {}) {
+        const query = {
+          select: "*,category:office_expense_categories!office_expense_budgets_category_id_fkey(id,name,slug,color)",
+          deleted_at: "is.null",
+          order: "year.desc,month.desc.nullslast"
+        };
+        if (filters.year) query.year = `eq.${Number(filters.year)}`;
+        if (filters.month !== undefined && filters.month !== "") query.month = `eq.${Number(filters.month)}`;
+        if (filters.categoryId) query.category_id = `eq.${filters.categoryId}`;
+        return officeExpenseSelect(repository, "office_expense_budgets", query);
+      },
+      async createOfficeExpenseBudget(row) {
+        const budgets = await repository.getOfficeExpenseBudgets({ year: row.year });
+        const existing = budgets.find(item =>
+          (item.category_id || null) === (row.category_id || null)
+          && (Number(item.month) || null) === (Number(row.month) || null)
+        );
+        if (existing) return repository.updateOfficeExpenseBudget(existing.id, row);
+        return officeExpenseWrite(repository, "office_expense_budgets", "POST", row);
+      },
+      async updateOfficeExpenseBudget(id, row) {
+        return officeExpenseWrite(repository, "office_expense_budgets", "PATCH", row, id);
+      },
+      async deleteOfficeExpenseBudget(id) {
+        return officeExpenseRpc(repository, "soft_delete_office_expense_budget", { p_id: id });
+      },
+      async getOfficeExpensePartnerShares(filters = {}) {
+        const query = {
+          select: "*,profile:profiles!office_expense_partner_shares_profile_id_fkey(id,display_name)",
+          deleted_at: "is.null",
+          order: "effective_from.desc"
+        };
+        if (filters.active !== undefined) query.active = `eq.${Boolean(filters.active)}`;
+        if (filters.date) {
+          query.effective_from = `lte.${filters.date}`;
+          query.or = `(effective_to.is.null,effective_to.gte.${filters.date})`;
+        }
+        return officeExpenseSelect(repository, "office_expense_partner_shares", query);
+      },
+      async saveOfficeExpensePartnerShares(rows = []) {
+        const saved = [];
+        for (const row of rows) {
+          saved.push(row.id
+            ? await officeExpenseWrite(repository, "office_expense_partner_shares", "PATCH", row, row.id)
+            : await officeExpenseWrite(repository, "office_expense_partner_shares", "POST", row));
+        }
+        return saved;
+      },
+      async getOfficeExpenseDashboardData(filters = {}) {
+        const [categories, expenses, recurring, budgets, shares] = await Promise.all([
+          repository.getOfficeExpenseCategories(),
+          repository.getOfficeExpenses(filters),
+          repository.getRecurringOfficeExpenses(),
+          repository.getOfficeExpenseBudgets(),
+          repository.getOfficeExpensePartnerShares({ active: true, date: filters.dateTo || localDateString() })
+        ]);
+        return { categories, expenses, recurring, budgets, shares, generatedAt: new Date().toISOString() };
+      },
+      async getOfficeExpenseReportData(filters = {}) {
+        return repository.getOfficeExpenseDashboardData(filters);
+      },
       async fetchRole(roleId) {
         if (!roleId) return null;
         const response = await fetch(`${restUrl("roles")}?select=id,name,metadata,is_system&id=eq.${encodeURIComponent(roleId)}&deleted_at=is.null&limit=1`, {
@@ -1868,9 +2078,9 @@
     const normalizedName = normalizeTextValue(name).toLocaleLowerCase("tr-TR");
     const normalizedTax = normalizeTaxIdentifier(taxId);
     if (/\b(a\.?ş\.?|anonim|limited|ltd|şti|şirket|sanayi|ticaret|kooperatif|bankası|belediyesi)\b/i.test(normalizedName)) {
-      return "company";
+      return "organization";
     }
-    if (normalizedTax.length === 10) return "company";
+    if (normalizedTax.length === 10) return "organization";
     if (normalizedTax.length === 11) return "person";
     return "unknown";
   }
@@ -1892,14 +2102,26 @@
   function normalizeRepositoryParty(party = {}) {
     const roleLabel = normalizeTextValue(party.roleLabel || party.role || "");
     const fallbackType = party.partyType || (party.side === "represented" ? "client" : party.side === "opposing" ? "opponent" : "other");
+    const clientType = ["person", "organization"].includes(party.clientType || party.client_type)
+      ? (party.clientType || party.client_type)
+      : inferRepositoryClientType(party.name, party.nationalId || party.taxId || party.tax_id);
+    const rawIdentifier = normalizeTaxIdentifier(party.nationalId || party.national_id || party.taxId || party.tax_id);
     return {
       name: normalizeTextValue(party.name),
-      taxId: normalizeTaxIdentifier(party.taxId || party.tax_id),
+      nationalId: clientType === "person" ? rawIdentifier : "",
+      taxId: clientType === "organization" ? rawIdentifier : "",
+      clientType,
       roleLabel,
       partyType: repositoryPartyTypeFromRole(roleLabel, fallbackType),
       side: party.side || "other",
       phone: normalizeTextValue(party.phone),
       email: normalizeTextValue(party.email),
+      representedByOffice: typeof party.representedByOffice === "boolean"
+        ? party.representedByOffice
+        : typeof party.represented_by_office === "boolean"
+          ? party.represented_by_office
+          : null,
+      notes: normalizeTextValue(party.notes),
       isPrimary: Boolean(party.isPrimary)
     };
   }
@@ -1909,7 +2131,7 @@
       row.file_id || "",
       row.client_id || "",
       normalizeTextValue(row.name).toLocaleLowerCase("tr-TR"),
-      normalizeTaxIdentifier(row.tax_id || row.taxId),
+      normalizeTaxIdentifier(row.national_id || row.nationalId || row.tax_id || row.taxId),
       normalizeTextValue(row.party_type || row.partyType).toLocaleLowerCase("tr-TR"),
       normalizeTextValue(row.side).toLocaleLowerCase("tr-TR"),
       normalizeTextValue(row.role_label || row.role || row.roleLabel).toLocaleLowerCase("tr-TR")
@@ -1918,6 +2140,84 @@
 
   function restUrl(table) {
     return `${supabaseUrl.replace(/\/$/, "")}/rest/v1/${table}`;
+  }
+
+  async function officeExpenseSelect(repository, table, query = {}) {
+    const params = new URLSearchParams();
+    Object.entries(query).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== "") params.set(key, String(value));
+    });
+    const response = await fetch(`${restUrl(table)}?${params}`, {
+      headers: await authHeaders(repository)
+    });
+    if (!response.ok) {
+      const body = await safeResponseText(response);
+      console.error("[BKT office expenses] Supabase SELECT failed.", { table, status: response.status, statusText: response.statusText, body });
+      throw new Error(`Ofis giderleri verisi okunamadı: ${response.status}`);
+    }
+    return response.json();
+  }
+
+  function normalizeOfficeExpenseContribution(row = {}, profileKey = "paid_by_profile_id") {
+    const contributionKeys = ["payment_source", "contributes_to_partner_share", "payment_method", profileKey];
+    if (!contributionKeys.some(key => Object.prototype.hasOwnProperty.call(row, key))) return row;
+    const normalized = { ...row };
+    const source = normalized.payment_source
+      || (normalized.payment_method === "office_account"
+        ? "office_account"
+        : normalized[profileKey]
+          ? "partner_personal"
+          : normalized.payment_method === "cash" ? "office_cash" : "office_account");
+    normalized.payment_source = source;
+    if (source === "office_account" || source === "office_cash") {
+      normalized.contributes_to_partner_share = false;
+      normalized[profileKey] = null;
+      return normalized;
+    }
+    if (source !== "partner_personal" || !normalized[profileKey]) {
+      throw new Error("Kişisel hesap ödemesinde ortak seçimi zorunludur.");
+    }
+    normalized.contributes_to_partner_share = true;
+    return normalized;
+  }
+
+  async function officeExpenseWrite(repository, table, method, row, id = "") {
+    const suffix = id ? `?id=eq.${encodeURIComponent(id)}&deleted_at=is.null` : "";
+    const response = await fetch(`${restUrl(table)}${suffix}`, {
+      method,
+      headers: {
+        ...(await authHeaders(repository)),
+        "Content-Type": "application/json",
+        "Prefer": "return=representation"
+      },
+      body: JSON.stringify(cleanInsertPayload(row))
+    });
+    if (!response.ok) {
+      const body = await safeResponseText(response);
+      console.error("[BKT office expenses] Supabase write failed.", { table, method, id, status: response.status, statusText: response.statusText, body });
+      throw new Error(`Ofis gideri işlemi tamamlanamadı: ${response.status}`);
+    }
+    const rows = await response.json();
+    return rows[0] || null;
+  }
+
+  async function officeExpenseRpc(repository, name, params = {}) {
+    const response = await fetch(`${restUrl(`rpc/${name}`)}`, {
+      method: "POST",
+      headers: {
+        ...(await authHeaders(repository)),
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(params)
+    });
+    if (!response.ok) {
+      const body = await safeResponseText(response);
+      console.error("[BKT office expenses] Supabase RPC failed.", { name, status: response.status, statusText: response.statusText, body });
+      throw new Error(`Ofis gideri işlemi tamamlanamadı: ${response.status}`);
+    }
+    const payload = safeJson(await safeResponseText(response));
+    if (Array.isArray(payload)) return payload[0] || null;
+    return payload;
   }
 
   function isUuid(value) {

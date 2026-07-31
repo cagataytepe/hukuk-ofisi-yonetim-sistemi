@@ -36,6 +36,7 @@ Supabase tabloları ve RPC fonksiyonları
 - Dosya notları: `file_notes`
 - Zaman çizelgesi: `timeline_events`
 - Kullanıcılar/yetkiler: `profiles`, `roles`, `user_permissions`
+- Ofis giderleri: `office_expense_categories`, `office_expenses`, `office_expense_recurring_templates`, `office_expense_budgets`, `office_expense_partner_shares`
 
 ## Settings Kullanımı
 
@@ -51,6 +52,17 @@ Temizlik için:
 ## Belgeler
 
 Bağımsız Belgeler modülü aktif mimarinin parçası değildir. Dava ve icra evrakları UYAP’ta tutulur. Takip dayanağı evrak bilgileri dosya hesabı/iş mantığı için metadata niteliğinde korunabilir; bu, belge arşivi veya Supabase Storage kullanımı anlamına gelmez.
+
+## Ofis Giderleri
+
+- Gider, kategori, tekrarlayan şablon, bütçe ve ortak payları ayrı tablolarda tutulur.
+- Frontend yalnızca `appRepository` kullanır; doğrudan Supabase çağrısı yapmaz.
+- Vadesi gelen şablonlar authenticated ve yetkili kullanıcı tarafından güvenli RPC ile üretilir.
+- `(recurring_template_id, due_date)` benzersizliği üretimi idempotent kılar.
+- Gider, şablon ve bütçe silme işlemleri soft-delete RPC fonksiyonları üzerinden yürür.
+- Bütçe gerçekleşmesi ilgili dönemdeki gerçek ve silinmemiş giderlerden hesaplanır.
+- Ortak mahsuplaşması yalnızca aktif payların toplamı yüzde 100 olduğunda gösterilir.
+- Belge yükleme ve Supabase Storage bu modülün kapsamı dışındadır.
 
 ## Güvenlik
 

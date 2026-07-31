@@ -22,6 +22,11 @@ Aktif tablolar:
 - `profiles`
 - `roles`
 - `user_permissions`
+- `office_expense_categories`
+- `office_expenses`
+- `office_expense_recurring_templates`
+- `office_expense_budgets`
+- `office_expense_partner_shares`
 
 `public.settings` yalnızca gerçek uygulama tercihi/ayar kaydı için kullanılmalıdır. Eski `hukukBurosuTakipDemo.v2` JSON kaydı migration yedeği olarak durabilir; temizleme işlemi dry-run scriptleriyle kontrollü yapılır.
 
@@ -50,6 +55,14 @@ Supabase tabloları / RPC fonksiyonları
 ```
 
 Aktif runtime içinde `LocalStorageRepository` kullanılmaz. Supabase bağlantısı kurulamazsa kullanıcıya bağlantı uyarısı gösterilir; localStorage üzerine otomatik iş verisi yazılmaz.
+
+## Ofis Giderleri
+
+Ofis Giderleri modülü harcamaları, tekrarlayan gider şablonlarını, aylık/yıllık bütçeleri ve ortakların ofis adına yaptığı ödemeleri gerçek Supabase tablolarında tutar. Vadesi gelen tekrarlayan giderler `generate_due_office_expenses(date)` RPC fonksiyonuyla idempotent biçimde üretilir; aynı şablon ve vade tarihi için ikinci kayıt oluşmaz.
+
+Silme işlemleri hard delete değildir; gider, şablon ve bütçe kayıtları yetki kontrollü RPC fonksiyonlarıyla `deleted_at` üzerinden kapatılır. Bütçe ve ortak payı yönetimi `manageUsers`, gider CRUD işlemleri mevcut `create/edit/delete` izinleriyle sınırlandırılır. Ortak paylarının toplamı yüzde 100 değilse mahsuplaşma hesaplanmaz.
+
+Bu modülde belge, fiş veya PDF yükleme bulunmaz ve Supabase Storage kullanılmaz.
 
 ## Ortam Değişkenleri
 

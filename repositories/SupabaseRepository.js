@@ -157,6 +157,13 @@ export class SupabaseRepository {
       String(now.getMonth() + 1).padStart(2, "0"),
       String(now.getDate()).padStart(2, "0")
     ].join("-");
+    const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
+    const weekStartIso = [
+      weekStart.getFullYear(),
+      String(weekStart.getMonth() + 1).padStart(2, "0"),
+      String(weekStart.getDate()).padStart(2, "0")
+    ].join("-");
     let profileId = this.isUuid(filters.profileId) ? filters.profileId : "";
     if (!profileId) {
       try {
@@ -168,7 +175,7 @@ export class SupabaseRepository {
     }
     const [filesResult, upcomingResult, deadlinesResult, profilesResult] = await Promise.all([
       this.supabase.from("files").select("*").is("deleted_at", null).order("created_at", { ascending: false }),
-      this.supabase.from("hearings").select("*").is("deleted_at", null).gte("hearing_date", todayIso).order("hearing_date", { ascending: true }).order("hearing_time", { ascending: true }),
+      this.supabase.from("hearings").select("*").is("deleted_at", null).gte("hearing_date", weekStartIso).order("hearing_date", { ascending: true }).order("hearing_time", { ascending: true }),
       this.supabase.from("deadlines").select("*").is("deleted_at", null).order("due_date", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false }),
       this.supabase.from("profiles").select("id,display_name,email,title,role_id,is_active,deleted_at").is("deleted_at", null).eq("is_active", true).order("display_name", { ascending: true })
     ]);
@@ -908,6 +915,8 @@ export class SupabaseRepository {
         phone,
         email,
         is_primary,
+        represented_by_office,
+        notes,
         metadata,
         created_at,
         updated_at,
@@ -919,6 +928,7 @@ export class SupabaseRepository {
       .order("created_at", { ascending: true });
     if (filters.fileId) query = query.eq("file_id", filters.fileId);
     if (filters.clientId) query = query.eq("client_id", filters.clientId);
+    if (typeof filters.representedByOffice === "boolean") query = query.eq("represented_by_office", filters.representedByOffice);
 
     const { data, error } = await query;
     if (error) {
@@ -934,15 +944,27 @@ export class SupabaseRepository {
     return data || [];
   }
 
+  async getRepresentedClients() {
+    const parties = await this.getFileParties({ representedByOffice: true });
+    const byId = new Map();
+    parties.forEach(party => {
+      if (party.client?.id && !byId.has(party.client.id)) byId.set(party.client.id, party.client);
+    });
+    return [...byId.values()].sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "tr"));
+  }
+
   async findClientForParty(party = {}) {
     if (!this.available) return null;
     const name = normalizeTextValue(party.name);
+    const nationalId = normalizeTaxIdentifier(party.nationalId || party.national_id);
     const taxId = normalizeTaxIdentifier(party.taxId || party.tax_id);
-    if (taxId) {
+    const identifierColumn = nationalId ? "national_id" : taxId ? "tax_id" : "";
+    const identifier = nationalId || taxId;
+    if (identifierColumn) {
       const { data, error } = await this.supabase
         .from("clients")
         .select("id,legacy_id,name,tax_id,national_id,client_type,metadata,deleted_at")
-        .eq("tax_id", taxId)
+        .eq(identifierColumn, identifier)
         .is("deleted_at", null)
         .limit(2);
       if (error) throw error;
@@ -970,11 +992,37 @@ export class SupabaseRepository {
     return data;
   }
 
+  async updateClient(id, row) {
+    if (!this.available || !this.isUuid(id)) return null;
+    const { data, error } = await this.supabase
+      .from("clients")
+      .update(cleanInsertPayload(row))
+      .eq("id", id)
+      .is("deleted_at", null)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
   async createFileParty(row) {
     if (!this.available) return null;
     const { data, error } = await this.supabase
       .from("file_parties")
       .insert(cleanInsertPayload(row))
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  async updateFileParty(id, row) {
+    if (!this.available || !this.isUuid(id)) return null;
+    const { data, error } = await this.supabase
+      .from("file_parties")
+      .update(cleanInsertPayload(row))
+      .eq("id", id)
+      .is("deleted_at", null)
       .select()
       .single();
     if (error) throw error;
@@ -988,7 +1036,7 @@ export class SupabaseRepository {
       .filter(party => party.name || party.taxId);
     if (!cleanParties.length) return [];
     const existingParties = await this.getFileParties({ fileId });
-    const existingKeys = new Set(existingParties.map(filePartyIdentityKey));
+    const existingByKey = new Map(existingParties.map(party => [filePartyIdentityKey(party), party]));
     const savedRows = [];
 
     for (const party of cleanParties) {
@@ -996,11 +1044,28 @@ export class SupabaseRepository {
       if (!client) {
         client = await this.createClient({
           name: party.name || "İsimsiz taraf",
-          tax_id: party.taxId || null,
-          client_type: inferRepositoryClientType(party.name, party.taxId),
+          national_id: party.clientType === "person" ? party.nationalId || null : null,
+          tax_id: party.clientType === "organization" ? party.taxId || null : null,
+          phone: party.phone || null,
+          email: party.email || null,
+          client_type: party.clientType || "unknown",
           metadata: {
             source: "file-form",
             createdFromFileId: fileId
+          }
+        });
+      } else {
+        client = await this.updateClient(client.id, {
+          name: party.name || client.name,
+          national_id: party.clientType === "person" ? party.nationalId || null : null,
+          tax_id: party.clientType === "organization" ? party.taxId || null : null,
+          phone: party.phone || client.phone || null,
+          email: party.email || client.email || null,
+          client_type: party.clientType || "unknown",
+          metadata: {
+            ...(client.metadata || {}),
+            source: "file-form",
+            updatedFromFileId: fileId
           }
         });
       }
@@ -1013,19 +1078,24 @@ export class SupabaseRepository {
         role_label: party.roleLabel || null,
         name: party.name || client?.name || "İsimsiz taraf",
         tax_id: party.taxId || client?.tax_id || null,
-        phone: party.phone || null,
-        email: party.email || null,
+        phone: party.phone || client?.phone || null,
+        email: party.email || client?.email || null,
         is_primary: Boolean(party.isPrimary),
+        represented_by_office: typeof party.representedByOffice === "boolean" ? party.representedByOffice : null,
+        notes: party.notes || null,
         metadata: {
           source: "file-form",
-          clientMatch: client?.id ? "matched-or-created" : "none"
+          clientMatch: client?.id ? "matched-or-created" : "none",
+          clientType: party.clientType || "unknown"
         }
       };
       const key = filePartyIdentityKey(row);
-      if (existingKeys.has(key)) continue;
-      const saved = await this.createFileParty(row);
+      const existing = existingByKey.get(key);
+      const saved = existing
+        ? await this.updateFileParty(existing.id, row)
+        : await this.createFileParty(row);
       if (saved) {
-        existingKeys.add(filePartyIdentityKey(saved));
+        existingByKey.set(filePartyIdentityKey(saved), saved);
         savedRows.push(saved);
       }
     }
@@ -1421,6 +1491,224 @@ export class SupabaseRepository {
     return data;
   }
 
+  async getOfficeExpenseCategories() {
+    if (!this.available) return [];
+    const { data, error } = await this.supabase
+      .from("office_expense_categories")
+      .select("*")
+      .is("deleted_at", null)
+      .eq("active", true)
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true });
+    if (error) throw error;
+    return data || [];
+  }
+
+  async createOfficeExpenseCategory(row) {
+    return this.officeExpenseInsert("office_expense_categories", row);
+  }
+
+  async updateOfficeExpenseCategory(id, row) {
+    return this.officeExpenseUpdate("office_expense_categories", id, row);
+  }
+
+  async deleteOfficeExpenseCategory(id) {
+    return this.officeExpenseUpdate("office_expense_categories", id, { deleted_at: new Date().toISOString() });
+  }
+
+  async getOfficeExpenses(filters = {}) {
+    if (!this.available) return [];
+    let query = this.supabase
+      .from("office_expenses")
+      .select("*,category:office_expense_categories!office_expenses_category_id_fkey(id,name,slug,color),subcategory:office_expense_categories!office_expenses_subcategory_id_fkey(id,name,slug,color),paid_by_profile:profiles!office_expenses_paid_by_profile_id_fkey(id,display_name),created_by_profile:profiles!office_expenses_created_by_profile_id_fkey(id,display_name)")
+      .is("deleted_at", null);
+    if (filters.id) query = query.eq("id", filters.id);
+    if (filters.dateFrom) query = query.gte("expense_date", filters.dateFrom);
+    if (filters.dateTo) query = query.lte("expense_date", filters.dateTo);
+    if (filters.categoryId) query = query.eq("category_id", filters.categoryId);
+    if (filters.subcategoryId) query = query.eq("subcategory_id", filters.subcategoryId);
+    if (filters.paidByProfileId) query = query.eq("paid_by_profile_id", filters.paidByProfileId);
+    if (filters.paymentMethod) query = query.eq("payment_method", filters.paymentMethod);
+    if (filters.status) query = query.eq("status", filters.status);
+    if (filters.minAmount !== undefined && filters.minAmount !== "") query = query.gte("amount", Number(filters.minAmount));
+    if (filters.maxAmount !== undefined && filters.maxAmount !== "") query = query.lte("amount", Number(filters.maxAmount));
+    const { data, error } = await query.order("expense_date", { ascending: false }).order("created_at", { ascending: false });
+    if (error) throw error;
+    return data || [];
+  }
+
+  async getOfficeExpense(id) {
+    const rows = await this.getOfficeExpenses({ id });
+    return rows[0] || null;
+  }
+
+  async createOfficeExpense(row) {
+    return this.officeExpenseInsert("office_expenses", this.normalizeOfficeExpenseContribution(row));
+  }
+
+  async updateOfficeExpense(id, row) {
+    return this.officeExpenseUpdate("office_expenses", id, this.normalizeOfficeExpenseContribution(row));
+  }
+
+  async markOfficeExpensePaid(id, row = {}) {
+    return this.updateOfficeExpense(id, { ...row, status: "paid", paid_at: row.paid_at || new Date().toISOString() });
+  }
+
+  async reopenOfficeExpense(id) {
+    return this.updateOfficeExpense(id, { status: "pending", paid_at: null });
+  }
+
+  async deleteOfficeExpense(id) {
+    return this.officeExpenseRpc("soft_delete_office_expense", { p_id: id });
+  }
+
+  async getRecurringOfficeExpenses(filters = {}) {
+    if (!this.available) return [];
+    let query = this.supabase
+      .from("office_expense_recurring_templates")
+      .select("*,category:office_expense_categories!office_expense_recurring_templates_category_id_fkey(id,name,slug,color),subcategory:office_expense_categories!office_expense_recurring_templates_subcategory_id_fkey(id,name,slug,color)")
+      .is("deleted_at", null);
+    if (filters.active !== undefined) query = query.eq("active", Boolean(filters.active));
+    if (filters.categoryId) query = query.eq("category_id", filters.categoryId);
+    const { data, error } = await query.order("next_due_date", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false });
+    if (error) throw error;
+    return data || [];
+  }
+
+  async createRecurringOfficeExpense(row) {
+    return this.officeExpenseInsert("office_expense_recurring_templates", this.normalizeOfficeExpenseContribution(row, "default_paid_by_profile_id"));
+  }
+
+  async updateRecurringOfficeExpense(id, row) {
+    return this.officeExpenseUpdate("office_expense_recurring_templates", id, this.normalizeOfficeExpenseContribution(row, "default_paid_by_profile_id"));
+  }
+
+  async deleteRecurringOfficeExpense(id) {
+    return this.officeExpenseRpc("soft_delete_office_expense_recurring_template", { p_id: id });
+  }
+
+  async generateDueOfficeExpenses(untilDate = this.localDateString()) {
+    const { data, error } = await this.supabase.rpc("generate_due_office_expenses", { p_until: untilDate });
+    if (error) throw error;
+    return Number(data || 0);
+  }
+
+  async getOfficeExpenseBudgets(filters = {}) {
+    if (!this.available) return [];
+    let query = this.supabase
+      .from("office_expense_budgets")
+      .select("*,category:office_expense_categories!office_expense_budgets_category_id_fkey(id,name,slug,color)")
+      .is("deleted_at", null);
+    if (filters.year) query = query.eq("year", Number(filters.year));
+    if (filters.month !== undefined && filters.month !== "") query = query.eq("month", Number(filters.month));
+    if (filters.categoryId) query = query.eq("category_id", filters.categoryId);
+    const { data, error } = await query.order("year", { ascending: false }).order("month", { ascending: false, nullsFirst: false });
+    if (error) throw error;
+    return data || [];
+  }
+
+  async createOfficeExpenseBudget(row) {
+    const budgets = await this.getOfficeExpenseBudgets({ year: row.year });
+    const existing = budgets.find(item =>
+      (item.category_id || null) === (row.category_id || null)
+      && (Number(item.month) || null) === (Number(row.month) || null)
+    );
+    if (existing) return this.updateOfficeExpenseBudget(existing.id, row);
+    return this.officeExpenseInsert("office_expense_budgets", row);
+  }
+
+  async updateOfficeExpenseBudget(id, row) {
+    return this.officeExpenseUpdate("office_expense_budgets", id, row);
+  }
+
+  async deleteOfficeExpenseBudget(id) {
+    return this.officeExpenseRpc("soft_delete_office_expense_budget", { p_id: id });
+  }
+
+  async getOfficeExpensePartnerShares(filters = {}) {
+    if (!this.available) return [];
+    let query = this.supabase
+      .from("office_expense_partner_shares")
+      .select("*,profile:profiles!office_expense_partner_shares_profile_id_fkey(id,display_name)")
+      .is("deleted_at", null);
+    if (filters.active !== undefined) query = query.eq("active", Boolean(filters.active));
+    if (filters.date) query = query.lte("effective_from", filters.date).or(`effective_to.is.null,effective_to.gte.${filters.date}`);
+    const { data, error } = await query.order("effective_from", { ascending: false });
+    if (error) throw error;
+    return data || [];
+  }
+
+  async saveOfficeExpensePartnerShares(rows = []) {
+    const saved = [];
+    for (const row of rows) {
+      saved.push(row.id
+        ? await this.officeExpenseUpdate("office_expense_partner_shares", row.id, row)
+        : await this.officeExpenseInsert("office_expense_partner_shares", row));
+    }
+    return saved;
+  }
+
+  async getOfficeExpenseDashboardData(filters = {}) {
+    const [categories, expenses, recurring, budgets, shares] = await Promise.all([
+      this.getOfficeExpenseCategories(),
+      this.getOfficeExpenses(filters),
+      this.getRecurringOfficeExpenses(),
+      this.getOfficeExpenseBudgets(),
+      this.getOfficeExpensePartnerShares({ active: true, date: filters.dateTo || this.localDateString() })
+    ]);
+    return { categories, expenses, recurring, budgets, shares, generatedAt: new Date().toISOString() };
+  }
+
+  async getOfficeExpenseReportData(filters = {}) {
+    return this.getOfficeExpenseDashboardData(filters);
+  }
+
+  normalizeOfficeExpenseContribution(row = {}, profileKey = "paid_by_profile_id") {
+    const contributionKeys = ["payment_source", "contributes_to_partner_share", "payment_method", profileKey];
+    if (!contributionKeys.some(key => Object.prototype.hasOwnProperty.call(row, key))) return row;
+    const normalized = { ...row };
+    const source = normalized.payment_source
+      || (normalized.payment_method === "office_account"
+        ? "office_account"
+        : normalized[profileKey]
+          ? "partner_personal"
+          : normalized.payment_method === "cash" ? "office_cash" : "office_account");
+    normalized.payment_source = source;
+    if (source === "office_account" || source === "office_cash") {
+      normalized.contributes_to_partner_share = false;
+      normalized[profileKey] = null;
+      return normalized;
+    }
+    if (source !== "partner_personal" || !normalized[profileKey]) {
+      throw new Error("Kişisel hesap ödemesinde ortak seçimi zorunludur.");
+    }
+    normalized.contributes_to_partner_share = true;
+    return normalized;
+  }
+
+  async officeExpenseInsert(table, row) {
+    if (!this.available) return null;
+    const { data, error } = await this.supabase.from(table).insert(cleanInsertPayload(row)).select().single();
+    if (error) throw error;
+    return data;
+  }
+
+  async officeExpenseUpdate(table, id, row) {
+    if (!this.available) return null;
+    const { data, error } = await this.supabase.from(table).update(row).eq("id", id).is("deleted_at", null).select().single();
+    if (error) throw error;
+    return data;
+  }
+
+  async officeExpenseRpc(name, params) {
+    if (!this.available) return null;
+    const { data, error } = await this.supabase.rpc(name, params);
+    if (error) throw error;
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row) throw new Error("İşlem sonucu alınamadı.");
+    return row;
+  }
+
   localDateString(date = new Date()) {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -1451,9 +1739,9 @@ function inferRepositoryClientType(name, taxId) {
   const normalizedName = normalizeTextValue(name).toLocaleLowerCase("tr-TR");
   const normalizedTax = normalizeTaxIdentifier(taxId);
   if (/\b(a\.?ş\.?|anonim|limited|ltd|şti|şirket|sanayi|ticaret|kooperatif|bankası|belediyesi)\b/i.test(normalizedName)) {
-    return "company";
+    return "organization";
   }
-  if (normalizedTax.length === 10) return "company";
+  if (normalizedTax.length === 10) return "organization";
   if (normalizedTax.length === 11) return "person";
   return "unknown";
 }
@@ -1475,14 +1763,26 @@ function repositoryPartyTypeFromRole(role = "", fallbackType = "other") {
 function normalizeRepositoryParty(party = {}) {
   const roleLabel = normalizeTextValue(party.roleLabel || party.role || "");
   const fallbackType = party.partyType || (party.side === "represented" ? "client" : party.side === "opposing" ? "opponent" : "other");
+  const clientType = ["person", "organization"].includes(party.clientType || party.client_type)
+    ? (party.clientType || party.client_type)
+    : inferRepositoryClientType(party.name, party.nationalId || party.taxId || party.tax_id);
+  const rawIdentifier = normalizeTaxIdentifier(party.nationalId || party.national_id || party.taxId || party.tax_id);
   return {
     name: normalizeTextValue(party.name),
-    taxId: normalizeTaxIdentifier(party.taxId || party.tax_id),
+    nationalId: clientType === "person" ? rawIdentifier : "",
+    taxId: clientType === "organization" ? rawIdentifier : "",
+    clientType,
     roleLabel,
     partyType: repositoryPartyTypeFromRole(roleLabel, fallbackType),
     side: party.side || "other",
     phone: normalizeTextValue(party.phone),
     email: normalizeTextValue(party.email),
+    representedByOffice: typeof party.representedByOffice === "boolean"
+      ? party.representedByOffice
+      : typeof party.represented_by_office === "boolean"
+        ? party.represented_by_office
+        : null,
+    notes: normalizeTextValue(party.notes),
     isPrimary: Boolean(party.isPrimary)
   };
 }
@@ -1492,7 +1792,7 @@ function filePartyIdentityKey(row = {}) {
     row.file_id || "",
     row.client_id || "",
     normalizeTextValue(row.name).toLocaleLowerCase("tr-TR"),
-    normalizeTaxIdentifier(row.tax_id || row.taxId),
+    normalizeTaxIdentifier(row.national_id || row.nationalId || row.tax_id || row.taxId),
     normalizeTextValue(row.party_type || row.partyType).toLocaleLowerCase("tr-TR"),
     normalizeTextValue(row.side).toLocaleLowerCase("tr-TR"),
     normalizeTextValue(row.role_label || row.role || row.roleLabel).toLocaleLowerCase("tr-TR")
