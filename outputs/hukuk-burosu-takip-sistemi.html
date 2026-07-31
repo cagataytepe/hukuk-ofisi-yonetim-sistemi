@@ -4,7 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Hukuk Bürosu Duruşma ve Süre Takip Sistemi</title>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&display=swap">
   <style>
     :root {
       --ink: #172026;
@@ -7682,27 +7684,30 @@
        DASHBOARD KOMUTA MERKEZİ — yeniden tasarım katmanı
        ===================================================================== */
     :root {
-      --dsh-bg: #f2f5f7;
+      /* Kâğıt ve Mürekkep — sıcak kâğıt zemin, mürekkep lacivert, pirinç vurgu */
+      --dsh-bg: #f7f5f1;
       --dsh-card: #ffffff;
-      --dsh-ink: #14212b;
-      --dsh-ink-2: #3c4a55;
-      --dsh-muted: #64757f;
-      --dsh-muted-2: #8b9aa4;
-      --dsh-line: #e2e9ed;
-      --dsh-line-soft: #edf2f4;
-      --dsh-nav: #16232e;
-      --dsh-nav-2: #1e2f3c;
-      --dsh-critical: #c2413c;
-      --dsh-critical-soft: #fdf1f0;
-      --dsh-warn: #b5761c;
-      --dsh-warn-soft: #fdf5e9;
-      --dsh-info: #2a6199;
-      --dsh-info-soft: #eef4fa;
-      --dsh-ok: #2c7a5a;
-      --dsh-ok-soft: #eef7f2;
-      --dsh-r: 10px;
-      --dsh-r-lg: 14px;
-      --dsh-sh: 0 1px 2px rgba(20, 33, 43, .04), 0 6px 16px rgba(20, 33, 43, .05);
+      --dsh-ink: #1a2530;
+      --dsh-ink-2: #3d4a56;
+      --dsh-muted: #6b7681;
+      --dsh-muted-2: #949ca5;
+      --dsh-line: #e4e0d8;
+      --dsh-line-soft: #f0ede7;
+      --dsh-nav: #1a2530;
+      --dsh-nav-2: #24313e;
+      --dsh-critical: #a5352f;
+      --dsh-critical-soft: #fbf0ee;
+      --dsh-warn: #9a6f2f;
+      --dsh-warn-soft: #faf4e9;
+      --dsh-info: #2f5d7c;
+      --dsh-info-soft: #eef3f7;
+      --dsh-ok: #45745c;
+      --dsh-ok-soft: #eff5f1;
+      --dsh-brass: #9a6f2f;
+      --dsh-r: 6px;
+      --dsh-r-lg: 8px;
+      --dsh-sh: 0 1px 2px rgba(26, 37, 48, .03);
+      --dsh-serif: "Source Serif 4", ui-serif, Georgia, "Times New Roman", serif;
     }
 
     body.is-authenticated { background: var(--dsh-bg); }
@@ -8738,6 +8743,573 @@
         max-width: 100vw !important;
         border-radius: 0 !important;
       }
+    }
+
+    /* =====================================================================
+       KÂĞIT VE MÜREKKEP — editoryal tasarım dili
+       Hiyerarşi çerçeveyle değil; tipografi, boşluk ve saç teli çizgilerle.
+       ===================================================================== */
+
+    /* ---------- Tipografik ses: başlıklar ve sayılar serif ---------- */
+    .sidebar .brand-text strong,
+    .app main .topbar h1,
+    #dashboard .panel-header h2,
+    .notification-drawer-header h2 {
+      font-family: var(--dsh-serif);
+      font-weight: 600;
+      letter-spacing: -.01em;
+    }
+    .app main .topbar h1 { font-size: 1.75rem; font-weight: 600; letter-spacing: -.015em; }
+    #dashboard .panel-header h2 { font-size: 1.02rem; }
+
+    /* ---------- ÖNCELİK PANOSU: 8 çerçeve → 1 yüzey ----------
+       Eskiden 3 grup kartı + içlerinde 5 metrik kartı vardı (iç içe kutu).
+       Artık tek kâğıt yüzey, sütunlar saç teli çizgiyle ayrılıyor. */
+    #dashboard .metric-grid.priority-board {
+      grid-template-columns: minmax(0, .9fr) minmax(0, 1.05fr) minmax(0, 1.05fr);
+      gap: 0;
+      background: var(--dsh-card);
+      border: 1px solid var(--dsh-line);
+      border-radius: var(--dsh-r-lg);
+      box-shadow: var(--dsh-sh);
+      overflow: hidden;
+    }
+    #dashboard .priority-group {
+      background: transparent;
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
+      padding: 16px 20px 18px;
+      gap: 12px;
+      position: relative;
+    }
+    #dashboard .priority-group + .priority-group { border-left: 1px solid var(--dsh-line-soft); }
+    /* kritik sütun: renkli kutu değil, ince mürekkep vurgusu */
+    #dashboard .priority-group.is-critical {
+      background: transparent;
+      border-color: transparent;
+    }
+    #dashboard .priority-group.is-critical::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: var(--dsh-critical);
+    }
+    #dashboard .priority-group-head { gap: 7px; }
+    #dashboard .priority-group-head h2 {
+      font-family: Inter, sans-serif;
+      font-size: .69rem;
+      font-weight: 700;
+      letter-spacing: .13em;
+      color: var(--dsh-muted);
+    }
+    #dashboard .priority-group.is-critical .priority-group-head h2 { color: var(--dsh-critical); }
+    #dashboard .priority-flag { display: none; }
+    #dashboard .priority-hint {
+      margin-left: auto;
+      font-size: .66rem;
+      color: var(--dsh-muted-2);
+      font-style: italic;
+      font-family: var(--dsh-serif);
+    }
+
+    /* metrikler: çerçevesiz, sadece sayı + etiket */
+    #dashboard .metric.priority-card,
+    #dashboard .is-critical .metric.priority-card {
+      display: block;
+      background: transparent;
+      border: 0;
+      border-radius: 4px;
+      box-shadow: none;
+      padding: 2px 4px 2px 0;
+      gap: 0;
+    }
+    #dashboard .metric.priority-card:hover,
+    #dashboard .is-critical .metric.priority-card:hover {
+      transform: none;
+      background: var(--dsh-line-soft);
+      border: 0;
+    }
+    #dashboard .metric.priority-card .metric-icon,
+    #dashboard .is-critical .metric.priority-card .metric-icon { display: none; }
+    #dashboard .metric.priority-card .metric-copy { display: block; }
+    #dashboard .metric.priority-card .metric-copy strong,
+    #dashboard .is-critical .metric.priority-card .metric-copy strong {
+      display: block;
+      font-family: var(--dsh-serif);
+      font-size: 2.1rem;
+      font-weight: 600;
+      line-height: 1;
+      letter-spacing: -.025em;
+      color: var(--dsh-ink);
+      font-variant-numeric: tabular-nums lining-nums;
+    }
+    #dashboard .metric.priority-card .metric-copy span,
+    #dashboard .is-critical .metric.priority-card .metric-copy span {
+      display: block;
+      margin-top: 5px;
+      font-size: .715rem;
+      font-weight: 500;
+      color: var(--dsh-muted);
+      letter-spacing: .005em;
+      line-height: 1.35;
+    }
+    /* kritik sayı: en yüksek ağırlık, tek renkli aksan */
+    #dashboard .is-critical .metric.priority-card .metric-copy strong {
+      font-size: 3.4rem;
+      color: var(--dsh-critical);
+    }
+    #dashboard .is-critical .metric.priority-card .metric-copy span { color: var(--dsh-ink-2); font-weight: 500; }
+    /* sıfır durumu sakinleşir: kriz yoksa dikkat çekmesin */
+    #dashboard .is-critical .metric.priority-card[data-zero="true"] .metric-copy strong { color: var(--dsh-muted-2); }
+
+    /* ---------- PANELLER: gölge yok, saç teli çerçeve ---------- */
+    #dashboard .panel {
+      border-color: var(--dsh-line);
+      border-radius: var(--dsh-r-lg);
+      box-shadow: var(--dsh-sh);
+    }
+    #dashboard .panel-header {
+      padding: 15px 18px 13px;
+      border-bottom: 1px solid var(--dsh-line-soft);
+      align-items: baseline;
+    }
+    #dashboard .panel-sub {
+      font-family: var(--dsh-serif);
+      font-style: italic;
+      font-size: .75rem;
+      color: var(--dsh-muted-2);
+    }
+    #dashboard .panel-header .btn {
+      border-color: var(--dsh-line);
+      border-radius: var(--dsh-r);
+      color: var(--dsh-muted);
+      font-weight: 500;
+      font-size: .74rem;
+      background: transparent;
+    }
+    #dashboard .panel-header .btn:hover { background: var(--dsh-line-soft); color: var(--dsh-ink); border-color: var(--dsh-line); }
+
+    /* ---------- AJANDA SATIRLARI: kart değil, kayıt ----------
+       Çerçeveli kartlar yerine saç teli ayırıcılar + sol aciliyet çizgisi. */
+    #dashboard .agenda-wrap { padding: 4px 0 0; }
+    #dashboard .agenda-table tbody { gap: 0; }
+    #dashboard .agenda-table tbody tr.dashboard-data-row {
+      border: 0;
+      border-bottom: 1px solid var(--dsh-line-soft);
+      border-left: 2px solid transparent;
+      border-radius: 0;
+      background: transparent;
+      padding: 12px 18px 12px 16px;
+    }
+    #dashboard .agenda-table tbody tr.dashboard-data-row:last-child { border-bottom: 0; }
+    #dashboard .agenda-table tbody tr.dashboard-data-row:hover {
+      transform: none;
+      box-shadow: none;
+      background: var(--dsh-line-soft);
+    }
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row { border-left-color: transparent; }
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row:has(.dashboard-due.is-overdue) {
+      border-left-color: var(--dsh-critical);
+      background: transparent;
+    }
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row:has(.dashboard-due.is-overdue):hover { background: var(--dsh-critical-soft); }
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row:has(.dashboard-due.is-soon) { border-left-color: var(--dsh-warn); }
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row:not(:has(.is-overdue)):not(:has(.is-soon)) { border-left-color: transparent; }
+
+    /* saat: serif, ajandanın omurgası */
+    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(5) {
+      font-family: var(--dsh-serif);
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: var(--dsh-ink);
+      letter-spacing: -.01em;
+    }
+    /* sol ray genişler: tarih tek satırda kalır, satır yüksekliği düşer */
+    #dashboard .agenda-hearings tbody tr.dashboard-data-row { grid-template-columns: 118px minmax(0, 1fr) minmax(0, auto); }
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row { grid-template-columns: 118px minmax(0, 1fr) minmax(0, auto); }
+    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(4),
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(5) { white-space: nowrap; }
+    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(2),
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(4) {
+      font-size: .875rem;
+      font-weight: 600;
+      color: var(--dsh-ink);
+    }
+
+    /* kalan gün: dolu rozet yerine tipografik aciliyet */
+    #dashboard .agenda-table .dashboard-due {
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      font-family: var(--dsh-serif);
+      font-size: .92rem;
+      font-weight: 600;
+      letter-spacing: -.005em;
+      color: var(--dsh-muted);
+    }
+    #dashboard .agenda-table .dashboard-due.is-soon { background: transparent; color: var(--dsh-warn); border: 0; }
+    #dashboard .agenda-table .dashboard-due.is-overdue { background: transparent; color: var(--dsh-critical); border: 0; }
+
+    /* ---------- GÖREVLER: aynı kayıt dili ---------- */
+    #dashboard .task-panel .dashboard-list { gap: 0; padding: 4px 0 0; }
+    #dashboard .dashboard-task-item {
+      border: 0;
+      border-bottom: 1px solid var(--dsh-line-soft);
+      border-left: 2px solid transparent;
+      border-radius: 0;
+      padding: 12px 18px 12px 16px;
+    }
+    #dashboard .dashboard-task-item:last-child { border-bottom: 0; }
+    #dashboard .dashboard-task-item:hover { transform: none; box-shadow: none; background: var(--dsh-line-soft); }
+    /* görev başlığı kırpılmak yerine iki satıra sarar */
+    #dashboard .dashboard-task-main strong {
+      white-space: normal;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      line-height: 1.35;
+      font-size: .845rem;
+    }
+    #dashboard .dashboard-task-timing strong {
+      padding: 0;
+      border-radius: 0;
+      background: transparent;
+      font-family: var(--dsh-serif);
+      font-size: .85rem;
+      font-weight: 600;
+      color: var(--dsh-muted);
+    }
+    #dashboard .dashboard-task-timing.is-soon strong { background: transparent; color: var(--dsh-warn); }
+    #dashboard .dashboard-task-timing.is-overdue strong { background: transparent; color: var(--dsh-critical); }
+
+    /* ---------- BOŞ DURUMLAR: kesikli kutu yok ---------- */
+    #dashboard .agenda-table .dashboard-empty,
+    #dashboard .detail-empty {
+      margin: 0;
+      padding: 34px 20px;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      font-family: var(--dsh-serif);
+      font-style: italic;
+      font-size: .88rem;
+      color: var(--dsh-muted-2);
+    }
+
+    /* ---------- FİNANS: sayılar serif, ızgara saç teli ---------- */
+    #dashboard .finance-brief { background: var(--dsh-line-soft); }
+    #dashboard .finance-brief > div { padding: 14px 18px; }
+    #dashboard .finance-brief > div strong {
+      font-family: var(--dsh-serif);
+      font-size: 1.12rem;
+      font-weight: 600;
+      letter-spacing: -.015em;
+    }
+    #dashboard .finance-brief > div span { font-size: .7rem; }
+
+    /* ---------- DAĞILIM: sayılar serif ---------- */
+    #dashboard .donut-total-number { font-family: var(--dsh-serif); font-weight: 600; font-size: 1.7rem; }
+    #dashboard .donut-track { stroke: var(--dsh-line-soft); }
+    #dashboard .distribution-footer strong { font-family: var(--dsh-serif); font-size: 1.02rem; font-weight: 600; }
+    #dashboard .distribution-footer { border-top-color: var(--dsh-line-soft); }
+
+    /* ---------- BİLDİRİM ŞERİDİ: tek satır brifing ---------- */
+    .app main .alert-band {
+      background: transparent;
+      border: 0;
+      border-top: 1px solid var(--dsh-line);
+      border-bottom: 1px solid var(--dsh-line);
+      border-radius: 0;
+      padding: 11px 2px;
+      gap: 20px;
+    }
+    .app main .alert-summary-title { font-size: .66rem; letter-spacing: .13em; color: var(--dsh-muted-2); }
+    .app main .alert-item {
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent !important;
+    }
+    .app main .alert-item .alert-icon { display: none; }
+    .app main .alert-item strong { font-family: var(--dsh-serif); font-size: .95rem; font-weight: 600; }
+    .app main .alert-item span { font-size: .76rem; color: var(--dsh-muted); }
+    .app main .alert-item.critical strong { color: var(--dsh-critical); }
+    .app main .alert-item.warning strong { color: var(--dsh-warn); }
+    .app main .alert-summary-items { gap: 22px; }
+
+    /* ---------- SIDEBAR: mürekkep rafı ---------- */
+    .sidebar { background: var(--dsh-nav); }
+    .sidebar .brand-text strong { font-size: .95rem; line-height: 1.25; }
+    .sidebar .brand-text span { font-size: .66rem; letter-spacing: .07em; text-transform: uppercase; color: rgba(255,255,255,.42); }
+    .sidebar .nav-group-label {
+      font-size: .6rem;
+      letter-spacing: .15em;
+      color: rgba(255, 255, 255, .3);
+      margin: 18px 0 6px;
+    }
+    .sidebar .nav button[data-section] {
+      border-radius: 5px;
+      font-size: .835rem;
+      padding: 8px 11px;
+      color: rgba(255, 255, 255, .7);
+    }
+    .sidebar .nav button[data-section].active {
+      background: rgba(255, 255, 255, .08);
+      color: #fff;
+      font-weight: 600;
+    }
+    /* aktif göstergesi: pirinç ince çizgi */
+    .sidebar .nav button[data-section].active::before {
+      background: var(--dsh-brass);
+      height: 16px;
+      width: 2px;
+      left: -8px;
+    }
+    .sidebar .session-card { background: transparent; border: 0; border-top: 1px solid rgba(255,255,255,.09); border-radius: 0; }
+    .sidebar .session-avatar {
+      width: 32px;
+      height: 32px;
+      flex: none;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, .1);
+      border: 1px solid rgba(255, 255, 255, .16);
+      color: #fff;
+      font-size: .72rem;
+      font-weight: 600;
+      letter-spacing: .03em;
+      box-shadow: none;
+    }
+    .sidebar .session-person strong { font-size: .81rem; font-weight: 600; color: #fff; }
+    .sidebar .session-person span { font-size: .68rem; color: rgba(255, 255, 255, .45); }
+    .sidebar .session-action {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, .13);
+      border-radius: 5px;
+      color: rgba(255, 255, 255, .72);
+      font-size: .74rem;
+      font-weight: 500;
+    }
+    .sidebar .session-action:hover { background: rgba(255, 255, 255, .08); color: #fff; }
+
+    /* ---------- ÜST ALAN: kâğıt üstünde, kart değil ---------- */
+    .app main .topbar { border-bottom-color: var(--dsh-line); padding: 18px 0 16px; }
+    .app main .topbar #pageLead {
+      font-family: var(--dsh-serif);
+      font-style: italic;
+      font-size: .855rem;
+      color: var(--dsh-muted);
+    }
+    .app main .global-search { border-color: var(--dsh-line); border-radius: var(--dsh-r); background: var(--dsh-card); }
+    .app main .global-search:focus-within { border-color: var(--dsh-brass); box-shadow: 0 0 0 3px rgba(154, 111, 47, .1); }
+    .app main .global-search .search-kbd { background: transparent; border-color: var(--dsh-line); color: var(--dsh-muted-2); }
+    .app main .quick-action-trigger,
+    .app main .btn.primary.quick-action-trigger { border-radius: var(--dsh-r); background: var(--dsh-ink); border-color: var(--dsh-ink); font-weight: 550; }
+    .app main .quick-action-trigger:hover { background: var(--dsh-nav-2); }
+    .app main .notification-trigger { border-color: var(--dsh-line); border-radius: var(--dsh-r); }
+    .app main .sync-status {
+      background: transparent;
+      border: 0;
+      padding: 0 4px;
+      color: var(--dsh-muted);
+      font-weight: 500;
+      font-size: .72rem;
+    }
+    .app main .sync-status > span[aria-hidden] { background: var(--dsh-ok); }
+
+    /* ---------- KOMUT PALETİ: sakin kâğıt tabaka ---------- */
+    .command-palette {
+      border: 1px solid var(--dsh-line);
+      border-radius: 10px;
+      box-shadow: 0 18px 50px rgba(26, 37, 48, .18);
+      background: var(--dsh-card);
+      padding: 0;
+      overflow: hidden;
+    }
+    .command-palette::backdrop { background: rgba(26, 37, 48, .34); backdrop-filter: blur(2px); }
+    .command-palette-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--dsh-line-soft);
+      background: transparent;
+    }
+    .command-palette-header svg { width: 17px; height: 17px; stroke: var(--dsh-muted-2); fill: none; flex: none; }
+    .command-palette-input {
+      flex: 1;
+      min-width: 0;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      font-family: inherit;
+      font-size: .95rem;
+      color: var(--dsh-ink);
+    }
+    .command-palette-input::placeholder { color: var(--dsh-muted-2); }
+    /* alan zaten tek girişli tabaka: ayrıca çerçeve/halka gerekmez */
+    .command-palette-input:focus,
+    .command-palette-input:focus-visible {
+      border: 0;
+      outline: 0;
+      box-shadow: none;
+      background: transparent;
+    }
+    .command-palette-kbd {
+      flex: none;
+      font-size: .64rem;
+      font-weight: 600;
+      letter-spacing: .04em;
+      color: var(--dsh-muted-2);
+      border: 1px solid var(--dsh-line);
+      border-radius: 4px;
+      padding: 3px 6px;
+      background: transparent;
+    }
+    .command-palette-body { padding: 6px; }
+    .command-group-title {
+      padding: 12px 12px 6px;
+      color: var(--dsh-muted-2);
+      font-size: .62rem;
+      font-weight: 700;
+      letter-spacing: .14em;
+    }
+    .command-item { border-radius: 5px; gap: 12px; grid-template-columns: 20px minmax(0, 1fr) auto; min-height: 44px; }
+    .command-item:hover, .command-item.active { background: var(--dsh-line-soft); }
+    .command-item.active { box-shadow: inset 2px 0 0 var(--dsh-brass); }
+    .command-item-icon {
+      width: 20px;
+      height: 20px;
+      background: transparent;
+      color: var(--dsh-muted-2);
+      font-weight: 500;
+      font-size: .9rem;
+      border-radius: 0;
+    }
+    .command-item-title { font-size: .855rem; font-weight: 550; color: var(--dsh-ink); }
+    .command-item-meta { font-size: .7rem; color: var(--dsh-muted); }
+    .command-empty {
+      padding: 40px 20px;
+      color: var(--dsh-muted-2);
+      font-family: var(--dsh-serif);
+      font-style: italic;
+      font-size: .9rem;
+    }
+
+    /* ---------- BİLDİRİM MERKEZİ ---------- */
+    .notification-drawer {
+      background: var(--dsh-card);
+      border-left: 1px solid var(--dsh-line);
+      box-shadow: -14px 0 44px rgba(26, 37, 48, .12);
+    }
+    .notification-drawer-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 18px 14px;
+      border-bottom: 1px solid var(--dsh-line-soft);
+      background: transparent;
+      flex-wrap: wrap;
+    }
+    .notification-drawer-header h2 { font-size: 1.15rem; margin: 0; color: var(--dsh-ink); flex: none; }
+    .notification-drawer-tools { display: flex; align-items: center; gap: 8px; flex: 0 1 auto; min-width: 0; }
+    .notification-drawer-tools .btn {
+      height: 30px;
+      padding: 0 10px;
+      font-size: .72rem;
+      font-weight: 500;
+      color: var(--dsh-muted);
+      background: transparent;
+      border: 1px solid var(--dsh-line);
+      border-radius: var(--dsh-r);
+      cursor: pointer;
+      white-space: nowrap;
+      flex: none;
+      width: auto;
+      min-width: 0;
+      overflow: visible;
+      text-overflow: clip;
+    }
+    .notification-drawer-tools .btn:hover { background: var(--dsh-line-soft); color: var(--dsh-ink); }
+    .notification-tabs {
+      display: flex;
+      gap: 2px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--dsh-line-soft);
+      background: transparent;
+    }
+    .notification-tab {
+      padding: 6px 11px;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--dsh-muted);
+      font-family: inherit;
+      font-size: .755rem;
+      font-weight: 550;
+      cursor: pointer;
+    }
+    .notification-tab:hover { background: var(--dsh-line-soft); color: var(--dsh-ink); }
+    .notification-tab.active { background: var(--dsh-ink); color: #fff; }
+    .notification-item {
+      grid-template-columns: 7px minmax(0, 1fr);
+      gap: 11px;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--dsh-line-soft);
+      align-items: start;
+    }
+    .notification-item:hover { background: var(--dsh-line-soft); }
+    .notification-dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 6px; background: transparent; }
+    .notification-item.unread .notification-dot { background: var(--dsh-info); }
+    .notification-item.warning .notification-dot { background: var(--dsh-warn); }
+    .notification-item.urgent .notification-dot { background: var(--dsh-critical); }
+    .notification-item strong { font-size: .855rem; font-weight: 600; color: var(--dsh-ink); line-height: 1.4; }
+    .notification-item span { margin-top: 3px; color: var(--dsh-muted); font-size: .775rem; line-height: 1.45; }
+    .notification-item time {
+      margin-top: 6px;
+      color: var(--dsh-muted-2);
+      font-size: .69rem;
+      font-family: var(--dsh-serif);
+      font-style: italic;
+    }
+
+    /* ---------- MOBİL ALT NAVİGASYON ---------- */
+    @media (max-width: 900px) {
+      body.is-authenticated .mobile-tabbar {
+        background: rgba(255, 255, 255, .97);
+        border-top-color: var(--dsh-line);
+        box-shadow: 0 -1px 0 var(--dsh-line);
+      }
+      .mobile-tabbar button.active { background: transparent; color: var(--dsh-ink); }
+      .mobile-tabbar button.active svg { color: var(--dsh-brass); }
+      .mobile-tabbar button.active span { font-weight: 700; }
+    }
+
+    /* ---------- MOBİL: editoryal ölçek ---------- */
+    @media (max-width: 900px) {
+      .app main .topbar h1 { font-size: 1.42rem; }
+      #dashboard .metric-grid.priority-board { grid-template-columns: 1fr; }
+      #dashboard .priority-group + .priority-group { border-left: 0; border-top: 1px solid var(--dsh-line-soft); }
+      #dashboard .priority-group { padding: 12px 16px 14px; gap: 9px; }
+      /* her grup kendi içinde 2 kolona düşer: pano katlanmadan sığar */
+      #dashboard .priority-group-body { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+      #dashboard .priority-group.is-critical .priority-group-body { grid-template-columns: 1fr; }
+      #dashboard .is-critical .metric.priority-card .metric-copy strong { font-size: 2.35rem; }
+      #dashboard .metric.priority-card .metric-copy strong { font-size: 1.6rem; }
+      #dashboard .metric.priority-card .metric-copy span { margin-top: 3px; font-size: .68rem; }
+      #dashboard .priority-hint { display: none; }
+      #dashboard .agenda-table tbody tr.dashboard-data-row,
+      #dashboard .dashboard-task-item { padding: 11px 14px 11px 12px; }
+      .app main .alert-band { gap: 12px; padding: 10px 2px; }
+      .app main .alert-summary-items { gap: 14px; }
+      /* arama en çok kullanılan eylem: eylem düğmelerinin üstüne alınır */
+      .app main .topbar .global-search { order: -1; }
     }
 
     @media print {
@@ -16353,7 +16925,7 @@
         renderTasks();
         showNote("taskNote", "Görev silindi.");
       } catch (error) {
-        console.error("Görev silinemedi.", error);
+        console.error("G��rev silinemedi.", error);
         showNote("taskNote", "Görev silinemedi.");
       }
     }
@@ -17456,7 +18028,10 @@
       document.getElementById("weekHearings").innerHTML = dashboardLoading ? `<span class="skeleton-inline" aria-label="Yükleniyor"></span>` : weeklyHearings.length;
       document.getElementById("todayDeadlines").textContent = todayDeadlines;
       document.getElementById("soonDeadlines").textContent = upcomingDeadlines.length;
-      document.getElementById("lateDeadlines").textContent = overdueDeadlines.length + overdueTasks.length;
+      const overdueTotal = overdueDeadlines.length + overdueTasks.length;
+      document.getElementById("lateDeadlines").textContent = overdueTotal;
+      // gecikme yoksa kritik sayı sakinleşir, gereksiz alarm üretmez
+      document.querySelector(".priority-group.is-critical .metric.priority-card")?.setAttribute("data-zero", String(overdueTotal === 0));
       document.getElementById("assignedTasks").textContent = data.taskError ? "!" : assignedTasks.length;
 
       document.getElementById("hearingRows").innerHTML = dashboardError
@@ -17547,23 +18122,25 @@
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "")
         .replace(/ı/g, "i");
+      // Kâğıt ve Mürekkep paleti: mürekkep, pirinç, adaçayı, kiremit, taş.
+      // Doygun mavi/mor yerine sakin ve birbiriyle uyumlu tonlar kullanılır.
       if (kind === "lawsuit") {
-        if (normalized.includes("istinaf")) return "#F4A340";
-        if (normalized.includes("yargitay")) return "#3FAE5A";
-        if (normalized.includes("kapali") || normalized.includes("kapandi") || normalized.includes("sonuclandi")) return "#A9ADB3";
-        if (normalized.includes("karara")) return "#8B6CB5";
-        if (normalized.includes("beklemede")) return "#6F8090";
-        if (normalized.includes("acik") || normalized.includes("aktif") || normalized.includes("devam")) return "#2F6FED";
+      if (normalized.includes("istinaf")) return "#9A6F2F";
+      if (normalized.includes("yargitay")) return "#45745C";
+      if (normalized.includes("kapali") || normalized.includes("kapandi") || normalized.includes("sonuclandi")) return "#C3BEB4";
+      if (normalized.includes("karara")) return "#7C6449";
+      if (normalized.includes("beklemede")) return "#94A0A9";
+      if (normalized.includes("acik") || normalized.includes("aktif") || normalized.includes("devam")) return "#2F5D7C";
       } else {
-        if (normalized.includes("tahsil edildi")) return "#3FAE5A";
-        if (normalized.includes("kapali") || normalized.includes("kapandi")) return "#A9ADB3";
-        if (normalized.includes("odeme")) return "#F4A340";
-        if (normalized.includes("haciz")) return "#8B6CB5";
-        if (normalized.includes("infaz")) return "#258A86";
-        if (normalized.includes("durdurulmus") || normalized.includes("takipsiz")) return "#7D8791";
-        if (normalized.includes("takipte") || normalized.includes("acik") || normalized.includes("aktif") || normalized.includes("devam")) return "#2F6FED";
+      if (normalized.includes("tahsil edildi")) return "#45745C";
+      if (normalized.includes("kapali") || normalized.includes("kapandi")) return "#C3BEB4";
+      if (normalized.includes("odeme")) return "#9A6F2F";
+      if (normalized.includes("haciz")) return "#A5352F";
+        if (normalized.includes("infaz")) return "#3F7370";
+        if (normalized.includes("durdurulmus") || normalized.includes("takipsiz")) return "#94A0A9";
+        if (normalized.includes("takipte") || normalized.includes("acik") || normalized.includes("aktif") || normalized.includes("devam")) return "#2F5D7C";
       }
-      return ["#4D7C8F", "#C47B55", "#6E8D61", "#8A7398", "#7087A3", "#9A8060"][index % 6];
+      return ["#2F5D7C", "#9A6F2F", "#45745C", "#A5352F", "#7C6449", "#94A0A9"][index % 6];
     }
 
     function renderDashboardStatusDistribution(targetId, files, kind) {
