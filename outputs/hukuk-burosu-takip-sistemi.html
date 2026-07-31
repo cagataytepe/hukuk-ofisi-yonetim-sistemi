@@ -8155,6 +8155,27 @@
     }
     #dashboard .agenda-table tbody tr.dashboard-data-row > td.is-plain::before { content: none; }
 
+    /* Etiketler satırı ikiye katlıyordu; ikincil meta tek satıra iner ve kart yüksekliği düşer */
+    #dashboard .agenda-table tbody tr.dashboard-data-row > td.is-inline-meta {
+      display: flex;
+      align-items: baseline;
+      gap: 5px;
+      font-size: .74rem;
+      color: var(--dsh-muted);
+      line-height: 1.3;
+    }
+    #dashboard .agenda-table tbody tr.dashboard-data-row > td.is-inline-meta::before {
+      display: inline;
+      margin: 0;
+      flex: none;
+      font-size: .66rem;
+      font-weight: 600;
+      text-transform: none;
+      letter-spacing: .01em;
+      color: var(--dsh-muted-2);
+    }
+    #dashboard .agenda-table tbody tr.dashboard-data-row > td.is-inline-meta.align-end { justify-content: flex-end; }
+
     /* --- DURUŞMA AJANDASI: 3 kolon (saat rayı | ana | meta) --- */
     #dashboard .agenda-hearings tbody tr.dashboard-data-row {
       grid-template-columns: 92px minmax(0, 1fr) minmax(0, auto);
@@ -8191,8 +8212,50 @@
       color: var(--dsh-ink);
       line-height: 1.35;
     }
-    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(1) { font-size: .72rem; color: var(--dsh-muted-2); }
+    /* dosya no + dosya id: tek satırlık kompakt meta */
+    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(3),
+    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(1) {
+      display: flex;
+      align-items: baseline;
+      gap: 5px;
+      font-size: .73rem;
+      color: var(--dsh-muted);
+      line-height: 1.3;
+    }
+    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(3)::before,
+    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(1)::before {
+      display: inline;
+      margin: 0;
+      flex: none;
+      font-size: .66rem;
+      font-weight: 600;
+      text-transform: none;
+      letter-spacing: .01em;
+      color: var(--dsh-muted-2);
+    }
     #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(1) strong { font-weight: 600; color: var(--dsh-muted); }
+    /* katılacak kişi de tek satır, sağa yatık */
+    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(7) {
+      display: flex;
+      align-items: baseline;
+      justify-content: flex-end;
+      gap: 5px;
+      font-size: .73rem;
+      color: var(--dsh-muted);
+      line-height: 1.3;
+    }
+    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(7)::before {
+      display: inline;
+      margin: 0;
+      flex: none;
+      font-size: .66rem;
+      font-weight: 600;
+      text-transform: none;
+      letter-spacing: .01em;
+      color: var(--dsh-muted-2);
+    }
+    /* mazeret: etiketsiz, sadece değer */
+    #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(6)::before { content: none; }
     /* mazeret çipi */
     #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(6) {
       font-size: .72rem;
@@ -8228,7 +8291,31 @@
       font-variant-numeric: tabular-nums;
     }
     #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(2) { font-size: .78rem; color: var(--dsh-muted); }
-    #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(1) { font-size: .7rem; color: var(--dsh-muted-2); }
+    /* mahkeme / dosya no / sorumlu: tek satırlık kompakt meta */
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(3),
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(1),
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(7) {
+      display: flex;
+      align-items: baseline;
+      gap: 5px;
+      font-size: .73rem;
+      color: var(--dsh-muted);
+      line-height: 1.3;
+    }
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(3)::before,
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(1)::before,
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(7)::before {
+      display: inline;
+      margin: 0;
+      flex: none;
+      font-size: .66rem;
+      font-weight: 600;
+      text-transform: none;
+      letter-spacing: .01em;
+      color: var(--dsh-muted-2);
+    }
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(7),
+    #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(1) { justify-content: flex-end; }
 
     /* kalan gün rozeti */
     #dashboard .agenda-table .dashboard-due {
@@ -8609,17 +8696,18 @@
       #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(6) { grid-area: 1 / 2; }
       #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(2) { grid-area: 2 / 1 / 3 / 3; }
       #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(4) { grid-area: 3 / 1; text-align: left; }
-      #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(3) { grid-area: 3 / 2; text-align: right; }
-      #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(7) { grid-area: 4 / 1; text-align: left; }
-      #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(1) { grid-area: 4 / 2; text-align: right; }
+      #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(3) { grid-area: 3 / 2; justify-content: flex-end; }
+      #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(7) { grid-area: 4 / 1; justify-content: flex-start; }
+      #dashboard .agenda-hearings tbody tr.dashboard-data-row > td:nth-child(1) { grid-area: 4 / 2; justify-content: flex-end; }
       /* süreli iş: rozet+sorumlu üst satır */
       #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(6) { grid-area: 1 / 1; }
       #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(7) { grid-area: 1 / 2; }
       #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(4) { grid-area: 2 / 1 / 3 / 3; }
       #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(2) { grid-area: 3 / 1 / 4 / 3; }
       #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(5) { grid-area: 4 / 1; }
-      #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(3) { grid-area: 4 / 2; text-align: right; }
-      #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(1) { grid-area: 5 / 2; text-align: right; }
+      #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(3) { grid-area: 4 / 2; justify-content: flex-end; }
+      #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(1) { grid-area: 5 / 2; justify-content: flex-end; }
+      #dashboard .agenda-deadlines tbody tr.dashboard-data-row > td:nth-child(7) { justify-content: flex-end; }
 
       #dashboard .distribution-visual { grid-template-columns: 1fr; gap: 12px; justify-items: center; }
       #dashboard .distribution-donut { width: 132px; height: 132px; }
