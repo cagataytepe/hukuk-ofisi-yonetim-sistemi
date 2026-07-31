@@ -19612,7 +19612,11 @@
       });
     }
 
-    document.getElementById("sidebarCollapse")?.addEventListener("click", syncNavRailTooltips);
+    // body class is toggled by a later listener, so observe instead of racing it
+    new MutationObserver(syncNavRailTooltips).observe(document.body, {
+      attributes: true,
+      attributeFilter: ["class"]
+    });
     syncNavRailTooltips();
 
     document.getElementById("sidebarCollapse")?.addEventListener("click", () => {
