@@ -1,5 +1,6 @@
 import appHtml from "../outputs/hukuk-burosu-takip-sistemi.html?raw";
 import bktLogoUrl from "../outputs/bkt-logo.png";
+import appRuntimeUrl from "virtual:bkt-app-runtime-url";
 import "../outputs/supabase-config.js";
 import { desktopRuntime } from "./platform/generatedFileSaver.js";
 
@@ -40,14 +41,14 @@ function rewriteBodyAssets(sourceDocument) {
   });
 }
 
-function runInlineScripts(scripts) {
-  scripts
-    .filter(script => !script.getAttribute("src"))
-    .forEach(script => {
-      const runtimeScript = document.createElement("script");
-      runtimeScript.textContent = script.textContent;
-      document.body.appendChild(runtimeScript);
-    });
+function loadAppRuntime() {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = appRuntimeUrl;
+    script.onload = resolve;
+    script.onerror = () => reject(new Error("Uygulama çalışma kodu yüklenemedi."));
+    document.body.appendChild(script);
+  });
 }
 
 async function bootstrapApplication() {
@@ -64,7 +65,7 @@ async function bootstrapApplication() {
   document.body.className = sourceDocument.body.className;
   document.body.innerHTML = sourceDocument.body.innerHTML;
 
-  runInlineScripts(scripts);
+  await loadAppRuntime();
 }
 
 bootstrapApplication().catch(error => {

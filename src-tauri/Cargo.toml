@@ -1,6 +1,6 @@
 [package]
 name = "bkt-hukuk-buro-yonetim-sistemi"
-version = "0.1.0"
+version = "1.3.0-beta.1"
 description = "BKT Hukuk Büro Yönetim Sistemi masaüstü uygulaması"
 authors = ["BKT Hukuk ve Danışmanlık Bürosu"]
 edition = "2021"
