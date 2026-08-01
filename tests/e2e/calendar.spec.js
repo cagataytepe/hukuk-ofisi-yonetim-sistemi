@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { attachDiagnostics, createLawsuitFile, deleteFileByPrefix, fillDatalistByPrefix, gotoSection, login, selectFirstOption, todayIso } from "./support/app.js";
+import { attachDiagnostics, createLawsuitFile, currentWorkweekDateIso, deleteFileByPrefix, fillDatalistByPrefix, gotoSection, login, selectFirstOption } from "./support/app.js";
 import { e2ePrefix } from "./support/env.js";
 
 test("Takvim ekranı public.hearings kayıtlarını tarihinde ve detay panelinde gösterir", async ({ page }) => {
@@ -11,7 +11,7 @@ test("Takvim ekranı public.hearings kayıtlarını tarihinde ve detay panelinde
     await createLawsuitFile(page, prefix);
     await gotoSection(page, "hearings");
     await fillDatalistByPrefix(page, "#hearingCase", "#hearingCaseList", prefix);
-    await page.locator('#hearingForm input[type="date"]').fill(todayIso());
+    await page.locator('#hearingForm input[type="date"]').fill(currentWorkweekDateIso());
     await page.locator('#hearingForm input[type="time"]').fill("11:20");
     await selectFirstOption(page, "#hearingPerson");
     await page.locator("#hearingForm textarea").fill(`${prefix} takvim duruşması`);

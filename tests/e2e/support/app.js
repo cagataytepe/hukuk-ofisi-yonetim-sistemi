@@ -209,6 +209,18 @@ export function todayIso(offsetDays = 0) {
   ].join("-");
 }
 
+export function currentWorkweekDateIso() {
+  const date = new Date();
+  const day = date.getDay();
+  if (day === 6) date.setDate(date.getDate() - 1);
+  if (day === 0) date.setDate(date.getDate() - 2);
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0")
+  ].join("-");
+}
+
 export function safeErrorSummary(error) {
   return {
     name: error?.name,

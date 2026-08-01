@@ -2385,8 +2385,8 @@
 
   function mapAuthErrorMessage(error) {
     const message = String(error?.message || "").toLowerCase();
-    if (message.includes("invalid login credentials")) {
-      return "E-posta adresi veya şifre hatalı.";
+    if (message.includes("invalid login credentials") || error?.code === "invalid_credentials") {
+      return "E-posta adresi veya parola hatalı.";
     }
     if (message.includes("email not confirmed")) {
       return "E-posta adresiniz henüz doğrulanmamış.";
@@ -2396,7 +2396,10 @@
       message.includes("network") ||
       message.includes("load failed")
     ) {
-      return "Supabase sunucusuna bağlanılamadı. İnternet bağlantınızı kontrol edin.";
+      return "Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edin.";
+    }
+    if (message.includes("content security policy") || message.includes("connection configuration")) {
+      return "Masaüstü uygulamasının bağlantı ayarlarında bir sorun oluştu.";
     }
     return "Giriş sırasında bir hata oluştu.";
   }
