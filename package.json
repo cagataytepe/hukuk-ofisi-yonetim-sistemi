@@ -45,7 +45,9 @@
     "test:e2e:report": "playwright show-report test-artifacts/reports"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.45.4"
+    "@supabase/supabase-js": "^2.45.4",
+    "@tauri-apps/plugin-dialog": "^2.7.2",
+    "@tauri-apps/plugin-fs": "^2.5.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",

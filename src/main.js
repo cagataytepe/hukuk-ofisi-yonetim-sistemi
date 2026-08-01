@@ -1,6 +1,9 @@
 import appHtml from "../outputs/hukuk-burosu-takip-sistemi.html?raw";
 import bktLogoUrl from "../outputs/bkt-logo.png";
 import "../outputs/supabase-config.js";
+import { desktopRuntime } from "./platform/generatedFileSaver.js";
+
+window.BKT_DESKTOP_RUNTIME = desktopRuntime;
 
 const assetMap = new Map([
   ["bkt-logo.png", bktLogoUrl]

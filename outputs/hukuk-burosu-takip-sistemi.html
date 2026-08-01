@@ -17815,19 +17815,30 @@
       document.getElementById("officeReportRows").innerHTML = rows.map(row => `<tr>${row.map(value => `<td>${escapeHtml(value)}</td>`).join("")}</tr>`).join("") || `<tr><td colspan="${headers.length}">Bu rapor için kayıt bulunmuyor.</td></tr>`;
     }
 
-    function exportCsv(name, rows) {
+    async function saveGeneratedOutput({ filename, mimeType, data, extensions }) {
+      try {
+        const saver = window.BKT_DESKTOP_RUNTIME?.saveGeneratedFile;
+        if (typeof saver !== "function") throw new Error("Dosya kaydetme altyapısı hazır değil.");
+        const result = await saver({ filename, mimeType, data, extensions });
+        if (result.status === "saved" && result.environment === "tauri") {
+          showToast("Dosya başarıyla kaydedildi.", "success");
+        }
+        return result;
+      } catch (error) {
+        console.error("Üretilen dosya kaydedilemedi.", error);
+        showToast("Dosya kaydedilemedi.", "error");
+        return { status: "error" };
+      }
+    }
+
+    async function exportCsv(name, rows) {
       if (!requirePermission("reports", "Rapor dışa aktarma")) return;
       const csv = rows.map(row => row.map(value => `"${String(value).replaceAll('"', '""')}"`).join(";")).join("\n");
       const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = name;
-      a.click();
-      URL.revokeObjectURL(url);
+      await saveGeneratedOutput({ filename: name, mimeType: blob.type, data: blob, extensions: ["csv"] });
     }
 
-    function exportCasesExcel() {
+    async function exportCasesExcel() {
       if (!requirePermission("reports", "Dosya listesini dışa aktarma")) return;
       const rows = sortCasesNewestFirst(filterCasesByType());
       const tableRows = rows.map(c => `
@@ -17865,12 +17876,7 @@
         </html>
       `;
       const blob = new Blob(["\ufeff" + workbook], { type: "application/vnd.ms-excel;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "dosya-listesi.xls";
-      a.click();
-      URL.revokeObjectURL(url);
+      await saveGeneratedOutput({ filename: "dosya-listesi.xls", mimeType: blob.type, data: blob, extensions: ["xls"] });
     }
 
     function hearingReportRange() {
@@ -17934,7 +17940,7 @@
       rows.innerHTML = hearingReportTableRows(hearingReportRows());
     }
 
-    function exportHearingsExcel() {
+    async function exportHearingsExcel() {
       if (!requirePermission("reports", "Duruşma raporunu dışa aktarma")) return;
       const reportTitle = hearingReportRange().reportTitle;
       const tableRows = hearingReportTableRows(hearingReportRows());
@@ -17986,15 +17992,10 @@
         </html>
       `;
       const blob = new Blob(["\ufeff" + workbook], { type: "application/vnd.ms-excel;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "durusma-raporu.xls";
-      a.click();
-      URL.revokeObjectURL(url);
+      await saveGeneratedOutput({ filename: "durusma-raporu.xls", mimeType: blob.type, data: blob, extensions: ["xls"] });
     }
 
-    function exportHearingReportPdf() {
+    async function exportHearingReportPdf() {
       if (!requirePermission("reports", "Duruşma raporu alma")) return;
       const pageWidth = 842;
       const pageHeight = 595;
@@ -18023,12 +18024,7 @@
         marginY
       });
       const pdf = buildPdfFromJpegs(pages.map(page => page.image), pageWidth, pageHeight);
-      const url = URL.createObjectURL(pdf);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "durusma-raporu.pdf";
-      a.click();
-      URL.revokeObjectURL(url);
+      await saveGeneratedOutput({ filename: "durusma-raporu.pdf", mimeType: pdf.type, data: pdf, extensions: ["pdf"] });
     }
 
     function deadlineReportRange() {
@@ -18055,7 +18051,7 @@
       return `${left} gün`;
     }
 
-    function exportDeadlineReportPdf() {
+    async function exportDeadlineReportPdf() {
       if (!requirePermission("reports", "Süreli iş raporu alma")) return;
       const pageWidth = 842;
       const pageHeight = 595;
@@ -18085,12 +18081,7 @@
         emptyMessage: "Bu tarih aralığında süreli iş bulunmuyor."
       });
       const pdf = buildPdfFromJpegs(pages.map(page => page.image), pageWidth, pageHeight);
-      const url = URL.createObjectURL(pdf);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "sureli-is-raporu.pdf";
-      a.click();
-      URL.revokeObjectURL(url);
+      await saveGeneratedOutput({ filename: "sureli-is-raporu.pdf", mimeType: pdf.type, data: pdf, extensions: ["pdf"] });
     }
 
     function renderHearingReportPdfPages({ title, headers, rows, pageWidth, pageHeight, marginX, marginY, emptyMessage = "Bu tarih aralığında duruşma bulunmuyor." }) {
@@ -18588,35 +18579,35 @@
       return canvas;
     }
 
-    function downloadEnforcementAccountPdf(report, noteTarget = "") {
+    async function downloadEnforcementAccountPdf(report, noteTarget = "") {
       if (!report.office || !report.trackingNo) {
         if (noteTarget) showNote(noteTarget, "PDF çıktısı için icra dairesi ve dosya numarası giriniz.");
         return false;
       }
       const canvas = renderEnforcementAccountPdfPage(report);
       const pdf = buildPdfFromJpegs([dataUrlToBytes(canvas.toDataURL("image/jpeg", 0.96))], 595, 842);
-      const url = URL.createObjectURL(pdf);
-      const link = document.createElement("a");
       const filePart = report.trackingNo.replace(/[^\d]+/g, "_").replace(/^_+|_+$/g, "") || "icra_dosyasi";
       const datePart = formatExcelDate(report.accountDate).replaceAll("/", "_");
-      link.href = url;
-      link.download = `${filePart}_Dosya_Hesabi_Raporu_${datePart}.pdf`;
-      link.click();
-      URL.revokeObjectURL(url);
-      return true;
+      const result = await saveGeneratedOutput({
+        filename: `${filePart}_Dosya_Hesabi_Raporu_${datePart}.pdf`,
+        mimeType: pdf.type,
+        data: pdf,
+        extensions: ["pdf"]
+      });
+      return result.status === "saved";
     }
 
-    function exportEnforcementAccountPdf() {
+    async function exportEnforcementAccountPdf() {
       if (!requirePermission("reports", "Kapak hesabı PDF çıktısı alma")) return;
       if (activeCaseKind !== "İcra") return;
-      downloadEnforcementAccountPdf(currentEnforcementAccountReportData(), "caseNote");
+      await downloadEnforcementAccountPdf(currentEnforcementAccountReportData(), "caseNote");
     }
 
-    function exportEnforcementAccountPdfById(id) {
+    async function exportEnforcementAccountPdfById(id) {
       if (!requirePermission("reports", "Kapak hesabı PDF çıktısı alma")) return;
       const row = repositoryFileById(id);
       if (!row) return;
-      downloadEnforcementAccountPdf(enforcementAccountReportDataForRow(row));
+      await downloadEnforcementAccountPdf(enforcementAccountReportDataForRow(row));
     }
 
     function buildPdfFromJpegs(images, pageWidth, pageHeight) {

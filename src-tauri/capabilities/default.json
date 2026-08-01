@@ -3,6 +3,9 @@
   "identifier": "default",
   "description": "BKT Hukuk ana penceresi için temel Tauri izinleri.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": [
+    "core:default",
+    "dialog:allow-save",
+    "fs:allow-write-file"
+  ]
 }
-
