@@ -8,6 +8,9 @@
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
     "seed:demo": "node database/seed/seed-demo-data.js",
     "bootstrap:localstorage": "node database/seed/seed-demo-data.js --bootstrap",
     "import:localstorage": "node database/seed/seed-demo-data.js",
@@ -46,6 +49,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
+    "@tauri-apps/cli": "^2.11.4",
     "vite": "^5.4.11"
   }
 }

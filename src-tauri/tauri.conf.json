@@ -1,0 +1,44 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "BKT Hukuk Büro Yönetim Sistemi",
+  "version": "0.1.0",
+  "identifier": "tr.com.bkthukuk.ofisyonetim",
+  "build": {
+    "beforeDevCommand": "npm.cmd run dev -- --host 127.0.0.1",
+    "devUrl": "http://127.0.0.1:5173",
+    "beforeBuildCommand": "npm.cmd run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "security": {
+      "csp": null
+    },
+    "windows": [
+      {
+        "label": "main",
+        "title": "BKT Hukuk Büro Yönetim Sistemi",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1180,
+        "minHeight": 720,
+        "resizable": true,
+        "fullscreen": false,
+        "maximized": false,
+        "center": true,
+        "decorations": true,
+        "visible": true
+      }
+    ]
+  },
+  "bundle": {
+    "active": false,
+    "targets": ["nsis"],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      }
+    }
+  }
+}
+
