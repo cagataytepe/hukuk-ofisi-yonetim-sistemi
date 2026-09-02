@@ -1,5 +1,7 @@
 ﻿import { supabase } from "../src/supabase.js";
 
+import { setMobileSessionPersistence } from "../src/supabase.js";
+
 (function () {
   const config = window.BKT_SUPABASE_CONFIG || {};
   const supabaseUrl = config.url || "";
@@ -105,6 +107,9 @@
         await repository.reload();
         return data;
       },
+      setRememberSession(remember) {
+        setMobileSessionPersistence(Boolean(remember));
+      },
       async signOut() {
         if (authClient) await authClient.auth.signOut();
         cache.clear();
@@ -160,6 +165,8 @@
           username: profile.username || "",
           displayName: profileDisplayName(profile),
           email: profile.email || authUser.email,
+          avatarUrl: authUser.user_metadata?.avatar_url || authUser.user_metadata?.picture || "",
+          gender: authUser.user_metadata?.gender || "",
           active: profile.is_active !== false,
           roleName,
           permissions
