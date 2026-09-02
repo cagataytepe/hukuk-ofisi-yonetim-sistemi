@@ -1,4 +1,8 @@
 {
+  "productName": "BKT Hukuk",
+  "build": {
+    "beforeBuildCommand": "npm run build"
+  },
   "app": {
     "windows": [
       {
@@ -9,5 +13,8 @@
         "fullscreen": false
       }
     ]
+  },
+  "bundle": {
+    "active": true
   }
 }

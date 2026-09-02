@@ -1,0 +1,152 @@
+name: Android ARM64 Debug APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex/android-apk-ci
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-android-apk:
+    name: Build ARM64 debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      ANDROID_PLATFORM: android-36
+      ANDROID_BUILD_TOOLS: 35.0.0
+      NDK_VERSION: 27.0.12077973
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform, build tools and NDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME}}"
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager \
+            "platform-tools" \
+            "platforms;${ANDROID_PLATFORM}" \
+            "build-tools;${ANDROID_BUILD_TOOLS}" \
+            "ndk;${NDK_VERSION}"
+          test -d "${SDK_ROOT}/ndk/${NDK_VERSION}"
+          echo "ANDROID_HOME=${SDK_ROOT}" >> "${GITHUB_ENV}"
+          echo "ANDROID_SDK_ROOT=${SDK_ROOT}" >> "${GITHUB_ENV}"
+          echo "NDK_HOME=${SDK_ROOT}/ndk/${NDK_VERSION}" >> "${GITHUB_ENV}"
+          echo "ANDROID_NDK_HOME=${SDK_ROOT}/ndk/${NDK_VERSION}" >> "${GITHUB_ENV}"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          cache-on-failure: true
+
+      - name: Verify Rust Android target
+        run: rustup target add aarch64-linux-android
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Check browser sources for privileged Supabase secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RInE \
+            --exclude-dir=node_modules \
+            --exclude-dir=.git \
+            --exclude-dir=test-artifacts \
+            --exclude-dir=playwright-report \
+            'SUPABASE_SERVICE_ROLE_KEY[[:space:]]*[:=]|sb_secret_[A-Za-z0-9_-]{20,}' \
+            mobile.html src services outputs/supabase-config.js; then
+            echo "Privileged Supabase secret pattern detected in browser sources."
+            exit 1
+          fi
+
+      - name: Build mobile frontend
+        run: npm run build
+
+      - name: Verify mobile production entry
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s dist/mobile.html
+          if grep -RInE 'SUPABASE_SERVICE_ROLE_KEY|sb_secret_[A-Za-z0-9_-]{20,}' dist; then
+            echo "Privileged Supabase secret pattern detected in production assets."
+            exit 1
+          fi
+
+      - name: Initialize Android project
+        run: npm run tauri -- android init --ci --skip-targets-install
+
+      - name: Build ARM64 debug APK
+        run: npm run tauri -- android build --debug --apk --target aarch64 --ci
+
+      - name: Locate, verify and name APK
+        id: apk
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUTPUT_ROOT="src-tauri/gen/android/app/build/outputs"
+          mapfile -t APK_FILES < <(find "${OUTPUT_ROOT}" -type f -name '*.apk' | sort)
+          if [[ ${#APK_FILES[@]} -eq 0 ]]; then
+            echo "Android build completed without an APK under ${OUTPUT_ROOT}."
+            exit 1
+          fi
+
+          ARM64_APK=""
+          for APK_FILE in "${APK_FILES[@]}"; do
+            if unzip -l "${APK_FILE}" | grep -qE 'lib/arm64-v8a/.*\.so$'; then
+              ARM64_APK="${APK_FILE}"
+              break
+            fi
+          done
+
+          if [[ -z "${ARM64_APK}" ]]; then
+            printf 'Generated APKs do not contain an ARM64 native library:\n%s\n' "${APK_FILES[*]}"
+            exit 1
+          fi
+
+          mkdir -p artifacts
+          cp "${ARM64_APK}" artifacts/BKT-Hukuk-arm64-debug.apk
+          "${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS}/apksigner" verify \
+            --verbose \
+            --print-certs \
+            artifacts/BKT-Hukuk-arm64-debug.apk
+          echo "path=artifacts/BKT-Hukuk-arm64-debug.apk" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload installable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: BKT-Hukuk-Android-Debug
+          path: ${{ steps.apk.outputs.path }}
+          if-no-files-found: error
+          retention-days: 14
