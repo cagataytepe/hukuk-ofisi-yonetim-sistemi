@@ -25,6 +25,8 @@ const MONEY_FIELDS = [
   "currentDebt"
 ];
 
+const STATUTORY_BOUNDARY_DATES = ["2026-07-30", "2026-07-31", "2026-08-01"];
+
 for (const accountDate of I1004_ACCOUNT_DATES) {
   test(`I-1004 masaüstü ve mobil parity: ${accountDate}`, () => {
     const desktop = calculateDesktopEnforcementAccount(
@@ -44,6 +46,27 @@ for (const accountDate of I1004_ACCOUNT_DATES) {
       assert.equal(mobileCents, desktopCents, `${field} adapter sonucu farklı`);
       assert.equal(desktopCents, I1004_EXPECTED_CENTS[accountDate][field], `${field} fixture sonucu değişti`);
     }
+  });
+}
+
+for (const accountDate of STATUTORY_BOUNDARY_DATES) {
+  test(`kanuni faiz sınırında masaüstü ve mobil parity: ${accountDate}`, () => {
+    const desktop = calculateDesktopEnforcementAccount(
+      I1004_DESKTOP_VALUES,
+      I1004_CALCULATION_TOOLS,
+      accountDate
+    );
+    const mobile = calculateMobileEnforcementAccount(
+      I1004_MOBILE_FILE,
+      I1004_CALCULATION_TOOLS,
+      accountDate
+    );
+
+    for (const field of MONEY_FIELDS) {
+      assert.equal(toMoneyCents(mobile[field]), toMoneyCents(desktop[field]), `${field} adapter sonucu farklı`);
+    }
+    assert.deepEqual(mobile.interestPeriods, desktop.interestPeriods);
+    assert.equal(desktop.interestPeriods.at(-1)?.rate, accountDate === "2026-07-30" ? 24 : 31);
   });
 }
 

@@ -11,8 +11,8 @@ function displayedCurrencyValue(value) {
 }
 
 const controlledRates = [
-  { id: "old", type: "Adi Kanuni Faiz", from: "2026-01-01", to: "2026-07-31", rate: 24, active: true },
-  { id: "new", type: "Adi Kanuni Faiz", from: "2026-08-01", to: "", rate: 30, active: true }
+  { id: "old", type: "Adi Kanuni Faiz", from: "2026-01-01", to: "2026-07-30", rate: 24, active: true },
+  { id: "new", type: "Adi Kanuni Faiz", from: "2026-07-31", to: "", rate: 31, active: true }
 ];
 
 test("Adi kanuni faiz mevcut dosyada yürürlük dönemlerine ayrılır", () => {
@@ -27,9 +27,9 @@ test("Adi kanuni faiz mevcut dosyada yürürlük dönemlerine ayrılır", () => 
   });
 
   expect(result.periods).toHaveLength(2);
-  expect(result.periods[0]).toMatchObject({ from: "2026-01-02", to: "2026-07-31", rate: 24, days: 211, usedFallback: false });
-  expect(result.periods[1]).toMatchObject({ from: "2026-08-01", to: "2026-08-15", rate: 30, days: 15, usedFallback: false });
-  const expected = (100_000 * 0.24 * 211 / 365) + (100_000 * 0.30 * 15 / 365);
+  expect(result.periods[0]).toMatchObject({ from: "2026-01-02", to: "2026-07-30", rate: 24, days: 210, usedFallback: false });
+  expect(result.periods[1]).toMatchObject({ from: "2026-07-31", to: "2026-08-15", rate: 31, days: 16, usedFallback: false });
+  const expected = (100_000 * 0.24 * 210 / 365) + (100_000 * 0.31 * 16 / 365);
   expect(result.amount).toBeCloseTo(expected, 8);
 });
 
@@ -37,47 +37,47 @@ test("Yürürlük sınır günü bir kez ve yeni oranla hesaplanır", () => {
   const before = calculatePeriodInterest({
     principal: 100_000,
     type: "Adi Kanuni Faiz",
+    start: "2026-07-29",
+    end: "2026-07-30",
+    interestRates: controlledRates
+  });
+  const boundary = calculatePeriodInterest({
+    principal: 100_000,
+    type: "Adi Kanuni Faiz",
     start: "2026-07-30",
     end: "2026-07-31",
     interestRates: controlledRates
   });
-  const boundary = calculatePeriodInterest({
+  const after = calculatePeriodInterest({
     principal: 100_000,
     type: "Adi Kanuni Faiz",
     start: "2026-07-31",
     end: "2026-08-01",
     interestRates: controlledRates
   });
-  const after = calculatePeriodInterest({
-    principal: 100_000,
-    type: "Adi Kanuni Faiz",
-    start: "2026-08-01",
-    end: "2026-08-02",
-    interestRates: controlledRates
-  });
 
-  expect(before.periods).toEqual([expect.objectContaining({ from: "2026-07-31", to: "2026-07-31", rate: 24, days: 1 })]);
-  expect(boundary.periods).toEqual([expect.objectContaining({ from: "2026-08-01", to: "2026-08-01", rate: 30, days: 1 })]);
-  expect(after.periods).toEqual([expect.objectContaining({ from: "2026-08-02", to: "2026-08-02", rate: 30, days: 1 })]);
+  expect(before.periods).toEqual([expect.objectContaining({ from: "2026-07-30", to: "2026-07-30", rate: 24, days: 1 })]);
+  expect(boundary.periods).toEqual([expect.objectContaining({ from: "2026-07-31", to: "2026-07-31", rate: 31, days: 1 })]);
+  expect(after.periods).toEqual([expect.objectContaining({ from: "2026-08-01", to: "2026-08-01", rate: 31, days: 1 })]);
 });
 
-test("Adi kanuni faiz 1 Temmuz 2026 tarihinden itibaren yüzde 31 uygulanır", () => {
+test("Adi kanuni faiz 31 Temmuz 2026 tarihinden itibaren yüzde 31 uygulanır", () => {
   const result = calculatePeriodInterest({
     principal: 100_000,
     type: "Adi Kanuni Faiz",
     fallbackRate: 99,
-    start: "2026-06-29",
-    end: "2026-07-02",
+    start: "2026-07-29",
+    end: "2026-08-01",
     interestRates: [
-      { id: "legal-24", type: "Adi Kanuni Faiz", from: "2024-06-01", to: "2026-06-30", rate: 24, active: true },
-      { id: "legal-31", type: "Adi Kanuni Faiz", from: "2026-07-01", to: "", rate: 31, active: true }
+      { id: "legal-24", type: "Adi Kanuni Faiz", from: "2024-06-01", to: "2026-07-30", rate: 24, active: true },
+      { id: "legal-31", type: "Adi Kanuni Faiz", from: "2026-07-31", to: "", rate: 31, active: true }
     ],
     dayBasis: 365
   });
 
   expect(result.periods).toEqual([
-    expect.objectContaining({ from: "2026-06-30", to: "2026-06-30", rate: 24, days: 1, usedFallback: false }),
-    expect.objectContaining({ from: "2026-07-01", to: "2026-07-02", rate: 31, days: 2, usedFallback: false })
+    expect.objectContaining({ from: "2026-07-30", to: "2026-07-30", rate: 24, days: 1, usedFallback: false }),
+    expect.objectContaining({ from: "2026-07-31", to: "2026-08-01", rate: 31, days: 2, usedFallback: false })
   ]);
   expect(result.amount).toBeCloseTo((100_000 * 0.24 / 365) + (100_000 * 0.31 * 2 / 365), 8);
 });
@@ -88,8 +88,8 @@ test("Mevcut toplu tahsilat davranışı faizden sonra bakiyeden düşülür", (
     preInterest: 0,
     payments: 10_000,
     interestType: "Adi Kanuni Faiz",
-    interestStart: "2026-07-31",
-    accountDate: "2026-08-01",
+    interestStart: "2026-07-30",
+    accountDate: "2026-07-31",
     followUpType: "İlamsız Takip",
     feeRate: 0
   }, {
@@ -98,7 +98,7 @@ test("Mevcut toplu tahsilat davranışı faizden sonra bakiyeden düşülür", (
     parameters: [{ key: "interest_day_basis", value: 365, active: true }]
   });
 
-  expect(result.postInterest).toBeCloseTo(100_000 * 0.30 / 365, 8);
+  expect(result.postInterest).toBeCloseTo(100_000 * 0.31 / 365, 8);
   expect(result.currentDebt).toBeCloseTo(100_000 + result.postInterest - 10_000, 8);
 });
 

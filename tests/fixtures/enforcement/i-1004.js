@@ -8,7 +8,7 @@ export const I1004_CALCULATION_TOOLS = {
       id: "legal-24",
       type: "Adi Kanuni Faiz",
       from: "2024-06-01",
-      to: "2026-06-30",
+      to: "2026-07-30",
       rate: 24,
       source: "Merkezi tarife",
       active: true
@@ -16,7 +16,7 @@ export const I1004_CALCULATION_TOOLS = {
     {
       id: "legal-31",
       type: "Adi Kanuni Faiz",
-      from: "2026-07-01",
+      from: "2026-07-31",
       to: "",
       rate: 31,
       source: "Merkezi tarife",
@@ -92,29 +92,29 @@ export const I1004_MOBILE_FILE = {
 export const I1004_EXPECTED_CENTS = {
   "2026-07-15": {
     principal: 100_000_000,
-    postInterest: 6_797_260,
+    postInterest: 6_509_589,
     attorneyFee: 18_262_500,
     collectionFee: 10_715_250,
     expenses: 133_800,
     payments: 0,
-    currentDebt: 153_658_810
+    currentDebt: 153_371_139
   },
   "2026-08-04": {
     principal: 100_000_000,
-    postInterest: 8_495_890,
+    postInterest: 7_920_548,
     attorneyFee: 18_262_500,
     collectionFee: 10_715_250,
     expenses: 133_800,
     payments: 0,
-    currentDebt: 155_357_440
+    currentDebt: 154_782_098
   },
   "2026-09-08": {
     principal: 100_000_000,
-    postInterest: 11_468_493,
+    postInterest: 10_893_151,
     attorneyFee: 18_262_500,
     collectionFee: 10_715_250,
     expenses: 133_800,
     payments: 0,
-    currentDebt: 158_330_043
+    currentDebt: 157_754_701
   }
 };
