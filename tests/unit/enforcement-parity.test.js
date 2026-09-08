@@ -82,10 +82,11 @@ test("mobil canlı hesap varken eski currentDebt snapshot değerini ana bakiye y
 });
 
 test("masaüstü ve mobil adapter ödeme girdisini aynı motora aynı şekilde taşır", () => {
-  const desktopValues = { ...I1004_DESKTOP_VALUES, payments: 25_000 };
+  const paymentEvents = [{ id: "payment-1", date: "2026-07-20", amount: 25_000 }];
+  const desktopValues = { ...I1004_DESKTOP_VALUES, paymentEvents };
   const mobileFile = {
     ...I1004_MOBILE_FILE,
-    account_info: { ...I1004_MOBILE_FILE.account_info, payments: 25_000 }
+    payment_events: paymentEvents
   };
   const desktop = calculateDesktopEnforcementAccount(desktopValues, I1004_CALCULATION_TOOLS, "2026-09-08");
   const mobile = calculateMobileEnforcementAccount(mobileFile, I1004_CALCULATION_TOOLS, "2026-09-08");
@@ -93,6 +94,12 @@ test("masaüstü ve mobil adapter ödeme girdisini aynı motora aynı şekilde t
   assert.equal(toMoneyCents(desktop.payments), 2_500_000);
   assert.equal(toMoneyCents(mobile.currentDebt), toMoneyCents(desktop.currentDebt));
   assert.equal(toMoneyCents(mobile.postInterest), toMoneyCents(desktop.postInterest));
+  assert.equal(toMoneyCents(mobile.principalOutstanding), toMoneyCents(desktop.principalOutstanding));
+  assert.equal(toMoneyCents(mobile.paymentsAppliedToFeriler), toMoneyCents(desktop.paymentsAppliedToFeriler));
+  assert.equal(toMoneyCents(mobile.paymentsAppliedToPrincipal), toMoneyCents(desktop.paymentsAppliedToPrincipal));
+  assert.equal(toMoneyCents(mobile.eligibleCosts), toMoneyCents(desktop.eligibleCosts));
+  assert.equal(toMoneyCents(mobile.attorneyFee), toMoneyCents(desktop.attorneyFee));
+  assert.equal(toMoneyCents(mobile.collectionFee), toMoneyCents(desktop.collectionFee));
 });
 
 test("adapter açık bir accountDate olmadan hesap yapmaz", () => {

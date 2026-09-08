@@ -79,7 +79,7 @@ test("sabit hesap tarihi aynı kuruş sonucunu tekrar üretir", () => {
   assert.deepEqual(second.interestPeriods, first.interestPeriods);
 });
 
-test("toplu tahsilat mevcut iş kuralına göre hesap sonunda bir kez düşülür", () => {
+test("eski toplu tahsilat alanı canlı hesap sonucundan tekrar düşülmez", () => {
   const withoutPayment = calculateEnforcementAccount({
     ...I1004_DESKTOP_VALUES,
     accountDate: "2026-09-08"
@@ -90,7 +90,8 @@ test("toplu tahsilat mevcut iş kuralına göre hesap sonunda bir kez düşülü
     accountDate: "2026-09-08"
   }, I1004_CALCULATION_TOOLS);
 
-  assert.equal(toMoneyCents(withPayment.payments), 2_500_000);
-  assert.equal(toMoneyCents(withoutPayment.currentDebt - withPayment.currentDebt), 2_500_000);
+  assert.equal(toMoneyCents(withPayment.payments), 0);
+  assert.equal(toMoneyCents(withPayment.legacyPaymentTotal), 2_500_000);
+  assert.equal(toMoneyCents(withoutPayment.currentDebt), toMoneyCents(withPayment.currentDebt));
   assert.equal(toMoneyCents(withPayment.postInterest), toMoneyCents(withoutPayment.postInterest));
 });

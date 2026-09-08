@@ -1111,16 +1111,19 @@ export class SupabaseRepository {
 
   async getCollections(filters = {}) {
     if (!this.available) return [];
-    let query = this.supabase
-      .from("collections")
-      .select("*")
-      .is("deleted_at", null)
-      .order("collection_date", { ascending: false })
-      .order("created_at", { ascending: false });
-    if (filters.fileId) query = query.eq("file_id", filters.fileId);
-    if (filters.paymentPlanId) query = query.eq("payment_plan_id", filters.paymentPlanId);
-    const { data, error } = await query;
-    if (error) {
+    try {
+      return await fetchAllSupabaseRows(() => {
+        let query = this.supabase
+          .from("collections")
+          .select("*")
+          .is("deleted_at", null)
+          .order("collection_date", { ascending: false })
+          .order("created_at", { ascending: false });
+        if (filters.fileId) query = query.eq("file_id", filters.fileId);
+        if (filters.paymentPlanId) query = query.eq("payment_plan_id", filters.paymentPlanId);
+        return query;
+      });
+    } catch (error) {
       console.error("[BKT collections] Supabase SELECT hatası.", {
         filters,
         code: error.code,
@@ -1130,7 +1133,6 @@ export class SupabaseRepository {
       });
       throw error;
     }
-    return data || [];
   }
 
   async createCollection(row) {

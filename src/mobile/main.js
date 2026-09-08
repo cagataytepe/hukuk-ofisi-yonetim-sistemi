@@ -319,9 +319,12 @@ async function loadCached(key, loader, force = false) {
   return value;
 }
 
-function liveEnforcementAccount(file, calculationTools) {
+function liveEnforcementAccount(file, calculationTools, paymentEvents = []) {
   if (fileTypeClass(file) !== "enforcement") return null;
-  return calculateMobileEnforcementAccount(file, calculationTools, accountDateInTimeZone());
+  return calculateMobileEnforcementAccount({
+    ...file,
+    payment_events: paymentEvents
+  }, calculationTools, accountDateInTimeZone());
 }
 
 async function renderHome(force = false) {
@@ -481,7 +484,7 @@ async function renderFiles(force = false) {
   const routeAtStart = state.route;
   shell(`${pageHead("Dosyalar", "Dava ve icra dosyalarınızı mobil kartlarla inceleyin.")}<div class="mobile-search">${icon("search")}<input id="mobileFileSearch" type="search" placeholder="Dosya no, mahkeme veya müvekkil ara" value="${escapeHtml(state.fileSearch)}" /></div>${fileChips()}${skeleton(4)}`);
   try {
-    const [files, calculationTools] = await Promise.all([loadCached("files", async () => {
+    const [files, calculationTools, collections] = await Promise.all([loadCached("files", async () => {
       const [fileRows, partyRows] = await Promise.all([
         repository.getFiles(),
         repository.getFileParties({ representedByOffice: true }).catch(error => {
@@ -494,11 +497,17 @@ async function renderFiles(force = false) {
         if (party.file_id && !primaryPartyByFile.has(party.file_id)) primaryPartyByFile.set(party.file_id, party);
       });
       return fileRows.map(file => ({ ...file, represented_party: primaryPartyByFile.get(file.id) || null }));
-    }, force), loadCached("calculation-tools", () => repository.getCalculationTools(), force)]);
+    }, force), loadCached("calculation-tools", () => repository.getCalculationTools(), force), loadCached("collections", () => repository.getCollections(), force)]);
     if (state.route !== routeAtStart) return;
+    const collectionsByFile = new Map();
+    collections.forEach(collection => {
+      if (!collection.file_id) return;
+      if (!collectionsByFile.has(collection.file_id)) collectionsByFile.set(collection.file_id, []);
+      collectionsByFile.get(collection.file_id).push(collection);
+    });
     renderFileResults(files.map(file => ({
       ...file,
-      calculated_enforcement_account: liveEnforcementAccount(file, calculationTools)
+      calculated_enforcement_account: liveEnforcementAccount(file, calculationTools, collectionsByFile.get(file.id) || [])
     })));
   } catch (error) {
     if (state.route !== routeAtStart) return;
@@ -592,7 +601,7 @@ async function renderFileDetail(force = false) {
       : null;
     const viewData = {
       ...data,
-      enforcementAccount: enforcement ? liveEnforcementAccount(file, calculationTools) : null
+      enforcementAccount: enforcement ? liveEnforcementAccount(file, calculationTools, data.collections) : null
     };
     if (state.route !== routeAtStart) return;
     const tabs = enforcement
@@ -639,7 +648,7 @@ function enforcementAccountPanel(file, calculatedAccount = null) {
     ["Harç", money(calculatedAccount?.fees ?? account.fees)],
     ["Masraf", money(account.expenses)],
     ["Vekalet Ücreti", money(calculatedAccount?.attorneyFee ?? account.attorneyFee ?? account.attorney_fee)],
-    ["Tahsil Edilen", money(account.payments)]
+    ["Tahsil Edilen", money(calculatedAccount?.totalPayments ?? account.payments)]
   ])}</section>`;
 }
 function listOrEmpty(rows, renderer, title) { return rows.length ? `<div class="mobile-list">${rows.map(renderer).join("")}</div>` : emptyState(title, "Yeni kayıtlar masaüstü uygulamasından yönetilir."); }

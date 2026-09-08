@@ -1363,28 +1363,17 @@ import {
         return savedRows;
       },
       async getCollections(filters = {}) {
-        const params = [
-          "select=id,legacy_id,file_id,payment_plan_id,payment_installment_id,amount,currency,collection_date,payment_kind,description,metadata,created_at,updated_at,deleted_at",
-          "deleted_at=is.null",
-          "order=collection_date.desc",
-          "order=created_at.desc"
-        ];
-        if (filters.fileId) params.push(`file_id=eq.${encodeURIComponent(filters.fileId)}`);
-        if (filters.paymentPlanId) params.push(`payment_plan_id=eq.${encodeURIComponent(filters.paymentPlanId)}`);
-        const response = await fetch(`${restUrl("collections")}?${params.join("&")}`, {
-          headers: await authHeaders(repository)
+        const query = {
+          select: "id,legacy_id,file_id,payment_plan_id,payment_installment_id,amount,currency,collection_date,payment_kind,description,metadata,created_at,updated_at,deleted_at",
+          deleted_at: "is.null",
+          order: "collection_date.desc,created_at.desc"
+        };
+        if (filters.fileId) query.file_id = `eq.${filters.fileId}`;
+        if (filters.paymentPlanId) query.payment_plan_id = `eq.${filters.paymentPlanId}`;
+        return repositorySelectAll(repository, "collections", query, {
+          label: "BKT collections",
+          message: "Tahsilatlar okunamadı"
         });
-        if (!response.ok) {
-          const body = await safeResponseText(response);
-          console.error("[BKT collections] Supabase SELECT failed.", {
-            filters,
-            status: response.status,
-            statusText: response.statusText,
-            body
-          });
-          throw new Error(`Tahsilatlar okunamadı: ${response.status}`);
-        }
-        return response.json();
       },
       async createCollection(row) {
         const response = await fetch(`${restUrl("collections")}`, {
@@ -2349,7 +2338,7 @@ import {
     return response.json();
   }
 
-  async function calculationSelectAll(repository, table, query = {}) {
+  async function repositorySelectAll(repository, table, query = {}, error = {}) {
     const pageSize = 1000;
     const rows = [];
     const params = new URLSearchParams();
@@ -2366,19 +2355,26 @@ import {
       });
       if (!response.ok) {
         const body = await safeResponseText(response);
-        console.error("[BKT calculation tools] Supabase SELECT failed.", {
+        console.error(`[${error.label || "BKT repository"}] Supabase SELECT failed.`, {
           table,
           status: response.status,
           statusText: response.statusText,
           body
         });
-        throw new Error(`Hesaplama araçları yüklenemedi: ${response.status}`);
+        throw new Error(`${error.message || "Veriler yüklenemedi"}: ${response.status}`);
       }
       const page = await response.json();
       rows.push(...page);
       if (page.length < pageSize) break;
     }
     return rows;
+  }
+
+  function calculationSelectAll(repository, table, query = {}) {
+    return repositorySelectAll(repository, table, query, {
+      label: "BKT calculation tools",
+      message: "Hesaplama araçları yüklenemedi"
+    });
   }
 
   async function calculationRpc(repository, name, params = {}) {

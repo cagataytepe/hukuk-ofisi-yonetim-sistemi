@@ -82,11 +82,11 @@ test("Adi kanuni faiz 31 Temmuz 2026 tarihinden itibaren yüzde 31 uygulanır", 
   expect(result.amount).toBeCloseTo((100_000 * 0.24 / 365) + (100_000 * 0.31 * 2 / 365), 8);
 });
 
-test("Mevcut toplu tahsilat davranışı faizden sonra bakiyeden düşülür", () => {
+test("Tarihli tahsilat ödeme günü ferileri ve ardından ana parayı azaltır", () => {
   const result = calculateEnforcementAccount({
     principal: 100_000,
     preInterest: 0,
-    payments: 10_000,
+    paymentEvents: [{ id: "boundary-payment", date: "2026-07-31", amount: 10_000 }],
     interestType: "Adi Kanuni Faiz",
     interestStart: "2026-07-30",
     accountDate: "2026-07-31",
@@ -98,8 +98,13 @@ test("Mevcut toplu tahsilat davranışı faizden sonra bakiyeden düşülür", (
     parameters: [{ key: "interest_day_basis", value: 365, active: true }]
   });
 
-  expect(result.postInterest).toBeCloseTo(100_000 * 0.31 / 365, 8);
-  expect(result.currentDebt).toBeCloseTo(100_000 + result.postInterest - 10_000, 8);
+  const paymentDayInterest = Math.round((100_000 * 0.31 / 365) * 100) / 100;
+  expect(result.postEnforcementInterestAccrued).toBe(paymentDayInterest);
+  expect(result.postInterest).toBe(0);
+  expect(result.paymentsAppliedToFeriler).toBe(paymentDayInterest);
+  expect(result.paymentsAppliedToPrincipal).toBe(10_000 - paymentDayInterest);
+  expect(result.principalOutstanding).toBe(100_000 - (10_000 - paymentDayInterest));
+  expect(result.currentDebt).toBe(result.principalOutstanding);
 });
 
 test("İcra dosyası formu merkezi faiz oranını salt okunur gösterir", async ({ page }) => {
@@ -140,17 +145,17 @@ test("aynı icra dosyası masaüstü ve mobilde aynı güncel bakiyeyi gösterir
   await login(page);
   await gotoSection(page, "cases");
   await page.locator('[data-file-filter="İcra Dosyası"]').click();
-  await page.locator("#fileListSearch").fill("1004");
-  const desktopRow = page.locator("#caseRows tr").filter({ hasText: "1004" }).first();
+  const desktopRow = page.locator("#caseRows tr").filter({ has: page.locator(".currency-value") }).first();
   await expect(desktopRow).toBeVisible({ timeout: 30_000 });
+  const fileDisplayId = (await desktopRow.locator("td").first().innerText()).trim();
   const desktopBalance = displayedCurrencyValue(await desktopRow.locator('.currency-value').innerText());
 
   await page.goto("/mobile.html");
   await expect(page.locator(".mobile-shell")).toBeVisible({ timeout: 30_000 });
   await page.locator('.mobile-nav[data-route="files"]').click();
   await page.locator('[data-file-filter="enforcement"]').click();
-  await page.locator("#mobileFileSearch").fill("1004");
-  const mobileRow = page.locator("[data-file-id].is-enforcement").filter({ hasText: "1004" }).first();
+  await page.locator("#mobileFileSearch").fill(fileDisplayId);
+  const mobileRow = page.locator("[data-file-id].is-enforcement").filter({ hasText: fileDisplayId }).first();
   await expect(mobileRow).toBeVisible({ timeout: 30_000 });
   const mobileBalance = displayedCurrencyValue(await mobileRow.locator(".file-card-account").innerText());
 

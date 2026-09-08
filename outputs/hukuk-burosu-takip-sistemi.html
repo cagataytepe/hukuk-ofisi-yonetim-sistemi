@@ -8072,7 +8072,7 @@
                         <div class="field calculated-field"><label for="caseInstrumentCharge" id="caseInstrumentChargeLabel">Kambiyo Ek Tutarı</label><input id="caseInstrumentCharge" type="text" readonly value="0,00 ₺"></div>
                         <label class="instrument-charge-toggle" id="caseInstrumentChargeOption"><input id="caseIncludeInstrumentCharge" type="checkbox"><span class="instrument-charge-check" aria-hidden="true">?</span><span id="caseInstrumentChargeOptionLabel">Hesaba Ekle</span></label>
                       </div>
-                      <div class="field"><label for="casePayments">Tahsil Edilen / Yatan Para</label><input id="casePayments" type="number" min="0" step="0.01"></div>
+                      <div class="field"><label for="casePayments">Toplam Tahsilat</label><input id="casePayments" type="number" min="0" step="0.01" readonly></div>
                       <div class="account-result" aria-live="polite">
                         <div class="account-result-item"><span>Takipte Kesinleşen Tutar</span><strong id="caseFinalizedAmountText">0,00 ₺</strong></div>
                         <div class="account-result-item"><span>Takip Sonrası Faiz</span><strong id="casePostInterestText">0,00 ₺</strong></div>
@@ -11732,6 +11732,7 @@
         if (typeof appRepository.getFiles !== "function") throw new Error("Dosya repository fonksiyonları bulunamadı.");
         const rows = await appRepository.getFiles();
         repositoryFiles = (rows || []).map(fileFromRepositoryRow);
+        refreshStoredEnforcementBalances();
       } catch (error) {
         console.error("Dosyalar public.files tablosundan yüklenemedi.", error);
         repositoryFiles = [];
@@ -11845,6 +11846,7 @@
         if (typeof appRepository.getCollections !== "function") throw new Error("Tahsilat repository fonksiyonları bulunamadı.");
         const rows = await appRepository.getCollections();
         repositoryCollections = (rows || []).map(collectionFromRepositoryRow);
+        refreshStoredEnforcementBalances();
       } catch (error) {
         console.error("Tahsilatlar public.collections tablosundan yüklenemedi.", {
           code: error?.code,
@@ -11857,6 +11859,8 @@
       } finally {
         repositoryCollectionsLoading = false;
         if (render && activeSection === "reports") renderOfficeReport();
+        if (render && activeSection === "cases") renderRows();
+        if (render && activeSection === "cases" && activeFileDetailId && repositoryFileById(activeFileDetailId)) renderFileDetail(activeFileDetailId, activeFileDetailTab);
       }
     }
 
@@ -12308,6 +12312,7 @@
     }
 
     function currentEnforcementAccountValues(overrides = {}) {
+      const currentFile = editing.caseId ? repositoryFileById(editing.caseId) : null;
       return enforcementAccountValues({
         principal: document.getElementById("casePrincipal").value,
         preInterest: document.getElementById("casePreInterest").value,
@@ -12322,8 +12327,26 @@
         fees: document.getElementById("caseFees").dataset.value || "",
         expenses: document.getElementById("caseExpenses").value,
         payments: document.getElementById("casePayments").value,
+        paymentEvents: enforcementPaymentEventsForRow(currentFile),
         ...overrides
       });
+    }
+
+    function enforcementPaymentEventsForRow(row = {}) {
+      if (!row) return [];
+      const repositoryFileId = fileDetailRepositoryId(row);
+      if (!repositoryFileId) return [];
+      return repositoryCollections
+        .filter(collection => collection.fileId === repositoryFileId)
+        .map(collection => ({
+          id: collection.repositoryId || collection.id,
+          date: collection.date,
+          amount: collection.amount,
+          type: collection.paymentKind,
+          source: collection.metadata?.source || "",
+          description: collection.description,
+          metadata: collection.metadata
+        }));
     }
 
     function enforcementAccountValuesForRow(row) {
@@ -12340,7 +12363,8 @@
         feeRate: row.feeRate,
         fees: row.fees,
         expenses: row.expenses,
-        payments: row.payments
+        payments: row.payments,
+        paymentEvents: enforcementPaymentEventsForRow(row)
       });
     }
 
@@ -12374,6 +12398,7 @@
           attorneyFeeVerifiedAt: values.attorneyFeeTariff?.updatedAt || "",
           instrumentCharge: values.instrumentCharge.toFixed(2),
           instrumentChargeLabel: values.instrumentChargeLabel,
+          payments: values.totalPayments.toFixed(2),
           currentDebt: values.currentDebt.toFixed(2),
           accountInfo: {
             ...(row.accountInfo || {}),
@@ -12389,7 +12414,7 @@
             fees: values.fees.toFixed(2),
             expenses: row.expenses || row.accountInfo?.expenses || "",
             attorneyFee: values.attorneyFee.toFixed(2),
-            payments: row.payments || row.accountInfo?.payments || "",
+            payments: values.totalPayments.toFixed(2),
             currentDebt: values.currentDebt.toFixed(2),
             currency: row.currency || row.accountInfo?.currency || "TRY"
           }
@@ -12403,6 +12428,7 @@
           || next.attorneyFeeTariff !== row.attorneyFeeTariff
           || next.instrumentCharge !== row.instrumentCharge
           || next.instrumentChargeLabel !== row.instrumentChargeLabel
+          || next.payments !== row.payments
           || next.currentDebt !== row.currentDebt
         ) changed = true;
         return next;
@@ -12471,6 +12497,7 @@
       document.getElementById("caseFees").dataset.value = values.fees.toFixed(2);
       document.getElementById("caseAttorneyFee").value = attorneyFeeText;
       document.getElementById("caseAttorneyFee").dataset.value = values.attorneyFee.toFixed(2);
+      document.getElementById("casePayments").value = values.totalPayments.toFixed(2);
       const instrumentChargeField = document.getElementById("caseInstrumentChargeField");
       instrumentChargeField.hidden = !instrumentChargePreview.instrumentChargeLabel;
       document.getElementById("caseInstrumentChargeLabel").textContent = instrumentChargePreview.instrumentChargeLabel
@@ -14608,6 +14635,7 @@
       };
       const saved = await appRepository.createCollection(payload);
       await createRepositoryTimelineEvent(file, "collection-created", "Tahsilat girildi", `${formatPaymentMoney(amount, payload.currency)} · ${payload.description || ""}`);
+      await loadRepositoryCollections({ render: false });
       await refreshFileDetailTimelineIfLoaded(file);
       await refreshFileDetailTab(file, "collections", saved ? "Tahsilat eklendi." : "Tahsilat kaydedildi.");
     }
@@ -14644,6 +14672,7 @@
           await appRepository.deleteFileNote(id);
           await createRepositoryTimelineEvent(file, "note-deleted", "Not silindi", "");
         }
+        if (tab === "collections") await loadRepositoryCollections({ render: false });
         await refreshFileDetailTimelineIfLoaded(file);
         await refreshFileDetailTab(file, tab, `${singular} silindi.`);
       } catch (error) {
@@ -17959,6 +17988,7 @@
         repositoryDeadlines = (deadlineRows || []).map(deadlineFromRepositoryRow);
         repositoryTasks = (taskRows || []).map(taskFromRepositoryRow);
         repositoryCollections = (collectionRows || []).map(collectionFromRepositoryRow);
+        refreshStoredEnforcementBalances();
         repositoryFilesError = "";
         repositoryHearingsError = "";
         repositoryDeadlinesError = "";
@@ -18545,7 +18575,7 @@
       const { creditors, debtors } = syncEnforcementLegacyPartyFields();
       const principal = accountNumber(document.getElementById("casePrincipal").value);
       const preInterest = accountNumber(document.getElementById("casePreInterest").value);
-      const payments = accountNumber(document.getElementById("casePayments").value);
+      const payments = values.totalPayments;
       const feeRate = accountNumber(document.getElementById("caseFeeRate").value);
       const interestRate = accountNumber(document.getElementById("caseInterestRate").value);
       return {
@@ -18578,7 +18608,7 @@
         payments,
         finalizedAmount: values.finalizedAmount,
         postInterest: values.postInterest,
-        grossTotal: values.currentDebt + payments,
+        grossTotal: values.currentDebt + values.appliedPayments - values.unappliedExcessPayment,
         currentDebt: values.currentDebt,
         lawyer: personDisplayName(document.getElementById("caseLawyer").value),
         generatedBy: currentUser?.displayName || ""
@@ -18587,7 +18617,7 @@
 
     function enforcementAccountReportDataForRow(row) {
       const values = enforcementAccountValuesForRow(row);
-      const payments = accountNumber(row.payments);
+      const payments = values.totalPayments;
       return {
         caseId: row.id || "",
         office: row.office || row.court || "",
@@ -18618,7 +18648,7 @@
         payments,
         finalizedAmount: values.finalizedAmount,
         postInterest: values.postInterest,
-        grossTotal: values.currentDebt + payments,
+        grossTotal: values.currentDebt + values.appliedPayments - values.unappliedExcessPayment,
         currentDebt: values.currentDebt,
         lawyer: personDisplayName(row.responsibleLawyer || row.lawyer),
         generatedBy: currentUser?.displayName || ""
