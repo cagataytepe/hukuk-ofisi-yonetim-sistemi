@@ -81,7 +81,10 @@ export function normalizePayments(paymentEvents = []) {
 
   const grouped = new Map();
   const designated = [];
+  const seenPaymentIds = new Set();
   normalized.forEach(payment => {
+    if (seenPaymentIds.has(payment.id)) return;
+    seenPaymentIds.add(payment.id);
     if (payment.designation) {
       designated.push(payment);
       return;
@@ -232,6 +235,11 @@ function applyAmountToBucket(state, bucket, availableCents) {
 }
 
 export function applyPaymentEvent(state, payment, { interestBeforePaymentCents = 0 } = {}) {
+  const principalBeforePayment = state.principalOutstandingCents;
+  const eligibleOutstandingBeforePayment = state.preEnforcementInterestOutstandingCents
+    + state.postEnforcementInterestOutstandingCents
+    + state.eligibleCostsOutstandingCents
+    + state.enforcementAttorneyFeeOutstandingCents;
   let remaining = payment.amountCents;
   const appliedToPreEnforcementInterest = applyAmountToBucket(state, "preEnforcementInterestOutstandingCents", remaining);
   remaining -= appliedToPreEnforcementInterest;
@@ -263,7 +271,10 @@ export function applyPaymentEvent(state, payment, { interestBeforePaymentCents =
     sourceIds: payment.sourceIds,
     paymentDate: payment.date,
     paymentAmount: moneyFromCents(payment.amountCents),
+    principalBeforePayment: moneyFromCents(principalBeforePayment),
     interestBeforePayment: moneyFromCents(interestBeforePaymentCents),
+    interestAccruedBeforePayment: moneyFromCents(interestBeforePaymentCents),
+    eligibleOutstandingBeforePayment: moneyFromCents(eligibleOutstandingBeforePayment),
     appliedToPreEnforcementInterest: moneyFromCents(appliedToPreEnforcementInterest),
     appliedToPostEnforcementInterest: moneyFromCents(appliedToPostEnforcementInterest),
     appliedToInterest: moneyFromCents(appliedToPreEnforcementInterest + appliedToPostEnforcementInterest),
@@ -274,6 +285,7 @@ export function applyPaymentEvent(state, payment, { interestBeforePaymentCents =
     appliedToOtherCharges: moneyFromCents(appliedToOtherCharges),
     appliedToCollectionFee: moneyFromCents(appliedToCollectionFee),
     unappliedExcessPayment: moneyFromCents(remaining),
+    unappliedAmount: moneyFromCents(remaining),
     principalAfterPayment: moneyFromCents(state.principalOutstandingCents)
   };
 }
