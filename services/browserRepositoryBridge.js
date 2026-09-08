@@ -2,6 +2,12 @@
 
 import { setMobileSessionPersistence } from "../src/supabase.js";
 
+import {
+  buildCalculationTools,
+  validateAttorneyFeeTimeline,
+  validateInterestTimeline
+} from "../src/calculations/calculationTools.js";
+
 (function () {
   const config = window.BKT_SUPABASE_CONFIG || {};
   const supabaseUrl = config.url || "";
@@ -1746,6 +1752,97 @@ import { setMobileSessionPersistence } from "../src/supabase.js";
         const rows = await response.json();
         return rows[0] || null;
       },
+      async getCalculationTools() {
+        const [interestRates, attorneyFeeTariffs, parameters] = await Promise.all([
+          calculationSelectAll(repository, "interest_rates", {
+            select: "id,legacy_id,interest_type,from_date,to_date,rate,source,is_active,description,metadata,created_at,updated_at,deleted_at,created_by_profile:profiles!interest_rates_created_by_profile_id_fkey(id,display_name),updated_by_profile:profiles!interest_rates_updated_by_profile_id_fkey(id,display_name)",
+            deleted_at: "is.null",
+            order: "interest_type.asc,from_date.asc"
+          }),
+          calculationSelectAll(repository, "attorney_fee_tariffs", {
+            select: "id,legacy_id,name,tariff_year,scope,from_date,to_date,regular_minimum,eviction_minimum,maximum_amount,is_active,description,metadata,created_at,updated_at,deleted_at,created_by_profile:profiles!attorney_fee_tariffs_created_by_profile_id_fkey(id,display_name),updated_by_profile:profiles!attorney_fee_tariffs_updated_by_profile_id_fkey(id,display_name),attorney_fee_brackets(id,sequence_no,limit_amount,rate,is_active,metadata,created_at,updated_at,deleted_at)",
+            deleted_at: "is.null",
+            order: "from_date.asc"
+          }),
+          calculationSelectAll(repository, "calculation_parameters", {
+            select: "id,parameter_group,parameter_key,label,numeric_value,text_value,unit,from_date,to_date,is_active,description,metadata,created_at,updated_at,deleted_at,created_by_profile:profiles!calculation_parameters_created_by_profile_id_fkey(id,display_name),updated_by_profile:profiles!calculation_parameters_updated_by_profile_id_fkey(id,display_name)",
+            deleted_at: "is.null",
+            order: "parameter_group.asc,parameter_key.asc,from_date.asc.nullsfirst"
+          })
+        ]);
+        return buildCalculationTools({ interestRates, attorneyFeeTariffs, parameters });
+      },
+      async getInterestTypes() {
+        return (await repository.getCalculationTools()).interestTypes;
+      },
+      async getInterestRateHistory(type) {
+        return (await repository.getCalculationTools()).interestRates.filter(item => !type || item.type === type);
+      },
+      async getEffectiveInterestRate(type, dateValue) {
+        const rows = await repository.getInterestRateHistory(type);
+        return rows
+          .filter(item => item.active && item.from <= dateValue && (!item.to || dateValue <= item.to))
+          .sort((a, b) => b.from.localeCompare(a.from))[0] || null;
+      },
+      async validateInterestRateTimeline(type) {
+        return validateInterestTimeline(await repository.getInterestRateHistory(type), type);
+      },
+      async getAttorneyFeeTariffs(filters = {}) {
+        const rows = (await repository.getCalculationTools()).attorneyFeeTariffs;
+        return rows.filter(item => !filters.scope || item.scope === filters.scope);
+      },
+      async getAttorneyFeeTariffHistory(scope = "") {
+        return repository.getAttorneyFeeTariffs({ scope });
+      },
+      async validateAttorneyFeeTimeline(scope = "") {
+        return validateAttorneyFeeTimeline(await repository.getAttorneyFeeTariffHistory(scope), scope);
+      },
+      async getEnforcementCalculationParameters(key = "") {
+        return (await repository.getCalculationTools()).parameters.filter(item => !key || item.key === key);
+      },
+      async createInterestRatePeriod(row) {
+        return calculationRpc(repository, "create_interest_rate_period", {
+          p_interest_type: row.type,
+          p_rate: Number(row.rate),
+          p_effective_from: row.from,
+          p_description: row.description || null,
+          p_source: row.source || "Manuel"
+        });
+      },
+      async updateInterestRatePeriod(row) {
+        return calculationRpc(repository, "update_interest_rate_period_end", {
+          p_interest_rate_id: row.id,
+          p_effective_to: row.to || null,
+          p_description: row.description || null
+        });
+      },
+      async deactivateInterestRatePeriod(id) {
+        return calculationRpc(repository, "deactivate_interest_rate_period", { p_interest_rate_id: id });
+      },
+      async createAttorneyFeeTariff(row) {
+        return calculationRpc(repository, "create_attorney_fee_tariff", {
+          p_name: row.name,
+          p_tariff_year: Number(row.year),
+          p_scope: row.scope || "İcra",
+          p_effective_from: row.from,
+          p_regular_minimum: Number(row.regularMinimum),
+          p_eviction_minimum: Number(row.evictionMinimum),
+          p_maximum_amount: row.maximumAmount === null || row.maximumAmount === "" ? null : Number(row.maximumAmount),
+          p_description: row.description || null,
+          p_brackets: row.brackets || []
+        });
+      },
+      async deactivateAttorneyFeeTariff(id) {
+        return calculationRpc(repository, "deactivate_attorney_fee_tariff", { p_tariff_id: id });
+      },
+      async updateCalculationParameter(row) {
+        return calculationRpc(repository, "create_calculation_parameter_period", {
+          p_parameter_key: row.key,
+          p_numeric_value: Number(row.value),
+          p_effective_from: row.from,
+          p_description: row.description || null
+        });
+      },
       async getOfficeExpenseCategories() {
         return officeExpenseSelect(repository, "office_expense_categories", {
           select: "*",
@@ -2250,6 +2347,65 @@ import { setMobileSessionPersistence } from "../src/supabase.js";
       throw new Error(`Ofis giderleri verisi okunamadı: ${response.status}`);
     }
     return response.json();
+  }
+
+  async function calculationSelectAll(repository, table, query = {}) {
+    const pageSize = 1000;
+    const rows = [];
+    const params = new URLSearchParams();
+    Object.entries(query).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== "") params.set(key, String(value));
+    });
+    for (let from = 0; ; from += pageSize) {
+      const response = await fetch(`${restUrl(table)}?${params}`, {
+        headers: {
+          ...(await authHeaders(repository)),
+          "Range-Unit": "items",
+          Range: `${from}-${from + pageSize - 1}`
+        }
+      });
+      if (!response.ok) {
+        const body = await safeResponseText(response);
+        console.error("[BKT calculation tools] Supabase SELECT failed.", {
+          table,
+          status: response.status,
+          statusText: response.statusText,
+          body
+        });
+        throw new Error(`Hesaplama araçları yüklenemedi: ${response.status}`);
+      }
+      const page = await response.json();
+      rows.push(...page);
+      if (page.length < pageSize) break;
+    }
+    return rows;
+  }
+
+  async function calculationRpc(repository, name, params = {}) {
+    const response = await fetch(`${restUrl(`rpc/${name}`)}`, {
+      method: "POST",
+      headers: {
+        ...(await authHeaders(repository)),
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(params)
+    });
+    const body = await safeResponseText(response);
+    if (!response.ok) {
+      console.error("[BKT calculation tools] Supabase RPC failed.", {
+        name,
+        status: response.status,
+        statusText: response.statusText,
+        body
+      });
+      const error = new Error(`Hesaplama aracı işlemi tamamlanamadı: ${response.status}`);
+      error.status = response.status;
+      error.details = body;
+      throw error;
+    }
+    const payload = safeJson(body);
+    if (Array.isArray(payload)) return payload[0] || null;
+    return payload;
   }
 
   function normalizeOfficeExpenseContribution(row = {}, profileKey = "paid_by_profile_id") {

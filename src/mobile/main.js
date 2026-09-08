@@ -1,4 +1,8 @@
 import "../../outputs/supabase-config.js";
+import {
+  accountDateInTimeZone,
+  calculateMobileEnforcementAccount
+} from "../calculations/enforcementAccountAdapters.js";
 
 let repository = null;
 const app = document.querySelector("#mobileApp");
@@ -315,6 +319,11 @@ async function loadCached(key, loader, force = false) {
   return value;
 }
 
+function liveEnforcementAccount(file, calculationTools) {
+  if (fileTypeClass(file) !== "enforcement") return null;
+  return calculateMobileEnforcementAccount(file, calculationTools, accountDateInTimeZone());
+}
+
 async function renderHome(force = false) {
   const routeAtStart = state.route;
   shell(`<div class="welcome-card"><h1>Hoş geldiniz, ${escapeHtml(state.user.displayName || "Kullanıcı")}</h1><small>${formatDate(localIso(new Date()), { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</small></div>${skeleton(4)}`);
@@ -472,7 +481,7 @@ async function renderFiles(force = false) {
   const routeAtStart = state.route;
   shell(`${pageHead("Dosyalar", "Dava ve icra dosyalarınızı mobil kartlarla inceleyin.")}<div class="mobile-search">${icon("search")}<input id="mobileFileSearch" type="search" placeholder="Dosya no, mahkeme veya müvekkil ara" value="${escapeHtml(state.fileSearch)}" /></div>${fileChips()}${skeleton(4)}`);
   try {
-    const files = await loadCached("files", async () => {
+    const [files, calculationTools] = await Promise.all([loadCached("files", async () => {
       const [fileRows, partyRows] = await Promise.all([
         repository.getFiles(),
         repository.getFileParties({ representedByOffice: true }).catch(error => {
@@ -485,9 +494,12 @@ async function renderFiles(force = false) {
         if (party.file_id && !primaryPartyByFile.has(party.file_id)) primaryPartyByFile.set(party.file_id, party);
       });
       return fileRows.map(file => ({ ...file, represented_party: primaryPartyByFile.get(file.id) || null }));
-    }, force);
+    }, force), loadCached("calculation-tools", () => repository.getCalculationTools(), force)]);
     if (state.route !== routeAtStart) return;
-    renderFileResults(files);
+    renderFileResults(files.map(file => ({
+      ...file,
+      calculated_enforcement_account: liveEnforcementAccount(file, calculationTools)
+    })));
   } catch (error) {
     if (state.route !== routeAtStart) return;
     console.error("[BKT mobile] Dosyalar yüklenemedi.", { message: error?.message || String(error) });
@@ -575,9 +587,12 @@ async function renderFileDetail(force = false) {
     if (!data.file) throw new Error("Dosya bulunamadı.");
     const file = data.file;
     const enforcement = fileTypeClass(file) === "enforcement";
+    const calculationTools = enforcement
+      ? await loadCached("calculation-tools", () => repository.getCalculationTools(), force)
+      : null;
     const viewData = {
       ...data,
-      enforcementAccount: null
+      enforcementAccount: enforcement ? liveEnforcementAccount(file, calculationTools) : null
     };
     if (state.route !== routeAtStart) return;
     const tabs = enforcement

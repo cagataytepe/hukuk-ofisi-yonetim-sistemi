@@ -1478,6 +1478,10 @@
       align-items: start;
     }
 
+    .calculation-layout.is-readonly {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
     .calculation-form,
     .calculation-list {
       min-width: 0;
@@ -1640,6 +1644,156 @@
 
     .calculation-note.error {
       color: var(--red);
+    }
+
+    .calculation-settings-overview {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 16px;
+      align-items: center;
+      padding: 16px 18px;
+    }
+
+    .settings-section-menu {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 10px;
+    }
+
+    .settings-section-menu button {
+      display: inline-flex;
+      min-height: 40px;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 0 14px;
+      background: var(--panel);
+      color: var(--ink);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 750;
+      cursor: pointer;
+    }
+
+    .settings-section-menu button:hover,
+    .settings-section-menu button:focus-visible {
+      border-color: #91a9b7;
+      background: var(--panel-soft, #f7f9fa);
+    }
+
+    .settings-section-menu button.active {
+      border-color: var(--fc-navy, #123047);
+      background: var(--fc-navy, #123047);
+      color: #fff;
+    }
+
+    .settings-section-menu svg {
+      width: 17px;
+      height: 17px;
+      flex: none;
+      fill: none;
+      stroke: currentColor;
+    }
+
+    .settings-calculation-view { min-width: 0; }
+
+    .calculation-dialog.is-inline {
+      position: static;
+      inset: auto;
+      display: block;
+      width: 100%;
+      max-width: none;
+      max-height: none;
+      margin: 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: visible;
+      box-shadow: none;
+    }
+
+    .calculation-dialog.is-inline::backdrop { display: none; }
+
+    .calculation-dialog.is-inline .calculation-dialog-shell {
+      max-height: none;
+      background: var(--panel);
+    }
+
+    .calculation-dialog.is-inline .calculation-dialog-body { overflow: visible; }
+    .calculation-dialog.is-inline .dialog-close { display: none; }
+
+    .calculation-settings-overview h2,
+    .calculation-settings-overview p { margin: 0; }
+
+    .calculation-settings-overview p {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .calculation-settings-stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(120px, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .calculation-settings-stat {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 9px 11px;
+      background: var(--panel-soft, #f7f9fa);
+    }
+
+    .calculation-settings-stat span,
+    .calculation-settings-stat strong { display: block; }
+
+    .calculation-settings-stat span { color: var(--muted); font-size: 11px; }
+    .calculation-settings-stat strong { margin-top: 3px; color: var(--ink); font-size: 17px; }
+
+    .calculation-audit {
+      grid-column: 1 / -1;
+      display: grid;
+      gap: 10px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 12px;
+      background: var(--panel-soft, #f7f9fa);
+    }
+
+    .calculation-audit[hidden] { display: none; }
+    .calculation-audit h4 { margin: 0; font-size: 13px; }
+    .calculation-audit-periods { display: grid; gap: 7px; }
+    .calculation-audit-period {
+      display: grid;
+      grid-template-columns: minmax(160px, 1fr) minmax(180px, 1.2fr) auto;
+      gap: 10px;
+      align-items: center;
+      border-top: 1px solid var(--line);
+      padding-top: 7px;
+      font-size: 12px;
+    }
+    .calculation-audit-period:first-child { border-top: 0; padding-top: 0; }
+    .calculation-audit-period strong { font-variant-numeric: tabular-nums; }
+    .calculation-central-link {
+      border: 0;
+      padding: 0;
+      background: transparent;
+      color: var(--blue);
+      font-weight: 750;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .calculation-readonly-note {
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.4;
     }
 
     .enforcement-table {
@@ -6533,6 +6687,9 @@
       .settings-nav > button { min-width: 140px; }
       .settings-profile-summary { min-width: 220px; border-top: 0; border-left: 1px solid #e3e9ec; }
       .settings-content-grid { display: grid; }
+      .calculation-settings-overview { grid-template-columns: 1fr; }
+      .calculation-settings-stats { grid-template-columns: 1fr; }
+      .calculation-audit-period { grid-template-columns: 1fr; gap: 3px; }
       .user-table td { white-space: normal; }
     }
 
@@ -7904,7 +8061,7 @@
                       <div class="field"><label for="casePreInterest">Takip Öncesi Faiz Tutarı</label><input id="casePreInterest" type="number" min="0" step="0.01"></div>
                       <div class="field calculated-field full"><label for="caseFinalizedAmount">Takipte Kesinleşen Tutar</label><input id="caseFinalizedAmount" type="text" readonly value="0,00 ₺"></div>
                       <div class="field"><label for="caseInterestType">Faiz Türü</label><select id="caseInterestType"><option value="">Seçiniz</option><option>Adi Kanuni Faiz</option><option>Reeskont Avans</option><option>Diğer</option></select></div>
-                      <div class="field interest-rate-field"><label for="caseInterestRate">Faiz Oranı (%)</label><input id="caseInterestRate" type="number" min="0" step="0.01"></div>
+                      <div class="field interest-rate-field"><label for="caseInterestRate">Faiz Oranı (%)</label><input id="caseInterestRate" type="number" min="0" step="0.01"><div class="calculation-readonly-note" id="caseInterestRateInfo">Faiz türü seçildiğinde merkezi tarife bilgisi gösterilir.</div></div>
                       <div class="field"><label for="caseInterestMethod">Faiz Hesaplama Yöntemi</label><select id="caseInterestMethod"><option>Basit Faiz - Günlük</option><option>Basit Faiz - Yıllık</option></select></div>
                       <div class="field calculated-field full"><label for="casePostInterest">Takip Sonrası İşlemiş Faiz</label><input id="casePostInterest" type="text" readonly value="0,00 ₺"></div>
                       <div class="field"><label for="caseFeeRate">Harç Oranı (%)</label><select id="caseFeeRate"><option value="">Seçiniz</option><option value="9.10">%9,10</option><option value="4.55">%4,55</option><option value="2.275">%2,275</option><option value="11.38">%11,38</option></select></div>
@@ -7921,8 +8078,8 @@
                         <div class="account-result-item"><span>Takip Sonrası Faiz</span><strong id="casePostInterestText">0,00 ₺</strong></div>
                         <div class="account-result-item"><span>Kalan Bakiye / Toplam Alacak</span><strong id="caseCurrentDebtText">0,00 ₺</strong></div>
                       </div>
+                      <div class="calculation-audit" id="caseCalculationAudit" hidden></div>
                       <div class="account-footer-actions">
-                        <button class="account-calculation-note" type="button" id="openCalculationTools">Hesaplama Araçları</button>
                         <button class="account-pdf-button" type="button" id="exportEnforcementAccountPdf" data-requires-permission="reports"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>PDF Çıktısı</button>
                       </div>
                     </div>
@@ -8497,8 +8654,19 @@
       </section>
 
       <section id="users" class="section">
-        <div class="settings-shell">
-          <div class="content-grid settings-content-grid">
+        <nav class="settings-section-menu" aria-label="Ayarlar bölümleri">
+          <button class="active" type="button" id="settingsUsersShortcut">
+            <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.5-3.5 2.3-5.5 5.5-5.5s5 2 5.5 5.5"/><path d="M17 8v6M14 11h6"/></svg>
+            Kullanıcı Yönetimi
+          </button>
+          <button type="button" id="openCalculationTools">
+            <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 12h2M14 12h2M8 16h2M14 16h2"/></svg>
+            Hesaplama Araçları
+          </button>
+        </nav>
+        <div id="settingsUsersView">
+          <div class="settings-shell">
+            <div class="content-grid settings-content-grid">
           <div class="panel settings-user-list-panel">
             <div class="panel-header"><div><h2>Kullanıcılar</h2></div></div>
             <div class="table-wrap">
@@ -8536,8 +8704,10 @@
               </form>
             </div>
           </div>
+            </div>
+          </div>
         </div>
-        </div>
+        <div class="settings-calculation-view" id="calculationSettingsView" hidden></div>
       </section>
     </main>
 
@@ -8573,19 +8743,21 @@
   <dialog class="calculation-dialog" id="calculationToolsDialog">
     <div class="calculation-dialog-shell">
       <div class="calculation-dialog-header">
-        <h2>Hesaplama Araçları</h2>
+        <div><h2>Hesaplama Araçları</h2><div class="calculation-readonly-note">Ayarlar · Sistem genelindeki tarihçeli tarifeler</div></div>
         <button class="dialog-close" id="closeCalculationTools" type="button" aria-label="Kapat">×</button>
       </div>
       <div class="calculation-tabs" role="tablist">
-        <button class="active" type="button" data-calculation-tab="interest">Faiz Oranları</button>
-        <button type="button" data-calculation-tab="attorney">İcra Vekâlet Ücreti</button>
+        <button class="active" type="button" data-calculation-tab="interest">Faiz Tarifeleri</button>
+        <button type="button" data-calculation-tab="attorney">Vekâlet Ücreti Tarifeleri</button>
+        <button type="button" data-calculation-tab="parameters">İcra Hesaplama Parametreleri</button>
       </div>
       <div class="calculation-dialog-body">
         <section class="calculation-tab-panel" data-calculation-panel="interest">
           <div class="calculation-layout">
             <form class="calculation-form" id="interestRateSettingsForm">
-              <h3 id="interestRateFormTitle">Yeni Faiz Oranı</h3>
+              <h3 id="interestRateFormTitle">Yeni Faiz Dönemi</h3>
               <div class="calculation-form-grid">
+                <input id="settingInterestEditingId" type="hidden">
                 <div class="field full">
                   <label for="settingInterestType">Faiz Türü</label>
                   <select id="settingInterestType" required>
@@ -8595,11 +8767,13 @@
                     <option>Diğer</option>
                   </select>
                 </div>
-                <div class="field"><label for="settingInterestFrom">Başlangıç Tarihi</label><input id="settingInterestFrom" type="date" required></div>
-                <div class="field"><label for="settingInterestTo">Bitiş Tarihi</label><input id="settingInterestTo" type="date"></div>
+                <div class="field full"><label for="settingInterestFrom">Yürürlük Tarihi</label><input id="settingInterestFrom" type="date" required></div>
+                <div class="field full" id="settingInterestToField" hidden><label for="settingInterestTo">Bitiş Tarihi</label><input id="settingInterestTo" type="date"></div>
                 <div class="field full"><label for="settingInterestRate">Faiz Oranı (%)</label><input id="settingInterestRate" type="number" min="0" step="0.001" required></div>
+                <div class="field full"><label for="settingInterestDescription">Açıklama / Not</label><textarea id="settingInterestDescription" rows="3"></textarea></div>
+                <div class="form-help field full" id="interestRateFormHelp">Yeni oran, yürürlük tarihinden sonraki güncel hesaplamalarda kullanılır; önceki dönem otomatik olarak bir gün önce kapanır ve eski oranıyla korunur.</div>
                 <div class="calculation-actions">
-                  <button class="btn primary" id="saveInterestRateSetting" type="submit">Faiz Oranını Kaydet</button>
+                  <button class="btn primary" id="saveInterestRateSetting" type="submit">Yeni Dönemi Kaydet</button>
                   <button class="btn" id="newInterestRateSetting" type="button">Yeni Kayıt</button>
                 </div>
                 <div class="calculation-note" id="interestRateSettingsNote"></div>
@@ -8618,7 +8792,7 @@
               </div>
               <div class="calculation-table-wrap">
                 <table class="calculation-table">
-                  <thead><tr><th>Faiz Türü</th><th>Başlangıç</th><th>Bitiş</th><th>Oran</th><th>İşlem</th></tr></thead>
+                  <thead><tr><th>Faiz Türü</th><th>Yürürlük</th><th>Bitiş</th><th>Oran</th><th>Durum</th><th>Açıklama</th><th>Güncelleme</th><th>İşlem</th></tr></thead>
                   <tbody id="interestRateSettingsRows"></tbody>
                 </table>
               </div>
@@ -8632,15 +8806,19 @@
               <h3 id="attorneyFeeFormTitle">Yeni Vekâlet Ücreti Tarifesi</h3>
               <div class="calculation-form-grid">
                 <div class="field full"><label for="settingTariffName">Tarife Adı</label><input id="settingTariffName" required></div>
-                <div class="field"><label for="settingTariffFrom">Başlangıç Tarihi</label><input id="settingTariffFrom" type="date" required></div>
-                <div class="field"><label for="settingTariffTo">Bitiş Tarihi</label><input id="settingTariffTo" type="date"></div>
+                <div class="field"><label for="settingTariffYear">Tarife Yılı</label><input id="settingTariffYear" type="number" min="2000" max="2200" required></div>
+                <div class="field"><label for="settingTariffScope">Kapsam</label><select id="settingTariffScope"><option>İcra</option></select></div>
+                <div class="field full"><label for="settingTariffFrom">Yürürlük Tarihi</label><input id="settingTariffFrom" type="date" required></div>
+                <input id="settingTariffTo" type="hidden">
                 <div class="field"><label for="settingRegularMinimum">Alt Sınır</label><input id="settingRegularMinimum" type="number" min="0" step="0.01" required></div>
                 <div class="field"><label for="settingEvictionMinimum">Tahliye Alt Sınırı</label><input id="settingEvictionMinimum" type="number" min="0" step="0.01" required></div>
+                <div class="field full"><label for="settingTariffMaximum">Tarife Azami Tutarı (varsa)</label><input id="settingTariffMaximum" type="number" min="0" step="0.01"></div>
                 <div class="bracket-editor">
                   <div class="bracket-editor-header"><span>Dilim Tutarı</span><span>Oran (%)</span><span></span></div>
                   <div id="attorneyBracketRows"></div>
                   <button class="btn add-bracket" id="addAttorneyBracket" type="button">Dilim Ekle</button>
                 </div>
+                <div class="field full"><label for="settingTariffDescription">Açıklama / Not</label><textarea id="settingTariffDescription" rows="3"></textarea></div>
                 <div class="calculation-actions">
                   <button class="btn primary" id="saveAttorneyFeeSetting" type="submit">Tarifeyi Kaydet</button>
                   <button class="btn" id="newAttorneyFeeSetting" type="button">Yeni Tarife</button>
@@ -8652,8 +8830,33 @@
               <h3>Kayıtlı Vekâlet Ücreti Tarifeleri</h3>
               <div class="calculation-table-wrap">
                 <table class="calculation-table">
-                  <thead><tr><th>Tarife</th><th>Başlangıç</th><th>Bitiş</th><th>Alt Sınır</th><th>Dilim</th><th>İşlem</th></tr></thead>
+                  <thead><tr><th>Tarife</th><th>Yıl / Kapsam</th><th>Yürürlük</th><th>Alt Sınır</th><th>Dilim</th><th>Durum</th><th>Güncelleme</th><th>İşlem</th></tr></thead>
                   <tbody id="attorneyFeeSettingsRows"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="calculation-tab-panel" data-calculation-panel="parameters" hidden>
+          <div class="calculation-layout">
+            <form class="calculation-form" id="calculationParameterForm">
+              <h3>Yeni Parametre Dönemi</h3>
+              <div class="calculation-form-grid">
+                <div class="field full"><label for="settingParameterKey">Parametre</label><select id="settingParameterKey" required></select></div>
+                <div class="field"><label for="settingParameterValue">Değer</label><input id="settingParameterValue" type="number" min="0" step="0.001" required></div>
+                <div class="field"><label for="settingParameterFrom">Yürürlük Tarihi</label><input id="settingParameterFrom" type="date" required></div>
+                <div class="field full"><label for="settingParameterDescription">Açıklama / Not</label><textarea id="settingParameterDescription" rows="3"></textarea></div>
+                <div class="calculation-actions"><button class="btn primary" type="submit">Yeni Dönemi Kaydet</button></div>
+                <div class="calculation-note" id="calculationParameterNote"></div>
+              </div>
+            </form>
+            <div class="calculation-list">
+              <h3>Kayıtlı İcra Hesaplama Parametreleri</h3>
+              <div class="calculation-table-wrap">
+                <table class="calculation-table">
+                  <thead><tr><th>Grup</th><th>Parametre</th><th>Değer</th><th>Yürürlük</th><th>Bitiş</th><th>Güncelleme</th></tr></thead>
+                  <tbody id="calculationParameterRows"></tbody>
                 </table>
               </div>
             </div>
@@ -8667,7 +8870,7 @@
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12);
     const appRepository = window.BKTHukukRepository.createBrowserRepository();
-    const localCalculationSource = "Yerel Hesaplama Tarifesi";
+    const localCalculationSource = "Merkezi Hesaplama Tarifesi";
     const enforcementImportMigrationKey = "dosyaSorgulama20260608";
     const eurDepositInterestMigrationKey = "eurMevduatAzamiFaiz20260611";
     const importedInterestTablesMigrationKey = "topluFaizTablolari20260611";
@@ -9151,7 +9354,9 @@
     let repositoryPaymentPlansError = "";
     let repositoryClients = [];
     let repositoryFileParties = [];
-    let calculationSettings = createDefaultCalculationSettings();
+    let calculationSettings = { interestRates: [], attorneyFeeTariffs: [], parameters: [], interestTypes: [], loadedAt: "" };
+    let calculationSettingsLoading = false;
+    let calculationSettingsError = "";
     let unifiedCalendarHearings = [];
     let unifiedCalendarHearingsLoading = false;
     let unifiedCalendarHearingsError = "";
@@ -9176,8 +9381,6 @@
     let roles = [];
     let currentUser = null;
     let editingUserId = null;
-    let editingInterestRateId = null;
-    let editingAttorneyTariffId = null;
     let activeCalendar = "week";
     let activeWeekOffset = 0;
     let activeSection = "dashboard";
@@ -9394,14 +9597,20 @@
       if (syncStatus) syncStatus.title = `${user.displayName || "Kullanıcı"} İçin Senkronize Aktif`;
     }
 
-    function openAuthenticatedApp(user, rememberSession = null) {
+    async function openAuthenticatedApp(user, rememberSession = null) {
       currentUser = user;
       syncAuthenticatedUser(user);
+      document.getElementById("loginError").textContent = "";
+      try {
+        await loadCalculationTools();
+      } catch (error) {
+        console.error("Merkezi hesaplama tarifeleri yüklenemedi.", error);
+      }
       document.body.classList.add("is-authenticated");
       updateSessionCard(user);
       renderPeopleOptions();
-      document.getElementById("loginError").textContent = "";
       applyPermissions();
+      switchSection("dashboard");
       resetCaseForm();
       resetHearingForm();
       resetDeadlineForm();
@@ -9417,7 +9626,6 @@
       renderRows();
       renderUsers();
       refreshUserManagementData();
-      switchSection("dashboard");
       window.setTimeout(() => refreshNotificationCenter(), 250);
     }
 
@@ -9447,7 +9655,7 @@
           return false;
         }
         users = await loadProfileUsers(user);
-        openAuthenticatedApp(user);
+        await openAuthenticatedApp(user);
         return true;
       } catch (error) {
         console.warn("Supabase oturumu geri yüklenemedi.", error);
@@ -9725,7 +9933,6 @@
     }
 
     function normalizeCalculationSettings(settings) {
-      const defaults = createDefaultCalculationSettings();
       const interestRates = Array.isArray(settings?.interestRates)
         ? settings.interestRates.map((period, index) => ({
             id: period.id || `FO-M-${index + 1}`,
@@ -9733,9 +9940,13 @@
             from: period.from || "",
             to: period.to || "",
             rate: accountNumber(period.rate),
+            active: period.active !== false,
+            description: period.description || "",
+            source: period.source || localCalculationSource,
+            updatedBy: period.updatedBy || "",
             updatedAt: period.updatedAt || ""
           }))
-        : defaults.interestRates;
+        : [];
       const attorneyFeeTariffs = Array.isArray(settings?.attorneyFeeTariffs)
         ? settings.attorneyFeeTariffs.map((tariff, index) => ({
             id: tariff.id || `VT-M-${index + 1}`,
@@ -9744,6 +9955,14 @@
             to: tariff.to || "",
             regularMinimum: accountNumber(tariff.regularMinimum),
             evictionMinimum: accountNumber(tariff.evictionMinimum),
+            maximumAmount: tariff.maximumAmount === null || tariff.maximumAmount === "" || tariff.maximumAmount === undefined
+              ? null
+              : accountNumber(tariff.maximumAmount),
+            year: Number(tariff.year) || Number(String(tariff.name || "").match(/\d{4}/)?.[0]) || null,
+            scope: tariff.scope || "İcra",
+            active: tariff.active !== false,
+            description: tariff.description || "",
+            updatedBy: tariff.updatedBy || "",
             updatedAt: tariff.updatedAt || tariff.verifiedAt || "",
             brackets: Array.isArray(tariff.brackets)
               ? tariff.brackets.map(bracket => ({
@@ -9752,8 +9971,105 @@
                 }))
               : []
           }))
-        : defaults.attorneyFeeTariffs;
-      return { interestRates, attorneyFeeTariffs };
+        : [];
+      const parameters = Array.isArray(settings?.parameters)
+        ? settings.parameters.map(parameter => ({
+            id: parameter.id,
+            group: parameter.group || "",
+            key: parameter.key || "",
+            label: parameter.label || parameter.key || "",
+            value: parameter.value === null || parameter.value === undefined ? null : accountNumber(parameter.value),
+            textValue: parameter.textValue || "",
+            unit: parameter.unit || "",
+            from: parameter.from || "",
+            to: parameter.to || "",
+            active: parameter.active !== false,
+            description: parameter.description || "",
+            updatedBy: parameter.updatedBy || "",
+            updatedAt: parameter.updatedAt || ""
+          }))
+        : [];
+      return {
+        interestRates,
+        attorneyFeeTariffs,
+        parameters,
+        interestTypes: Array.isArray(settings?.interestTypes) ? settings.interestTypes : [],
+        loadedAt: settings?.loadedAt || ""
+      };
+    }
+
+    function renderCalculationSettingsOverview() {
+      const counts = {
+        calculationInterestCount: calculationSettings.interestRates.filter(item => item.active !== false).length,
+        calculationTariffCount: calculationSettings.attorneyFeeTariffs.filter(item => item.active !== false).length,
+        calculationParameterCount: calculationSettings.parameters.filter(item => item.active !== false).length
+      };
+      Object.entries(counts).forEach(([id, value]) => {
+        const target = document.getElementById(id);
+        if (target) target.textContent = calculationSettingsLoading ? "…" : calculationSettingsError ? "!" : String(value);
+      });
+    }
+
+    function effectiveCalculationParameter(key, dateValue = currentIsoDate()) {
+      return [...(calculationSettings.parameters || [])]
+        .filter(parameter => parameter.key === key && parameter.active !== false)
+        .filter(parameter => !parameter.from || parameter.from <= dateValue)
+        .filter(parameter => !parameter.to || dateValue <= parameter.to)
+        .sort((a, b) => String(b.from || "").localeCompare(String(a.from || "")))[0] || null;
+    }
+
+    function renderFeeRateOptions() {
+      const select = document.getElementById("caseFeeRate");
+      if (!select) return;
+      const current = select.value;
+      const options = (calculationSettings.parameters || [])
+        .filter(parameter => parameter.active !== false && /^collection_fee_rate_/.test(parameter.key))
+        .filter(parameter => !parameter.from || parameter.from <= currentIsoDate())
+        .filter(parameter => !parameter.to || currentIsoDate() <= parameter.to)
+        .sort((a, b) => Number(a.value || 0) - Number(b.value || 0));
+      if (!options.length) return;
+      select.innerHTML = `<option value="">Seçiniz</option>${options.map(parameter => {
+        const value = String(parameter.value);
+        return `<option value="${escapeHtml(value)}">%${escapeHtml(value.replace(".", ","))}</option>`;
+      }).join("")}`;
+      if ([...select.options].some(option => option.value === current)) select.value = current;
+    }
+
+    async function loadCalculationTools({ refreshView = false } = {}) {
+      if (typeof appRepository.getCalculationTools !== "function") {
+        calculationSettingsError = "Hesaplama araçları repository işlevi bulunamadı.";
+        renderCalculationSettingsOverview();
+        throw new Error(calculationSettingsError);
+      }
+      calculationSettingsLoading = true;
+      calculationSettingsError = "";
+      renderCalculationSettingsOverview();
+      try {
+        calculationSettings = normalizeCalculationSettings(await appRepository.getCalculationTools());
+        renderInterestTypeOptions();
+        renderFeeRateOptions();
+        refreshStoredEnforcementBalances();
+        if (refreshView) {
+          renderInterestRateSettings();
+          renderAttorneyFeeSettings();
+          renderCalculationParameters();
+          updateInterestRate({ preserveManualValue: true });
+          updateEnforcementAccount();
+          renderRows();
+          const detailPanel = document.getElementById("fileDetailPanel");
+          if (activeFileDetailId && detailPanel && !detailPanel.hidden) {
+            await renderFileDetail(activeFileDetailId, activeFileDetailTab);
+          }
+        }
+        return calculationSettings;
+      } catch (error) {
+        calculationSettingsError = "Hesaplama araçları yüklenemedi.";
+        console.error("Hesaplama araçları yüklenemedi.", error);
+        throw error;
+      } finally {
+        calculationSettingsLoading = false;
+        renderCalculationSettingsOverview();
+      }
     }
 
     function normalizeFileType(value, row = {}) {
@@ -11850,6 +12166,11 @@
       const input = document.getElementById(inputId);
       const list = document.getElementById(listId);
       if (!input || !list) return;
+      const selected = repositoryFileById(selectedFile(input.value));
+      if (selected && !isEnforcementCase(selected)) {
+        list.innerHTML = `<option value="${escapeHtml(caseOptionValue(selected))}"></option>`;
+        return;
+      }
       list.innerHTML = hearingCaseOptions(input.value);
     }
 
@@ -11861,26 +12182,24 @@
 
     function findInterestRatePeriod(periods, dateValue) {
       return [...periods]
+        .filter(period => period.active !== false)
         .filter(period => period.from <= dateValue && (!period.to || dateValue <= period.to))
         .sort((a, b) => b.from.localeCompare(a.from))[0] || null;
     }
 
     function configuredInterestRates(type) {
-      return (calculationSettings?.interestRates || []).filter(period => period.type === type);
+      const normalizedType = normalizeInterestTypeName(type);
+      return (calculationSettings?.interestRates || [])
+        .filter(period => period.active !== false)
+        .filter(period => normalizeInterestTypeName(period.type) === normalizedType);
     }
 
     function interestTypeNames() {
-      const preferred = [
-        "Adi Kanuni Faiz",
-        "Reeskont Avans",
-        eurDepositInterestType,
-        ...importedInterestRateTables.map(table => table.type),
-        "Diğer"
-      ];
       const configured = (calculationSettings?.interestRates || [])
         .map(period => normalizeInterestTypeName(period.type))
         .filter(type => type && !removedInterestTypes.has(type));
-      return [...new Set([...preferred, ...configured])];
+      return [...new Set([...configured, "Diğer"])]
+        .sort((a, b) => a === "Diğer" ? 1 : b === "Diğer" ? -1 : a.localeCompare(b, "tr"));
     }
 
     function renderInterestTypeOptions() {
@@ -11907,7 +12226,7 @@
       return period ? {
         ...period,
         source: localCalculationSource,
-        sourceLabel: "Yerel Tarife",
+        sourceLabel: "Merkezi Tarife",
         periodLabel: `${formatExcelDate(period.from)}${period.to ? ` - ${formatExcelDate(period.to)}` : " tarihinden itibaren"}`
       } : null;
     }
@@ -11921,6 +12240,8 @@
       delete input.dataset.rateSource;
       delete input.dataset.effectiveFrom;
       delete input.dataset.verifiedAt;
+      const info = document.getElementById("caseInterestRateInfo");
+      if (info) info.textContent = "Merkezi tarifesi bulunmayan türlerde dosyaya özgü oran girilebilir.";
     }
 
     function updateInterestRate({ preserveManualValue = false } = {}) {
@@ -11941,6 +12262,10 @@
       input.dataset.rateSource = official.source;
       input.dataset.effectiveFrom = official.from;
       input.dataset.verifiedAt = official.updatedAt || "";
+      const info = document.getElementById("caseInterestRateInfo");
+      if (info) {
+        info.textContent = `${formatDate(official.from)} tarihinden itibaren geçerli merkezi oran: %${new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 4 }).format(official.rate)}`;
+      }
       updateEnforcementAccount();
     }
 
@@ -11965,150 +12290,24 @@
       return appPageUnloading && /Failed to fetch|AbortError|aborted/i.test(message);
     }
 
-    function daysBetweenIso(startValue, endValue) {
-      if (!startValue || !endValue || endValue <= startValue) return 0;
-      const start = Date.parse(`${startValue}T00:00:00Z`);
-      const end = Date.parse(`${endValue}T00:00:00Z`);
-      return Math.max(0, Math.round((end - start) / 86400000));
-    }
-
     function addIsoDays(value, count) {
       const date = new Date(`${value}T00:00:00Z`);
       date.setUTCDate(date.getUTCDate() + count);
       return date.toISOString().slice(0, 10);
     }
 
-    function interestRateChangeDates(type, startValue, endValue) {
-      if (!startValue || !endValue || endValue <= startValue) return [];
-      const dates = configuredInterestRates(type).map(period => period.from);
-      return [...new Set(dates)].filter(date => date > startValue && date <= endValue).sort();
-    }
-
-    function calculatePostEnforcementInterest({ principal, type, rate, start, end }) {
-      if (principal <= 0 || !type || !start || !end || end <= start) return 0;
-      const configuredType = configuredInterestRates(type).length > 0;
-      if (!configuredType) {
-        return principal * (rate / 100) * (daysBetweenIso(start, end) / 365);
-      }
-
-      const chargeStart = addIsoDays(start, 1);
-      if (chargeStart > end) return 0;
-      const changeDates = interestRateChangeDates(type, start, end);
-      let cursor = chargeStart;
-      let total = 0;
-      for (const changeDate of changeDates) {
-        if (changeDate > cursor) {
-          const period = officialInterestRate(type, cursor);
-          const applicableRate = period ? period.rate : rate;
-          total += principal * (applicableRate / 100) * (daysBetweenIso(cursor, changeDate) / 365);
-        }
-        cursor = changeDate;
-      }
-      if (cursor <= end) {
-        const period = officialInterestRate(type, cursor);
-        const applicableRate = period ? period.rate : rate;
-        total += principal * (applicableRate / 100) * (daysBetweenIso(cursor, addIsoDays(end, 1)) / 365);
-      }
-      return total;
-    }
-
-    function currentAttorneyFeeTariff(dateValue = currentIsoDate()) {
-      const tariffs = calculationSettings?.attorneyFeeTariffs || [];
-      return [...tariffs]
-        .filter(tariff => tariff.from <= dateValue && (!tariff.to || dateValue <= tariff.to))
-        .sort((a, b) => b.from.localeCompare(a.from))[0]
-        || null;
-    }
-
-    function calculateEnforcementAttorneyFee(baseAmount, followUpType, dateValue = currentIsoDate(), upperLimit = baseAmount) {
-      const tariff = currentAttorneyFeeTariff(dateValue);
-      if (!tariff || baseAmount <= 0) {
-        return { amount: 0, tariff, relativeAmount: 0, minimum: 0 };
-      }
-
-      let remaining = baseAmount;
-      let relativeAmount = 0;
-      for (const bracket of tariff.brackets) {
-        if (remaining <= 0) break;
-        const amountInBracket = bracket.limit === null
-          ? remaining
-          : Math.min(remaining, bracket.limit);
-        relativeAmount += amountInBracket * (bracket.rate / 100);
-        remaining -= amountInBracket;
-      }
-
-      const minimum = /Tahliye/i.test(followUpType || "")
-        ? tariff.evictionMinimum
-        : tariff.regularMinimum;
-      const amount = Math.min(Math.max(0, upperLimit), Math.max(relativeAmount, minimum));
-      return { amount, tariff, relativeAmount, minimum };
-    }
-
-    function calculateInstrumentCharge(principal, followUpType, instrumentType, includeCharge) {
-      if (!includeCharge || normalizeFollowType(followUpType) !== "Kambiyo Takibi" || principal <= 0) {
-        return { amount: 0, rate: 0, label: "" };
-      }
-      if (instrumentType === "Çek") {
-        return { amount: principal * 0.10, rate: 10, label: "Çek Tazminatı" };
-      }
-      if (instrumentType === "Bono") {
-        return { amount: principal * 0.003, rate: 0.3, label: "Bono Komisyonu" };
-      }
-      return { amount: 0, rate: 0, label: "" };
+    function currentEnforcementAccountDate() {
+      return window.BKT_ENFORCEMENT_ACCOUNT_ADAPTERS?.accountDateInTimeZone() || currentIsoDate();
     }
 
     function enforcementAccountValues(values) {
-      const principal = accountNumber(values.principal);
-      const preInterest = accountNumber(values.preInterest);
-      const expenses = accountNumber(values.expenses);
-      const payments = accountNumber(values.payments);
-      const instrumentChargeResult = calculateInstrumentCharge(
-        principal,
-        values.followUpType || "",
-        values.negotiableInstrumentType || "",
-        Boolean(values.includeInstrumentCharge)
-      );
-      const instrumentChargeIncludedInFinalized = instrumentChargeResult.label === "Çek Tazminatı"
-        && instrumentChargeResult.amount > 0;
-      const finalizedAmount = principal
-        + preInterest
-        + (instrumentChargeIncludedInFinalized ? instrumentChargeResult.amount : 0);
-      const attorneyFeeResult = calculateEnforcementAttorneyFee(
-        finalizedAmount,
-        values.followUpType || "",
-        values.accountDate || currentIsoDate(),
-        principal
-      );
-      const attorneyFee = attorneyFeeResult.amount;
-      const feeRate = accountNumber(values.feeRate);
-      const fees = feeRate > 0
-        ? finalizedAmount * (feeRate / 100)
-        : accountNumber(values.fees);
-      const postInterest = calculatePostEnforcementInterest({
-        principal,
-        type: values.interestType || "",
-        rate: accountNumber(values.interestRate),
-        start: values.interestStart || "",
-        end: values.accountDate || ""
-      });
-      const separateInstrumentCharge = instrumentChargeIncludedInFinalized ? 0 : instrumentChargeResult.amount;
-      const currentDebt = finalizedAmount + postInterest + fees + expenses + attorneyFee + separateInstrumentCharge - payments;
-      return {
-        finalizedAmount,
-        postInterest,
-        feeRate,
-        fees,
-        attorneyFee,
-        attorneyFeeTariff: attorneyFeeResult.tariff,
-        instrumentCharge: instrumentChargeResult.amount,
-        instrumentChargeRate: instrumentChargeResult.rate,
-        instrumentChargeLabel: instrumentChargeResult.label,
-        instrumentChargeIncludedInFinalized,
-        currentDebt
-      };
+      const adapters = window.BKT_ENFORCEMENT_ACCOUNT_ADAPTERS;
+      if (!adapters) throw new Error("İcra hesaplama servisi yüklenemedi.");
+      const accountDate = values.accountDate || currentEnforcementAccountDate();
+      return adapters.calculateDesktopEnforcementAccount(values, calculationSettings, accountDate);
     }
 
-    function currentEnforcementAccountValues() {
+    function currentEnforcementAccountValues(overrides = {}) {
       return enforcementAccountValues({
         principal: document.getElementById("casePrincipal").value,
         preInterest: document.getElementById("casePreInterest").value,
@@ -12118,11 +12317,12 @@
         interestType: document.getElementById("caseInterestType").value,
         interestRate: document.getElementById("caseInterestRate").value,
         interestStart: document.getElementById("caseFollowUpDate").value,
-        accountDate: currentIsoDate(),
+        accountDate: currentEnforcementAccountDate(),
         feeRate: document.getElementById("caseFeeRate").value,
         fees: document.getElementById("caseFees").dataset.value || "",
         expenses: document.getElementById("caseExpenses").value,
-        payments: document.getElementById("casePayments").value
+        payments: document.getElementById("casePayments").value,
+        ...overrides
       });
     }
 
@@ -12136,7 +12336,7 @@
         interestType: row.interestType,
         interestRate: row.interestRate,
         interestStart: row.followUpDate || row.interestStart,
-        accountDate: currentIsoDate(),
+        accountDate: currentEnforcementAccountDate(),
         feeRate: row.feeRate,
         fees: row.fees,
         expenses: row.expenses,
@@ -12156,7 +12356,7 @@
     }
 
     function refreshStoredEnforcementBalances() {
-      const accountDate = currentIsoDate();
+      const accountDate = currentEnforcementAccountDate();
       let changed = false;
       repositoryFiles = repositoryFiles.map(row => {
         if (!isEnforcementCase(row) || !hasEnforcementAccount(row)) return row;
@@ -12211,6 +12411,45 @@
       }
     }
 
+    function accountCalculationAuditHtml(values, { showSettingsLink = true } = {}) {
+      const interestPeriods = values.interestPeriods || [];
+      const tariff = values.attorneyFeeTariff;
+      const attorneyBrackets = values.attorneyFeeDetails?.bracketDetails || [];
+      const periodRows = interestPeriods.length
+        ? interestPeriods.map(period => `
+            <div class="calculation-audit-period">
+              <span>${escapeHtml(formatDate(period.from))} - ${escapeHtml(formatDate(period.to))}</span>
+              <span>${escapeHtml(`${period.days} gün · %${new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 4 }).format(period.rate)}`)}</span>
+              <strong>${escapeHtml(formatCurrency(period.interest))}</strong>
+            </div>
+          `).join("")
+        : `<div class="calculation-readonly-note">Hesaplanmış takip sonrası faiz dönemi bulunmuyor.</div>`;
+      const tariffText = tariff
+        ? `${tariff.name}${tariff.year ? ` · ${tariff.year}` : ""} · ${tariff.scope || "İcra"}`
+        : "Uygun vekâlet ücreti tarifesi bulunamadı.";
+      const attorneyRows = attorneyBrackets.map((bracket, index) => `
+        <div class="calculation-audit-period">
+          <span>Dilim ${index + 1}</span>
+          <span>${escapeHtml(`${formatCurrency(bracket.amount)} · %${new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 4 }).format(bracket.rate)}`)}</span>
+          <strong>${escapeHtml(formatCurrency(bracket.fee))}</strong>
+        </div>
+      `).join("");
+      return `
+        <h4>Faiz Dönemleri</h4>
+        <div class="calculation-audit-periods">${periodRows}</div>
+        <h4>Vekâlet Ücreti</h4>
+        <div class="calculation-audit-period">
+          <span>Vekâlet Ücreti Tarifesi</span>
+          <span>${escapeHtml(tariffText)}</span>
+          <strong>${escapeHtml(formatCurrency(values.attorneyFee))}</strong>
+        </div>
+        ${attorneyRows ? `<div class="calculation-audit-periods">${attorneyRows}</div>` : ""}
+        ${showSettingsLink && currentUser?.permissions?.manageUsers
+          ? `<button class="calculation-central-link" type="button" data-open-calculation-settings>Ayarlar → Hesaplama Araçları</button>`
+          : ""}
+      `;
+    }
+
     function updateEnforcementAccount() {
       const finalizedInput = document.getElementById("caseFinalizedAmount");
       if (!finalizedInput) return;
@@ -12220,15 +12459,9 @@
       const feesText = formatCurrency(values.fees);
       const attorneyFeeText = formatCurrency(values.attorneyFee);
       const currentDebtText = formatCurrency(values.currentDebt);
-      const instrumentType = document.getElementById("caseNegotiableInstrumentType").value;
-      const instrumentChargePreview = calculateInstrumentCharge(
-        accountNumber(document.getElementById("casePrincipal").value),
-        document.getElementById("caseFollowUpType").value,
-        instrumentType,
-        true
-      );
-      const instrumentChargeText = formatCurrency(instrumentChargePreview.amount);
-      const instrumentRateText = String(instrumentChargePreview.rate).replace(".", ",");
+      const instrumentChargePreview = currentEnforcementAccountValues({ includeInstrumentCharge: true });
+      const instrumentChargeText = formatCurrency(instrumentChargePreview.instrumentCharge);
+      const instrumentRateText = String(instrumentChargePreview.instrumentChargeRate).replace(".", ",");
       const includeInstrumentCharge = document.getElementById("caseIncludeInstrumentCharge").checked;
       finalizedInput.value = finalizedText;
       finalizedInput.dataset.value = values.finalizedAmount.toFixed(2);
@@ -12239,22 +12472,27 @@
       document.getElementById("caseAttorneyFee").value = attorneyFeeText;
       document.getElementById("caseAttorneyFee").dataset.value = values.attorneyFee.toFixed(2);
       const instrumentChargeField = document.getElementById("caseInstrumentChargeField");
-      instrumentChargeField.hidden = !instrumentChargePreview.label;
-      document.getElementById("caseInstrumentChargeLabel").textContent = instrumentChargePreview.label
-        ? `${instrumentChargePreview.label} (%${instrumentRateText})`
+      instrumentChargeField.hidden = !instrumentChargePreview.instrumentChargeLabel;
+      document.getElementById("caseInstrumentChargeLabel").textContent = instrumentChargePreview.instrumentChargeLabel
+        ? `${instrumentChargePreview.instrumentChargeLabel} (%${instrumentRateText})`
         : "Kambiyo Ek Tutarı";
       document.getElementById("caseInstrumentCharge").value = instrumentChargeText;
-      document.getElementById("caseInstrumentCharge").dataset.value = instrumentChargePreview.amount.toFixed(2);
+      document.getElementById("caseInstrumentCharge").dataset.value = instrumentChargePreview.instrumentCharge.toFixed(2);
       document.getElementById("caseInstrumentChargeOptionLabel").textContent = includeInstrumentCharge
         ? "Hesaba Dahil"
         : "Hesaba Ekle";
-      document.getElementById("caseInstrumentChargeOption").title = instrumentChargePreview.label
-        ? `${instrumentChargePreview.label} ${includeInstrumentCharge ? "kapak hesabına dahil" : "kapak hesabına dahil değil"}`
+      document.getElementById("caseInstrumentChargeOption").title = instrumentChargePreview.instrumentChargeLabel
+        ? `${instrumentChargePreview.instrumentChargeLabel} ${includeInstrumentCharge ? "kapak hesabına dahil" : "kapak hesabına dahil değil"}`
         : "";
       document.getElementById("caseFinalizedAmountText").textContent = finalizedText;
       document.getElementById("casePostInterestText").textContent = postInterestText;
       document.getElementById("caseCurrentDebtText").textContent = currentDebtText;
       document.getElementById("caseCurrentDebtText").dataset.value = values.currentDebt.toFixed(2);
+      const audit = document.getElementById("caseCalculationAudit");
+      if (audit) {
+        audit.hidden = !values.interestPeriods?.length && !values.attorneyFeeTariff;
+        audit.innerHTML = accountCalculationAuditHtml(values);
+      }
     }
 
     function updateNegotiableInstrumentFields({
@@ -12283,20 +12521,6 @@
       if (recalculate) updateEnforcementAccount();
     }
 
-    function calculationSettingId(prefix, rows) {
-      const max = rows.reduce((result, row) => {
-        const value = Number(String(row.id || "").match(/(\d+)$/)?.[1] || 0);
-        return Math.max(result, value);
-      }, 0);
-      return `${prefix}-${String(max + 1).padStart(4, "0")}`;
-    }
-
-    function calculationPeriodsOverlap(firstFrom, firstTo, secondFrom, secondTo) {
-      const firstEnd = firstTo || "9999-12-31";
-      const secondEnd = secondTo || "9999-12-31";
-      return firstFrom <= secondEnd && secondFrom <= firstEnd;
-    }
-
     function showCalculationNote(targetId, message, error = false) {
       const target = document.getElementById(targetId);
       target.textContent = message;
@@ -12313,13 +12537,56 @@
     }
 
     function resetInterestRateSettingForm() {
-      editingInterestRateId = null;
       const form = document.getElementById("interestRateSettingsForm");
       form.reset();
-      document.getElementById("settingInterestType").value = "Adi Kanuni Faiz";
-      document.getElementById("interestRateFormTitle").textContent = "Yeni Faiz Oranı";
-      document.getElementById("saveInterestRateSetting").textContent = "Faiz Oranını Kaydet";
+      document.getElementById("settingInterestEditingId").value = "";
+      const typeSelect = document.getElementById("settingInterestType");
+      typeSelect.disabled = false;
+      typeSelect.value = [...typeSelect.options].some(option => option.value === "Adi Kanuni Faiz") ? "Adi Kanuni Faiz" : typeSelect.options[0]?.value || "";
+      const fromInput = document.getElementById("settingInterestFrom");
+      fromInput.readOnly = false;
+      const toInput = document.getElementById("settingInterestTo");
+      toInput.value = "";
+      toInput.removeAttribute("min");
+      toInput.removeAttribute("max");
+      document.getElementById("settingInterestToField").hidden = true;
+      document.getElementById("settingInterestRate").readOnly = false;
+      document.getElementById("interestRateFormTitle").textContent = "Yeni Faiz Dönemi";
+      document.getElementById("saveInterestRateSetting").textContent = "Yeni Dönemi Kaydet";
+      document.getElementById("interestRateFormHelp").textContent = "Yeni oran, yürürlük tarihinden sonraki güncel hesaplamalarda kullanılır; önceki dönem otomatik olarak bir gün önce kapanır ve eski oranıyla korunur.";
       showCalculationNote("interestRateSettingsNote", "");
+    }
+
+    function editInterestRateSetting(id) {
+      if (!requirePermission("manageUsers", "Faiz dönemi düzenleme")) return;
+      const period = calculationSettings.interestRates.find(row => row.id === id && row.active !== false);
+      if (!period) {
+        showCalculationNote("interestRateSettingsNote", "Düzenlenecek faiz dönemi bulunamadı.", true);
+        return;
+      }
+      resetInterestRateSettingForm();
+      document.getElementById("settingInterestEditingId").value = period.id;
+      const typeSelect = document.getElementById("settingInterestType");
+      typeSelect.value = period.type;
+      typeSelect.disabled = true;
+      const fromInput = document.getElementById("settingInterestFrom");
+      fromInput.value = period.from;
+      fromInput.readOnly = true;
+      const toInput = document.getElementById("settingInterestTo");
+      toInput.value = period.to || "";
+      toInput.min = period.from;
+      const nextPeriod = calculationSettings.interestRates
+        .filter(row => row.active !== false && row.type === period.type && row.from > period.from)
+        .sort((a, b) => a.from.localeCompare(b.from))[0];
+      if (nextPeriod?.from) toInput.max = addIsoDays(nextPeriod.from, -1);
+      document.getElementById("settingInterestToField").hidden = false;
+      document.getElementById("settingInterestRate").value = period.rate;
+      document.getElementById("settingInterestRate").readOnly = true;
+      document.getElementById("settingInterestDescription").value = period.description || "";
+      document.getElementById("interestRateFormTitle").textContent = "Faiz Dönemini Düzenle";
+      document.getElementById("saveInterestRateSetting").textContent = "Dönemi Güncelle";
+      document.getElementById("interestRateFormHelp").textContent = "Geçmiş oran korunur; yalnızca bu dönemin bitiş tarihi ve açıklaması güncellenebilir.";
+      showCalculationNote("interestRateSettingsNote", "Faiz oranı ve başlangıç tarihi tarihçe bütünlüğü için değiştirilemez.");
     }
 
     function renderInterestRateSettings() {
@@ -12333,41 +12600,37 @@
           <td>${escapeHtml(formatDate(period.from))}</td>
           <td>${period.to ? escapeHtml(formatDate(period.to)) : "Devam Ediyor"}</td>
           <td>%${escapeHtml(new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 3 }).format(period.rate))}</td>
+          <td><span class="badge ${period.active ? "green" : "gray"}">${period.active ? "Aktif" : "Pasif"}</span></td>
+          <td>${escapeHtml(period.description || "-")}</td>
+          <td>${escapeHtml([period.updatedBy, period.updatedAt ? formatDate(String(period.updatedAt).slice(0, 10)) : ""].filter(Boolean).join(" · ") || "-")}</td>
           <td>
             <div class="calculation-row-actions">
-              <button type="button" data-edit-interest-rate="${escapeHtml(period.id)}">Düzenle</button>
-              <button class="danger" type="button" data-delete-interest-rate="${escapeHtml(period.id)}">Sil</button>
+              ${currentUser?.permissions?.manageUsers && period.active
+                ? `<button type="button" data-edit-interest-rate="${escapeHtml(period.id)}">Düzenle</button>`
+                : ""}
+              ${currentUser?.permissions?.manageUsers && period.from > currentIsoDate() && period.active
+                ? `<button class="danger" type="button" data-delete-interest-rate="${escapeHtml(period.id)}">Pasifleştir</button>`
+                : (!currentUser?.permissions?.manageUsers || !period.active ? `<span class="calculation-readonly-note">Tarihçe</span>` : "")}
             </div>
           </td>
         </tr>
-      `).join("") || `<tr><td colspan="5">${selectedType ? `${escapeHtml(selectedType)} için kayıtlı faiz oranı bulunmuyor.` : "Kayıtlı faiz oranı bulunmuyor."}</td></tr>`;
+      `).join("") || `<tr><td colspan="8">${selectedType ? `${escapeHtml(selectedType)} için kayıtlı faiz oranı bulunmuyor.` : "Kayıtlı faiz oranı bulunmuyor."}</td></tr>`;
       bindCalculationSettingActions();
     }
 
-    function editInterestRateSetting(id) {
-      if (!requirePermission("manageUsers", "Faiz oranı düzenleme")) return;
+    async function deleteInterestRateSetting(id) {
+      if (!requirePermission("manageUsers", "Faiz oranı pasifleştirme")) return;
       const period = calculationSettings.interestRates.find(row => row.id === id);
-      if (!period) return;
-      editingInterestRateId = id;
-      switchCalculationTab("interest");
-      document.getElementById("settingInterestType").value = period.type;
-      document.getElementById("settingInterestFrom").value = period.from;
-      document.getElementById("settingInterestTo").value = period.to || "";
-      document.getElementById("settingInterestRate").value = period.rate;
-      document.getElementById("interestRateFormTitle").textContent = "Faiz Oranını Düzenle";
-      document.getElementById("saveInterestRateSetting").textContent = "Değişiklikleri Kaydet";
-      showCalculationNote("interestRateSettingsNote", "");
-    }
-
-    function deleteInterestRateSetting(id) {
-      if (!requirePermission("manageUsers", "Faiz oranı silme")) return;
-      const period = calculationSettings.interestRates.find(row => row.id === id);
-      if (!period || !confirm(`${period.type} için ${formatDate(period.from)} başlangıç tarihli oran silinsin mi?`)) return;
-      calculationSettings.interestRates = calculationSettings.interestRates.filter(row => row.id !== id);
-      persistCalculationSettings();
-      resetInterestRateSettingForm();
-      renderInterestRateSettings();
-      showCalculationNote("interestRateSettingsNote", "Faiz oranı silindi.");
+      if (!period || !confirm(`${period.type} için ${formatDate(period.from)} yürürlük tarihli gelecek dönem pasifleştirilsin mi?`)) return;
+      try {
+        await appRepository.deactivateInterestRatePeriod(id);
+        await loadCalculationTools({ refreshView: true });
+        resetInterestRateSettingForm();
+        showCalculationNote("interestRateSettingsNote", "Gelecek faiz dönemi pasifleştirildi; geçmiş tarihçe korundu.");
+      } catch (error) {
+        console.error("Faiz dönemi pasifleştirilemedi.", error);
+        showCalculationNote("interestRateSettingsNote", "Faiz dönemi pasifleştirilemedi.", true);
+      }
     }
 
     function addAttorneyBracketRow(limit = "", rate = "") {
@@ -12391,11 +12654,12 @@
     }
 
     function resetAttorneyFeeSettingForm() {
-      editingAttorneyTariffId = null;
       const form = document.getElementById("attorneyFeeSettingsForm");
       form.reset();
       document.getElementById("attorneyBracketRows").innerHTML = "";
       addAttorneyBracketRow("", "");
+      document.getElementById("settingTariffYear").value = String(new Date().getFullYear());
+      document.getElementById("settingTariffScope").value = "İcra";
       document.getElementById("attorneyFeeFormTitle").textContent = "Yeni Vekâlet Ücreti Tarifesi";
       document.getElementById("saveAttorneyFeeSetting").textContent = "Tarifeyi Kaydet";
       showCalculationNote("attorneyFeeSettingsNote", "");
@@ -12411,49 +12675,59 @@
       document.getElementById("attorneyFeeSettingsRows").innerHTML = tariffs.map(tariff => `
         <tr>
           <td>${escapeHtml(tariff.name)}</td>
-          <td>${escapeHtml(formatDate(tariff.from))}</td>
-          <td>${tariff.to ? escapeHtml(formatDate(tariff.to)) : "Devam Ediyor"}</td>
+          <td>${escapeHtml([tariff.year, tariff.scope].filter(Boolean).join(" · ") || "-")}</td>
+          <td>${escapeHtml(formatDate(tariff.from))}${tariff.to ? ` - ${escapeHtml(formatDate(tariff.to))}` : " tarihinden itibaren"}</td>
           <td>${escapeHtml(formatCurrency(tariff.regularMinimum))}</td>
           <td>${escapeHtml(tariffBracketSummary(tariff))}</td>
+          <td><span class="badge ${tariff.active ? "green" : "gray"}">${tariff.active ? "Aktif" : "Pasif"}</span></td>
+          <td>${escapeHtml([tariff.updatedBy, tariff.updatedAt ? formatDate(String(tariff.updatedAt).slice(0, 10)) : ""].filter(Boolean).join(" · ") || "-")}</td>
           <td>
             <div class="calculation-row-actions">
-              <button type="button" data-edit-attorney-tariff="${escapeHtml(tariff.id)}">Düzenle</button>
-              <button class="danger" type="button" data-delete-attorney-tariff="${escapeHtml(tariff.id)}">Sil</button>
+              ${currentUser?.permissions?.manageUsers && tariff.from > currentIsoDate() && tariff.active
+                ? `<button class="danger" type="button" data-delete-attorney-tariff="${escapeHtml(tariff.id)}">Pasifleştir</button>`
+                : `<span class="calculation-readonly-note">Tarihçe</span>`}
             </div>
           </td>
         </tr>
-      `).join("") || `<tr><td colspan="6">Kayıtlı vekâlet ücreti tarifesi bulunmuyor.</td></tr>`;
+      `).join("") || `<tr><td colspan="8">Kayıtlı vekâlet ücreti tarifesi bulunmuyor.</td></tr>`;
       bindCalculationSettingActions();
     }
 
-    function editAttorneyFeeSetting(id) {
-      if (!requirePermission("manageUsers", "Vekâlet ücreti tarifesi düzenleme")) return;
+    async function deleteAttorneyFeeSetting(id) {
+      if (!requirePermission("manageUsers", "Vekâlet ücreti tarifesi pasifleştirme")) return;
       const tariff = calculationSettings.attorneyFeeTariffs.find(row => row.id === id);
-      if (!tariff) return;
-      editingAttorneyTariffId = id;
-      switchCalculationTab("attorney");
-      document.getElementById("settingTariffName").value = tariff.name;
-      document.getElementById("settingTariffFrom").value = tariff.from;
-      document.getElementById("settingTariffTo").value = tariff.to || "";
-      document.getElementById("settingRegularMinimum").value = tariff.regularMinimum;
-      document.getElementById("settingEvictionMinimum").value = tariff.evictionMinimum;
-      document.getElementById("attorneyBracketRows").innerHTML = "";
-      tariff.brackets.forEach(bracket => addAttorneyBracketRow(bracket.limit, bracket.rate));
-      if (!tariff.brackets.length) addAttorneyBracketRow("", "");
-      document.getElementById("attorneyFeeFormTitle").textContent = "Vekâlet Ücreti Tarifesini Düzenle";
-      document.getElementById("saveAttorneyFeeSetting").textContent = "Değişiklikleri Kaydet";
-      showCalculationNote("attorneyFeeSettingsNote", "");
+      if (!tariff || !confirm(`${tariff.name} gelecek tarifesi pasifleştirilsin mi?`)) return;
+      try {
+        await appRepository.deactivateAttorneyFeeTariff(id);
+        await loadCalculationTools({ refreshView: true });
+        resetAttorneyFeeSettingForm();
+        showCalculationNote("attorneyFeeSettingsNote", "Gelecek tarife pasifleştirildi; geçmiş tarihçe korundu.");
+      } catch (error) {
+        console.error("Vekâlet ücreti tarifesi pasifleştirilemedi.", error);
+        showCalculationNote("attorneyFeeSettingsNote", "Vekâlet ücreti tarifesi pasifleştirilemedi.", true);
+      }
     }
 
-    function deleteAttorneyFeeSetting(id) {
-      if (!requirePermission("manageUsers", "Vekâlet ücreti tarifesi silme")) return;
-      const tariff = calculationSettings.attorneyFeeTariffs.find(row => row.id === id);
-      if (!tariff || !confirm(`${tariff.name} silinsin mi?`)) return;
-      calculationSettings.attorneyFeeTariffs = calculationSettings.attorneyFeeTariffs.filter(row => row.id !== id);
-      persistCalculationSettings();
-      resetAttorneyFeeSettingForm();
-      renderAttorneyFeeSettings();
-      showCalculationNote("attorneyFeeSettingsNote", "Vekâlet ücreti tarifesi silindi.");
+    function renderCalculationParameters() {
+      const parameters = [...(calculationSettings.parameters || [])]
+        .sort((a, b) => a.group.localeCompare(b.group, "tr") || a.label.localeCompare(b.label, "tr") || String(b.from || "").localeCompare(String(a.from || "")));
+      const select = document.getElementById("settingParameterKey");
+      const current = select?.value || "";
+      const definitions = [...new Map(parameters.map(parameter => [parameter.key, parameter])).values()];
+      if (select) {
+        select.innerHTML = `<option value="">Parametre Seçiniz</option>${definitions.map(parameter => `<option value="${escapeHtml(parameter.key)}">${escapeHtml(parameter.label)}</option>`).join("")}`;
+        if (definitions.some(parameter => parameter.key === current)) select.value = current;
+      }
+      document.getElementById("calculationParameterRows").innerHTML = parameters.map(parameter => `
+        <tr>
+          <td>${escapeHtml(parameter.group || "-")}</td>
+          <td>${escapeHtml(parameter.label)}</td>
+          <td>${escapeHtml(`${new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 4 }).format(parameter.value)}${parameter.unit ? ` ${parameter.unit}` : ""}`)}</td>
+          <td>${parameter.from ? escapeHtml(formatDate(parameter.from)) : "Mevcut sistem değeri"}</td>
+          <td>${parameter.to ? escapeHtml(formatDate(parameter.to)) : "Devam Ediyor"}</td>
+          <td>${escapeHtml([parameter.updatedBy, parameter.updatedAt ? formatDate(String(parameter.updatedAt).slice(0, 10)) : ""].filter(Boolean).join(" · ") || "-")}</td>
+        </tr>
+      `).join("") || `<tr><td colspan="6">Kayıtlı icra hesaplama parametresi bulunmuyor.</td></tr>`;
     }
 
     function bindCalculationSettingActions() {
@@ -12463,32 +12737,56 @@
       document.querySelectorAll("[data-delete-interest-rate]").forEach(button => {
         button.onclick = () => deleteInterestRateSetting(button.dataset.deleteInterestRate);
       });
-      document.querySelectorAll("[data-edit-attorney-tariff]").forEach(button => {
-        button.onclick = () => editAttorneyFeeSetting(button.dataset.editAttorneyTariff);
-      });
       document.querySelectorAll("[data-delete-attorney-tariff]").forEach(button => {
         button.onclick = () => deleteAttorneyFeeSetting(button.dataset.deleteAttorneyTariff);
       });
     }
 
-    function persistCalculationSettings() {
-      refreshStoredEnforcementBalances();
-      renderInterestTypeOptions();
-      updateInterestRate({ preserveManualValue: true });
-      updateEnforcementAccount();
-      if (currentUser) renderRows();
+    function applyCalculationToolPermissions() {
+      const canManage = Boolean(currentUser?.permissions?.manageUsers);
+      document.querySelectorAll("#calculationToolsDialog .calculation-layout").forEach(layout => {
+        layout.classList.toggle("is-readonly", !canManage);
+      });
+      document.querySelectorAll("#calculationToolsDialog .calculation-form").forEach(form => {
+        form.hidden = !canManage;
+      });
     }
 
-    function openCalculationTools() {
-      if (!requirePermission("manageUsers", "Hesaplama araçlarını yönetme")) return;
+    function setSettingsSectionMenu(activeItem = "users") {
+      document.getElementById("settingsUsersShortcut")?.classList.toggle("active", activeItem === "users");
+      document.getElementById("openCalculationTools")?.classList.toggle("active", activeItem === "calculation");
+    }
+
+    function showSettingsView(activeItem = "users") {
+      const usersView = document.getElementById("settingsUsersView");
+      const calculationView = document.getElementById("calculationSettingsView");
+      if (usersView) usersView.hidden = activeItem !== "users";
+      if (calculationView) calculationView.hidden = activeItem !== "calculation";
+      setSettingsSectionMenu(activeItem);
+    }
+
+    async function openCalculationTools() {
+      try {
+        await loadCalculationTools();
+      } catch (error) {
+        showToast?.("Hesaplama araçları yüklenemedi.", "error");
+        return;
+      }
       renderInterestTypeOptions();
       resetInterestRateSettingForm();
       resetAttorneyFeeSettingForm();
-      document.getElementById("interestRateTypeFilter").value = "";
+      document.getElementById("interestRateTypeFilter").value = interestTypeNames().includes("Adi Kanuni Faiz") ? "Adi Kanuni Faiz" : "";
       renderInterestRateSettings();
       renderAttorneyFeeSettings();
+      renderCalculationParameters();
+      applyCalculationToolPermissions();
       switchCalculationTab("interest");
-      document.getElementById("calculationToolsDialog").showModal();
+      const calculationView = document.getElementById("calculationSettingsView");
+      const calculationPanel = document.getElementById("calculationToolsDialog");
+      if (calculationPanel.parentElement !== calculationView) calculationView.appendChild(calculationPanel);
+      calculationPanel.classList.add("is-inline");
+      showSettingsView("calculation");
+      if (!calculationPanel.open) calculationPanel.show();
     }
 
     function caseDebtors(row) {
@@ -14652,6 +14950,7 @@
             <div class="account-result-item"><span>Takip Sonrası Faiz</span><strong>${formatCurrency(account.postInterest)}</strong></div>
             <div class="account-result-item"><span>Kalan Bakiye</span><strong>${formatCurrency(account.currentDebt)}</strong></div>
           </div>
+          <div class="calculation-audit">${accountCalculationAuditHtml(account)}</div>
           <div class="detail-actions"><button class="btn primary" type="button" data-account-case="${escapeHtml(file.id)}">PDF Hesap Dökümü</button></div>
         `,
         debtors: fileDetailList(debtors, "Borçlu kaydı bulunmuyor.", debtor => `<div class="detail-list-item"><strong>${escapeHtml(debtor.name || "Borçlu")}</strong><span>TC/VKN: ${escapeHtml(debtor.taxId || "-")}</span></div>`),
@@ -17689,6 +17988,13 @@
         renderFileList(filterCasesByType());
       }
       activeSection = id;
+      const calculationPanel = document.getElementById("calculationToolsDialog");
+      if (id === "users") {
+        if (calculationPanel?.open) calculationPanel.close();
+        showSettingsView("users");
+      } else if (calculationPanel?.open) {
+        calculationPanel.close();
+      }
       document.querySelectorAll(".section").forEach(s => s.classList.toggle("active", s.id === id));
       document.querySelectorAll(".nav button").forEach(b => b.classList.toggle("active", b.dataset.section === id));
       document.getElementById("pageTitle").textContent = titles[id][0];
@@ -18248,7 +18554,7 @@
         trackingNo: document.getElementById("caseTrackingNo").value.trim(),
         followUpType: document.getElementById("caseFollowUpType").value,
         followUpDate: document.getElementById("caseFollowUpDate").value,
-        accountDate: currentIsoDate(),
+        accountDate: currentEnforcementAccountDate(),
         creditor: creditors.map(creditor => creditor.name).filter(Boolean).join(", "),
         creditorTaxId: creditors.map(creditor => creditor.taxId).filter(Boolean).join(", "),
         debtors,
@@ -18261,6 +18567,11 @@
         expenses: accountNumber(document.getElementById("caseExpenses").value),
         attorneyFee: values.attorneyFee,
         attorneyFeeTariff: values.attorneyFeeTariff?.name || "",
+        attorneyFeeTariffYear: values.attorneyFeeTariff?.year || "",
+        attorneyFeeTariffScope: values.attorneyFeeTariff?.scope || "İcra",
+        attorneyFeeDetails: values.attorneyFeeDetails || null,
+        interestPeriods: values.interestPeriods || [],
+        interestDayBasis: values.dayBasis || 365,
         instrumentCharge: values.instrumentCharge,
         instrumentChargeLabel: values.instrumentChargeLabel,
         instrumentChargeIncludedInFinalized: values.instrumentChargeIncludedInFinalized,
@@ -18283,7 +18594,7 @@
         trackingNo: row.trackingNo || row.file || "",
         followUpType: row.followUpType || "",
         followUpDate: row.followUpDate || row.interestStart || "",
-        accountDate: currentIsoDate(),
+        accountDate: currentEnforcementAccountDate(),
         creditor: creditorPartyNames(row) || row.creditor || row.client || "",
         creditorTaxId: creditorPartyTaxIds(row) || row.creditorTaxId || row.taxId || "",
         debtors: caseDebtors(row),
@@ -18296,6 +18607,11 @@
         expenses: accountNumber(row.expenses),
         attorneyFee: values.attorneyFee,
         attorneyFeeTariff: values.attorneyFeeTariff?.name || row.attorneyFeeTariff || "",
+        attorneyFeeTariffYear: values.attorneyFeeTariff?.year || "",
+        attorneyFeeTariffScope: values.attorneyFeeTariff?.scope || "İcra",
+        attorneyFeeDetails: values.attorneyFeeDetails || null,
+        interestPeriods: values.interestPeriods || [],
+        interestDayBasis: values.dayBasis || 365,
         instrumentCharge: values.instrumentCharge,
         instrumentChargeLabel: values.instrumentChargeLabel,
         instrumentChargeIncludedInFinalized: values.instrumentChargeIncludedInFinalized,
@@ -18555,7 +18871,7 @@
       const noteY = Math.max(y + 57, 700);
       drawAccountReportText(
         ctx,
-        "Bu rapor, sistemde kayıtlı bilgiler ve yerel hesaplama tarifeleri kullanılarak hazırlanmıştır; resmî UYAP belgesi değildir.",
+        "Bu rapor, sistemde kayıtlı bilgiler ve merkezi hesaplama tarifeleri kullanılarak hazırlanmıştır; resmî UYAP belgesi değildir.",
         pageWidth / 2,
         noteY,
         { size: 7.2, align: "center", color: "#444444", maxWidth: 505 }
@@ -18579,13 +18895,110 @@
       return canvas;
     }
 
+    function renderEnforcementAuditPdfPages(report) {
+      const periods = report.interestPeriods || [];
+      const chunks = [];
+      const chunkSize = 24;
+      if (!periods.length) chunks.push([]);
+      else for (let index = 0; index < periods.length; index += chunkSize) chunks.push(periods.slice(index, index + chunkSize));
+      return chunks.map((chunk, pageIndex) => {
+        const pageWidth = 595;
+        const pageHeight = 842;
+        const scale = 2;
+        const canvas = document.createElement("canvas");
+        canvas.width = pageWidth * scale;
+        canvas.height = pageHeight * scale;
+        const ctx = canvas.getContext("2d");
+        ctx.scale(scale, scale);
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, pageWidth, pageHeight);
+        drawAccountReportText(ctx, `${report.office || "İcra Dairesi"} ${report.trackingNo || "-"} Esas`, pageWidth / 2, 38, { size: 11, bold: true, align: "center", maxWidth: 500 });
+        drawAccountReportText(ctx, `Hesaplama Denetim Dökümü${chunks.length > 1 ? ` · ${pageIndex + 1}/${chunks.length}` : ""}`, pageWidth / 2, 57, { size: 9.5, bold: true, align: "center" });
+        drawAccountReportLine(ctx, 45, 69, 550, 69, 1);
+        drawAccountReportSectionTitle(ctx, "FAİZ DÖNEMLERİ", 92);
+        let y = 105;
+        const widths = [84, 84, 52, 55, 110, 120];
+        const headers = ["BAŞLANGIÇ", "BİTİŞ", "GÜN", "ORAN", "ANA PARA", "DÖNEM FAİZİ"];
+        let x = 45;
+        headers.forEach((header, index) => {
+          drawAccountReportTableCell(ctx, header, x, y, widths[index], 22, { bold: true, align: "center", fill: "#edf2f4", size: 7 });
+          x += widths[index];
+        });
+        y += 22;
+        if (!chunk.length) {
+          drawAccountReportTableCell(ctx, "Hesaplanmış takip sonrası faiz dönemi bulunmuyor.", 45, y, 505, 24, { align: "center", size: 7.5 });
+          y += 24;
+        } else {
+          chunk.forEach(period => {
+            const row = [
+              formatExcelDate(period.from),
+              formatExcelDate(period.to),
+              String(period.days),
+              `%${new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 4 }).format(period.rate)}`,
+              formatAccountReportMoney(period.principal),
+              formatAccountReportMoney(period.interest)
+            ];
+            x = 45;
+            row.forEach((cell, index) => {
+              drawAccountReportTableCell(ctx, cell, x, y, widths[index], 22, { align: index >= 2 ? "right" : "center", size: 7.2 });
+              x += widths[index];
+            });
+            y += 22;
+          });
+        }
+        if (pageIndex === chunks.length - 1) {
+          y += 24;
+          drawAccountReportSectionTitle(ctx, "VEKÂLET ÜCRETİ TARİFESİ", y);
+          y += 18;
+          drawAccountReportInfo(ctx, "Tarife", report.attorneyFeeTariff || "Uygun tarife bulunamadı", 45, y, 505);
+          y += 17;
+          drawAccountReportInfo(ctx, "Yıl / Kapsam", [report.attorneyFeeTariffYear, report.attorneyFeeTariffScope].filter(Boolean).join(" · ") || "-", 45, y, 505);
+          y += 17;
+          drawAccountReportInfo(ctx, "Hesaplanan", formatAccountReportMoney(report.attorneyFee), 45, y, 505);
+          y += 17;
+          drawAccountReportInfo(ctx, "Alt Sınır", formatAccountReportMoney(report.attorneyFeeDetails?.minimum || 0), 45, y, 505);
+          y += 17;
+          drawAccountReportInfo(ctx, "Nispi Tutar", formatAccountReportMoney(report.attorneyFeeDetails?.relativeAmount || 0), 45, y, 505);
+          const bracketDetails = report.attorneyFeeDetails?.bracketDetails || [];
+          if (bracketDetails.length) {
+            y += 24;
+            const bracketWidths = [58, 150, 82, 115, 100];
+            const bracketHeaders = ["DİLİM", "UYGULANAN TUTAR", "ORAN", "DİLİM ÜCRETİ", "ÜST SINIR"];
+            x = 45;
+            bracketHeaders.forEach((header, index) => {
+              drawAccountReportTableCell(ctx, header, x, y, bracketWidths[index], 22, { bold: true, align: "center", fill: "#edf2f4", size: 6.8 });
+              x += bracketWidths[index];
+            });
+            y += 22;
+            bracketDetails.forEach((bracket, index) => {
+              const row = [
+                String(index + 1),
+                formatAccountReportMoney(bracket.amount),
+                `%${new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 4 }).format(bracket.rate)}`,
+                formatAccountReportMoney(bracket.fee),
+                bracket.limit === null ? "Üzeri" : formatAccountReportMoney(bracket.limit)
+              ];
+              x = 45;
+              row.forEach((cell, cellIndex) => {
+                drawAccountReportTableCell(ctx, cell, x, y, bracketWidths[cellIndex], 21, { align: cellIndex === 0 ? "center" : "right", size: 6.9 });
+                x += bracketWidths[cellIndex];
+              });
+              y += 21;
+            });
+          }
+        }
+        drawAccountReportText(ctx, `Gün bazı: ${report.interestDayBasis || 365} · Faiz başlangıç günü hariç, hesap günü dahil.`, 45, 808, { size: 7.2, color: "#444444", maxWidth: 505 });
+        return canvas;
+      });
+    }
+
     async function downloadEnforcementAccountPdf(report, noteTarget = "") {
       if (!report.office || !report.trackingNo) {
         if (noteTarget) showNote(noteTarget, "PDF çıktısı için icra dairesi ve dosya numarası giriniz.");
         return false;
       }
-      const canvas = renderEnforcementAccountPdfPage(report);
-      const pdf = buildPdfFromJpegs([dataUrlToBytes(canvas.toDataURL("image/jpeg", 0.96))], 595, 842);
+      const canvases = [renderEnforcementAccountPdfPage(report), ...renderEnforcementAuditPdfPages(report)];
+      const pdf = buildPdfFromJpegs(canvases.map(canvas => dataUrlToBytes(canvas.toDataURL("image/jpeg", 0.96))), 595, 842);
       const filePart = report.trackingNo.replace(/[^\d]+/g, "_").replace(/^_+|_+$/g, "") || "icra_dosyasi";
       const datePart = formatExcelDate(report.accountDate).replaceAll("/", "_");
       const result = await saveGeneratedOutput({
@@ -19039,7 +19452,7 @@
         if (user.active === false) throw new Error("Kullanıcı hesabınız pasif durumdadır.");
         users = await loadProfileUsers(user);
         clearFailedLogins();
-        openAuthenticatedApp(user);
+        await openAuthenticatedApp(user);
       } catch (loginError) {
         console.error("Supabase Auth girişi başarısız.", loginError);
         const failed = registerFailedLogin();
@@ -19596,12 +20009,28 @@
     });
 
     document.getElementById("openCalculationTools").addEventListener("click", openCalculationTools);
+    document.getElementById("settingsUsersShortcut").addEventListener("click", () => {
+      const dialog = document.getElementById("calculationToolsDialog");
+      if (dialog.open) dialog.close();
+      showSettingsView("users");
+      document.querySelector("#users .settings-user-list-panel")?.scrollIntoView({ block: "start" });
+    });
+    document.addEventListener("click", event => {
+      const link = event.target.closest("[data-open-calculation-settings]");
+      if (!link) return;
+      event.preventDefault();
+      switchSection("users");
+      openCalculationTools();
+    });
     document.getElementById("exportEnforcementAccountPdf").addEventListener("click", exportEnforcementAccountPdf);
     document.getElementById("closeCalculationTools").addEventListener("click", () => {
       document.getElementById("calculationToolsDialog").close();
     });
+    document.getElementById("calculationToolsDialog").addEventListener("close", () => {
+      showSettingsView("users");
+    });
     document.getElementById("calculationToolsDialog").addEventListener("click", event => {
-      if (event.target === event.currentTarget) event.currentTarget.close();
+      if (!event.currentTarget.classList.contains("is-inline") && event.target === event.currentTarget) event.currentTarget.close();
     });
     document.querySelectorAll("[data-calculation-tab]").forEach(button => {
       button.addEventListener("click", () => switchCalculationTab(button.dataset.calculationTab));
@@ -19611,59 +20040,56 @@
     document.getElementById("newAttorneyFeeSetting").addEventListener("click", resetAttorneyFeeSettingForm);
     document.getElementById("addAttorneyBracket").addEventListener("click", () => addAttorneyBracketRow("", ""));
 
-    document.getElementById("interestRateSettingsForm").addEventListener("submit", event => {
+    document.getElementById("interestRateSettingsForm").addEventListener("submit", async event => {
       event.preventDefault();
       if (!requirePermission("manageUsers", "Faiz oranı kaydetme")) return;
+      const editingId = document.getElementById("settingInterestEditingId").value;
       const type = document.getElementById("settingInterestType").value;
       const from = document.getElementById("settingInterestFrom").value;
       const to = document.getElementById("settingInterestTo").value;
       const rate = accountNumber(document.getElementById("settingInterestRate").value);
-      if (!from || rate < 0 || (to && to < from)) {
-        showCalculationNote("interestRateSettingsNote", "Tarih aralığını ve faiz oranını kontrol ediniz.", true);
+      const description = document.getElementById("settingInterestDescription").value.trim();
+      if (!type || !from || rate <= 0) {
+        showCalculationNote("interestRateSettingsNote", "Faiz türü, yürürlük tarihi ve pozitif oran zorunludur.", true);
         return;
       }
-      const overlap = calculationSettings.interestRates.find(period =>
-        period.id !== editingInterestRateId
-        && period.type === type
-        && calculationPeriodsOverlap(from, to, period.from, period.to)
-      );
-      if (overlap) {
-        showCalculationNote(
-          "interestRateSettingsNote",
-          `${formatDate(overlap.from)} başlangıç tarihli kayıtla çakışan bir dönem girdiniz.`,
-          true
-        );
+      if (editingId && to && to < from) {
+        showCalculationNote("interestRateSettingsNote", "Bitiş tarihi yürürlük tarihinden önce olamaz.", true);
         return;
       }
-      const row = {
-        id: editingInterestRateId || calculationSettingId("FO", calculationSettings.interestRates),
-        type,
-        from,
-        to,
-        rate,
-        updatedAt: currentIsoDate()
-      };
-      if (editingInterestRateId) {
-        calculationSettings.interestRates = calculationSettings.interestRates.map(period =>
-          period.id === editingInterestRateId ? row : period
-        );
-      } else {
-        calculationSettings.interestRates.push(row);
+      try {
+        if (editingId) {
+          await appRepository.updateInterestRatePeriod({ id: editingId, to, description });
+        } else {
+          await appRepository.createInterestRatePeriod({ type, from, rate, description, source: "Manuel" });
+        }
+        await loadCalculationTools({ refreshView: true });
+        document.getElementById("interestRateTypeFilter").value = type;
+        renderInterestRateSettings();
+        resetInterestRateSettingForm();
+        showCalculationNote("interestRateSettingsNote", editingId
+          ? "Faiz döneminin bitiş tarihi güncellendi; geçmiş oran korunmaya devam ediyor."
+          : "Yeni faiz dönemi kaydedildi; önceki dönem otomatik kapatıldı ve tarihçesi korundu.");
+      } catch (error) {
+        console.error("Faiz dönemi kaydedilemedi.", error);
+        showCalculationNote("interestRateSettingsNote", editingId
+          ? "Faiz dönemi güncellenemedi. Bitiş tarihinin komşu dönemlerle uyumlu olduğunu kontrol edin."
+          : "Faiz dönemi kaydedilemedi. Aynı tarihli veya geçersiz bir dönem olmadığını kontrol edin.", true);
       }
-      persistCalculationSettings();
-      renderInterestRateSettings();
-      resetInterestRateSettingForm();
-      showCalculationNote("interestRateSettingsNote", "Faiz oranı kaydedildi ve dosya hesapları güncellendi.");
     });
 
-    document.getElementById("attorneyFeeSettingsForm").addEventListener("submit", event => {
+    document.getElementById("attorneyFeeSettingsForm").addEventListener("submit", async event => {
       event.preventDefault();
       if (!requirePermission("manageUsers", "Vekâlet ücreti tarifesi kaydetme")) return;
       const name = document.getElementById("settingTariffName").value.trim();
+      const year = Number(document.getElementById("settingTariffYear").value);
+      const scope = document.getElementById("settingTariffScope").value;
       const from = document.getElementById("settingTariffFrom").value;
-      const to = document.getElementById("settingTariffTo").value;
       const regularMinimum = accountNumber(document.getElementById("settingRegularMinimum").value);
       const evictionMinimum = accountNumber(document.getElementById("settingEvictionMinimum").value);
+      const maximumValue = document.getElementById("settingTariffMaximum").value;
+      const maximumAmount = maximumValue === "" ? null : accountNumber(maximumValue);
+      const description = document.getElementById("settingTariffDescription").value.trim();
       const bracketElements = [...document.querySelectorAll("#attorneyBracketRows .bracket-row")];
       const brackets = bracketElements.map(row => {
         const limitValue = row.querySelector(".attorney-bracket-limit").value;
@@ -19672,7 +20098,7 @@
           rate: accountNumber(row.querySelector(".attorney-bracket-rate").value)
         };
       });
-      if (!name || !from || regularMinimum < 0 || evictionMinimum < 0 || (to && to < from)) {
+      if (!name || !year || !scope || !from || regularMinimum < 0 || evictionMinimum < 0 || (maximumAmount !== null && maximumAmount < 0)) {
         showCalculationNote("attorneyFeeSettingsNote", "Tarife adı, tarihleri ve alt sınırları kontrol ediniz.", true);
         return;
       }
@@ -19687,39 +20113,53 @@
         showCalculationNote("attorneyFeeSettingsNote", "Yalnızca son dilimin tutarını boş bırakarak üzeri oranını belirleyiniz.", true);
         return;
       }
-      const overlap = calculationSettings.attorneyFeeTariffs.find(tariff =>
-        tariff.id !== editingAttorneyTariffId
-        && calculationPeriodsOverlap(from, to, tariff.from, tariff.to)
-      );
-      if (overlap) {
-        showCalculationNote(
-          "attorneyFeeSettingsNote",
-          `${overlap.name} ile çakışan bir tarife dönemi girdiniz.`,
-          true
-        );
+      try {
+        await appRepository.createAttorneyFeeTariff({
+          name,
+          year,
+          scope,
+          from,
+          regularMinimum,
+          evictionMinimum,
+          maximumAmount,
+          description,
+          brackets
+        });
+        await loadCalculationTools({ refreshView: true });
+        resetAttorneyFeeSettingForm();
+        showCalculationNote("attorneyFeeSettingsNote", "Yeni vekâlet ücreti tarifesi kaydedildi; önceki tarife korundu.");
+      } catch (error) {
+        console.error("Vekâlet ücreti tarifesi kaydedilemedi.", error);
+        showCalculationNote("attorneyFeeSettingsNote", "Tarife kaydedilemedi. Tarih ve dilimleri kontrol edin.", true);
+      }
+    });
+
+    document.getElementById("settingParameterKey").addEventListener("change", event => {
+      const current = effectiveCalculationParameter(event.target.value);
+      document.getElementById("settingParameterValue").value = current?.value ?? "";
+      document.getElementById("settingParameterDescription").value = current?.description || "";
+    });
+
+    document.getElementById("calculationParameterForm").addEventListener("submit", async event => {
+      event.preventDefault();
+      if (!requirePermission("manageUsers", "İcra hesaplama parametresi kaydetme")) return;
+      const key = document.getElementById("settingParameterKey").value;
+      const value = accountNumber(document.getElementById("settingParameterValue").value);
+      const from = document.getElementById("settingParameterFrom").value;
+      const description = document.getElementById("settingParameterDescription").value.trim();
+      if (!key || value <= 0 || !from) {
+        showCalculationNote("calculationParameterNote", "Parametre, pozitif değer ve yürürlük tarihi zorunludur.", true);
         return;
       }
-      const row = {
-        id: editingAttorneyTariffId || calculationSettingId("VT", calculationSettings.attorneyFeeTariffs),
-        name,
-        from,
-        to,
-        regularMinimum,
-        evictionMinimum,
-        brackets,
-        updatedAt: currentIsoDate()
-      };
-      if (editingAttorneyTariffId) {
-        calculationSettings.attorneyFeeTariffs = calculationSettings.attorneyFeeTariffs.map(tariff =>
-          tariff.id === editingAttorneyTariffId ? row : tariff
-        );
-      } else {
-        calculationSettings.attorneyFeeTariffs.push(row);
+      try {
+        await appRepository.updateCalculationParameter({ key, value, from, description });
+        await loadCalculationTools({ refreshView: true });
+        event.currentTarget.reset();
+        showCalculationNote("calculationParameterNote", "Yeni parametre dönemi kaydedildi.");
+      } catch (error) {
+        console.error("İcra hesaplama parametresi kaydedilemedi.", error);
+        showCalculationNote("calculationParameterNote", "Parametre kaydedilemedi.", true);
       }
-      persistCalculationSettings();
-      renderAttorneyFeeSettings();
-      resetAttorneyFeeSettingForm();
-      showCalculationNote("attorneyFeeSettingsNote", "Vekâlet ücreti tarifesi kaydedildi ve dosya hesapları güncellendi.");
     });
 
     document.getElementById("taskForm").addEventListener("submit", async event => {
@@ -19981,9 +20421,9 @@
             finalizedAmount: accountValues.finalizedAmount.toFixed(2),
             currentDebt: accountValues.currentDebt.toFixed(2),
             interestType: document.getElementById("caseInterestType").value,
-            interestRate: document.getElementById("caseInterestRate").value,
+            interestRate: document.getElementById("caseInterestRate").dataset.official === "true" ? "" : document.getElementById("caseInterestRate").value,
             interestStart: document.getElementById("caseFollowUpDate").value,
-            accountDate: currentIsoDate(),
+            accountDate: currentEnforcementAccountDate(),
             postInterest: accountValues.postInterest.toFixed(2),
             feeRate: document.getElementById("caseFeeRate").value,
             fees: accountValues.fees.toFixed(2),
@@ -20003,9 +20443,9 @@
               finalizedAmount: accountValues.finalizedAmount.toFixed(2),
               currentDebt: accountValues.currentDebt.toFixed(2),
               interestType: document.getElementById("caseInterestType").value,
-              interestRate: document.getElementById("caseInterestRate").value,
+              interestRate: document.getElementById("caseInterestRate").dataset.official === "true" ? "" : document.getElementById("caseInterestRate").value,
               interestStart: document.getElementById("caseFollowUpDate").value,
-              accountDate: currentIsoDate(),
+              accountDate: currentEnforcementAccountDate(),
               postInterest: accountValues.postInterest.toFixed(2),
               feeRate: document.getElementById("caseFeeRate").value,
               fees: accountValues.fees.toFixed(2),

@@ -40,6 +40,7 @@
     "cleanup:legacy-settings": "node scripts/cleanup-legacy-settings.mjs",
     "restore:legacy-settings": "node scripts/restore-legacy-settings.mjs",
     "test:e2e": "playwright test",
+    "test:calculations": "node --test tests/unit/enforcement-calculation.test.js tests/unit/enforcement-parity.test.js",
     "test:e2e:smoke": "playwright test tests/e2e/auth.spec.js tests/e2e/dashboard.spec.js --project=desktop",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:report": "playwright show-report test-artifacts/reports"

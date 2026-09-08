@@ -1,3 +1,10 @@
+import {
+  buildCalculationTools,
+  fetchAllSupabaseRows,
+  validateAttorneyFeeTimeline,
+  validateInterestTimeline
+} from "../src/calculations/calculationTools.js";
+
 export class SupabaseRepository {
   constructor(supabaseClient) {
     this.supabase = supabaseClient;
@@ -1489,6 +1496,132 @@ export class SupabaseRepository {
       throw error;
     }
     return data;
+  }
+
+  async getCalculationTools() {
+    if (!this.available) return buildCalculationTools();
+    const [interestRates, attorneyFeeTariffs, parameters] = await Promise.all([
+      fetchAllSupabaseRows(() => this.supabase
+        .from("interest_rates")
+        .select("id,legacy_id,interest_type,from_date,to_date,rate,source,is_active,description,metadata,created_at,updated_at,deleted_at,created_by_profile:profiles!interest_rates_created_by_profile_id_fkey(id,display_name),updated_by_profile:profiles!interest_rates_updated_by_profile_id_fkey(id,display_name)")
+        .is("deleted_at", null)
+        .order("interest_type", { ascending: true })
+        .order("from_date", { ascending: true })),
+      fetchAllSupabaseRows(() => this.supabase
+        .from("attorney_fee_tariffs")
+        .select("id,legacy_id,name,tariff_year,scope,from_date,to_date,regular_minimum,eviction_minimum,maximum_amount,is_active,description,metadata,created_at,updated_at,deleted_at,created_by_profile:profiles!attorney_fee_tariffs_created_by_profile_id_fkey(id,display_name),updated_by_profile:profiles!attorney_fee_tariffs_updated_by_profile_id_fkey(id,display_name),attorney_fee_brackets(id,sequence_no,limit_amount,rate,is_active,metadata,created_at,updated_at,deleted_at)")
+        .is("deleted_at", null)
+        .order("from_date", { ascending: true })),
+      fetchAllSupabaseRows(() => this.supabase
+        .from("calculation_parameters")
+        .select("id,parameter_group,parameter_key,label,numeric_value,text_value,unit,from_date,to_date,is_active,description,metadata,created_at,updated_at,deleted_at,created_by_profile:profiles!calculation_parameters_created_by_profile_id_fkey(id,display_name),updated_by_profile:profiles!calculation_parameters_updated_by_profile_id_fkey(id,display_name)")
+        .is("deleted_at", null)
+        .order("parameter_group", { ascending: true })
+        .order("parameter_key", { ascending: true })
+        .order("from_date", { ascending: true, nullsFirst: true }))
+    ]);
+    return buildCalculationTools({ interestRates, attorneyFeeTariffs, parameters });
+  }
+
+  async getInterestTypes() {
+    return (await this.getCalculationTools()).interestTypes;
+  }
+
+  async getInterestRateHistory(type) {
+    return (await this.getCalculationTools()).interestRates.filter(item => !type || item.type === type);
+  }
+
+  async getEffectiveInterestRate(type, dateValue) {
+    const rows = await this.getInterestRateHistory(type);
+    return rows
+      .filter(item => item.active && item.from <= dateValue && (!item.to || dateValue <= item.to))
+      .sort((a, b) => b.from.localeCompare(a.from))[0] || null;
+  }
+
+  async validateInterestRateTimeline(type) {
+    return validateInterestTimeline(await this.getInterestRateHistory(type), type);
+  }
+
+  async getAttorneyFeeTariffs(filters = {}) {
+    const rows = (await this.getCalculationTools()).attorneyFeeTariffs;
+    return rows.filter(item => !filters.scope || item.scope === filters.scope);
+  }
+
+  async getAttorneyFeeTariffHistory(scope = "") {
+    return this.getAttorneyFeeTariffs({ scope });
+  }
+
+  async validateAttorneyFeeTimeline(scope = "") {
+    return validateAttorneyFeeTimeline(await this.getAttorneyFeeTariffHistory(scope), scope);
+  }
+
+  async getEnforcementCalculationParameters(key = "") {
+    return (await this.getCalculationTools()).parameters.filter(item => !key || item.key === key);
+  }
+
+  async createInterestRatePeriod(row) {
+    return this.calculationRpc("create_interest_rate_period", {
+      p_interest_type: row.type,
+      p_rate: Number(row.rate),
+      p_effective_from: row.from,
+      p_description: row.description || null,
+      p_source: row.source || "Manuel"
+    });
+  }
+
+  async updateInterestRatePeriod(row) {
+    return this.calculationRpc("update_interest_rate_period_end", {
+      p_interest_rate_id: row.id,
+      p_effective_to: row.to || null,
+      p_description: row.description || null
+    });
+  }
+
+  async deactivateInterestRatePeriod(id) {
+    return this.calculationRpc("deactivate_interest_rate_period", { p_interest_rate_id: id });
+  }
+
+  async createAttorneyFeeTariff(row) {
+    return this.calculationRpc("create_attorney_fee_tariff", {
+      p_name: row.name,
+      p_tariff_year: Number(row.year),
+      p_scope: row.scope || "İcra",
+      p_effective_from: row.from,
+      p_regular_minimum: Number(row.regularMinimum),
+      p_eviction_minimum: Number(row.evictionMinimum),
+      p_maximum_amount: row.maximumAmount === null || row.maximumAmount === "" ? null : Number(row.maximumAmount),
+      p_description: row.description || null,
+      p_brackets: row.brackets || []
+    });
+  }
+
+  async deactivateAttorneyFeeTariff(id) {
+    return this.calculationRpc("deactivate_attorney_fee_tariff", { p_tariff_id: id });
+  }
+
+  async updateCalculationParameter(row) {
+    return this.calculationRpc("create_calculation_parameter_period", {
+      p_parameter_key: row.key,
+      p_numeric_value: Number(row.value),
+      p_effective_from: row.from,
+      p_description: row.description || null
+    });
+  }
+
+  async calculationRpc(name, params = {}) {
+    if (!this.available) return null;
+    const { data, error } = await this.supabase.rpc(name, params);
+    if (error) {
+      console.error("[BKT calculation tools] Supabase RPC failed.", {
+        name,
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint
+      });
+      throw error;
+    }
+    return Array.isArray(data) ? data[0] || null : data;
   }
 
   async getOfficeExpenseCategories() {

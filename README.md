@@ -34,6 +34,10 @@ Aktif tablolar:
 - `office_expense_recurring_templates`
 - `office_expense_budgets`
 - `office_expense_partner_shares`
+- `interest_rates`
+- `attorney_fee_tariffs`
+- `attorney_fee_brackets`
+- `calculation_parameters`
 
 `public.settings` yalnızca gerçek uygulama tercihi/ayar kaydı için kullanılmalıdır. Eski `hukukBurosuTakipDemo.v2` JSON kaydı migration yedeği olarak durabilir; temizleme işlemi dry-run scriptleriyle kontrollü yapılır.
 
@@ -70,6 +74,20 @@ Ofis Giderleri modülü harcamaları, tekrarlayan gider şablonlarını, aylık/
 Silme işlemleri hard delete değildir; gider, şablon ve bütçe kayıtları yetki kontrollü RPC fonksiyonlarıyla `deleted_at` üzerinden kapatılır. Bütçe ve ortak payı yönetimi `manageUsers`, gider CRUD işlemleri mevcut `create/edit/delete` izinleriyle sınırlandırılır. Ortak paylarının toplamı yüzde 100 değilse mahsuplaşma hesaplanmaz.
 
 Bu modülde belge, fiş veya PDF yükleme bulunmaz ve Supabase Storage kullanılmaz.
+
+## Hesaplama Araçları
+
+Faiz tarifeleri, vekâlet ücreti tarifeleri ve icra hesabında kullanılan genel parametreler sistem genelidir ve `Ayarlar → Hesaplama Araçları` altında yönetilir. İcra dosyası ekranında yalnızca dosyaya özgü faiz türü, faiz başlangıç tarihi, asıl alacak, takip öncesi faiz, harç seçimi, masraf ve tahsil edilen tutar gibi alanlar bulunur.
+
+- Faiz oranları `interest_rates` tablosunda yürürlük başlangıç/bitiş tarihleriyle tarihçeli tutulur. Yeni oran geçmiş dönemi ezmez.
+- Vekâlet ücreti tarifeleri ve nispi dilimleri `attorney_fee_tariffs` ile `attorney_fee_brackets` tablolarında tarihçeli tutulur.
+- Tahsil harcı seçenekleri, çek tazminatı, bono komisyonu ve faiz gün bazı `calculation_parameters` tablosundan okunur.
+- Merkezi tarifeler yalnızca `manageUsers` yetkili kullanıcıların çağırabildiği güvenli RPC fonksiyonlarıyla değiştirilebilir. Aktif kullanıcılar tarihçeyi salt okunur görebilir.
+- Adi kanuni faiz dahil merkezi faizler, başlangıç günü hariç ve hesap günü dahil olacak şekilde yürürlük dönemlerine ayrılarak hesaplanır. Mevcut icra dosyasının güncel kapak hesabı yeniden açıldığında güncel tarihçe kullanılır.
+- Dosyaya özgü özel/sözleşmesel oran, merkezi tarifesi bulunmayan faiz türlerinde ayrı tutulur; merkezi oranın yerine dosyaya genel oran snapshot'ı yazılmaz.
+- Kapak hesabı ekranı ve yeni PDF çıktısı kullanılan faiz dönemleri ile vekâlet ücreti tarifesini denetim dökümünde gösterir. Daha önce oluşturulup dışarı kaydedilmiş PDF belgeleri kendiliğinden değişmez.
+
+Mevcut tahsilat alanı tarihçeli ödeme hareketi değil, tek bir toplu “tahsil edilen/yatan para” değeridir. Bu nedenle gün bazlı kısmi tahsilat sonrası ana para azaltımı modellenmez; mevcut iş kuralı gereği toplam tahsilat hesap sonunda bakiyeden düşülür.
 
 ## Ortam Değişkenleri
 
