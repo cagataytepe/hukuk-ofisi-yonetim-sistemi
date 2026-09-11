@@ -26,7 +26,7 @@ jobs:
       ANDROID_PLATFORM: android-36
       ANDROID_BUILD_TOOLS: 35.0.0
       NDK_VERSION: 27.0.12077973
-      EMULATOR_API_LEVEL: 35
+      EMULATOR_API_LEVEL: 34
 
     steps:
       - name: Check out application source
@@ -239,10 +239,26 @@ jobs:
           echo "app_pid=${APP_PID}" >> "${METADATA}"
           echo "process_stable=true" >> "${METADATA}"
 
-          if ! adb shell dumpsys activity activities | grep -q "${PACKAGE_ID}"; then
-            echo "Application activity is not present in ActivityManager state."
+          RESUMED_ACTIVITY="$(adb shell dumpsys activity activities | tr -d '\r' \
+            | grep -E 'mResumedActivity|topResumedActivity' | head -n 1 || true)"
+          if [[ "${RESUMED_ACTIVITY}" != *"${PACKAGE_ID}"* ]]; then
+            echo "Application is not the resumed foreground activity: ${RESUMED_ACTIVITY}"
             exit 1
           fi
+
+          WINDOW_STATE="$(adb shell dumpsys window | tr -d '\r')"
+          FOCUSED_WINDOW="$(grep -E 'mCurrentFocus=' <<< "${WINDOW_STATE}" | head -n 1 || true)"
+          if [[ "${FOCUSED_WINDOW}" != *"${PACKAGE_ID}"* ]]; then
+            echo "Application window is not focused: ${FOCUSED_WINDOW}"
+            exit 1
+          fi
+          if grep -Eqi 'AppNotRespondingDialog|Application Not Responding|isn.t responding' <<< "${WINDOW_STATE}"; then
+            echo "An Android system not-responding dialog is visible."
+            exit 1
+          fi
+          echo "foreground_activity=passed" >> "${METADATA}"
+          echo "focused_window=passed" >> "${METADATA}"
+          echo "system_dialog_detected=false" >> "${METADATA}"
 
           capture_diagnostics
           trap - EXIT
@@ -276,11 +292,11 @@ jobs:
         env:
           SMOKE_APK: ${{ steps.smoke-apk.outputs.path }}
         with:
-          api-level: 35
-          target: google_apis
+          api-level: ${{ env.EMULATOR_API_LEVEL }}
+          target: default
           arch: x86_64
           profile: pixel_5
-          cores: 2
+          cores: 4
           ram-size: 4096M
           emulator-boot-timeout: 600
           force-avd-creation: true
