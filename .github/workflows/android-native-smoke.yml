@@ -1,0 +1,310 @@
+name: Android Native Runtime Smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-native-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-native-smoke:
+    name: Build and launch x86_64 APK on emulator
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      SOURCE_SHA: 88b7fb85409b58734d5f788c2cb6695b5b152851
+      PACKAGE_ID: tr.com.bkthukuk.ofisyonetim
+      ANDROID_PLATFORM: android-36
+      ANDROID_BUILD_TOOLS: 35.0.0
+      NDK_VERSION: 27.0.12077973
+      EMULATOR_API_LEVEL: 35
+
+    steps:
+      - name: Check out application source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+
+      - name: Verify application source SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          ACTUAL_SHA="$(git rev-parse HEAD)"
+          echo "Android smoke application source SHA: ${ACTUAL_SHA}"
+          test "${ACTUAL_SHA}" = "${SOURCE_SHA}"
+          echo "### Android native smoke provenance" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Source SHA: \`${ACTUAL_SHA}\`" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Emulator: API ${EMULATOR_API_LEVEL}, x86_64" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform, build tools and NDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME}}"
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager \
+            "platform-tools" \
+            "platforms;${ANDROID_PLATFORM}" \
+            "build-tools;${ANDROID_BUILD_TOOLS}" \
+            "ndk;${NDK_VERSION}"
+          test -d "${SDK_ROOT}/ndk/${NDK_VERSION}"
+          echo "ANDROID_HOME=${SDK_ROOT}" >> "${GITHUB_ENV}"
+          echo "ANDROID_SDK_ROOT=${SDK_ROOT}" >> "${GITHUB_ENV}"
+          echo "NDK_HOME=${SDK_ROOT}/ndk/${NDK_VERSION}" >> "${GITHUB_ENV}"
+          echo "ANDROID_NDK_HOME=${SDK_ROOT}/ndk/${NDK_VERSION}" >> "${GITHUB_ENV}"
+
+      - name: Set up Rust x86_64 Android target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-linux-android
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          cache-on-failure: true
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Run calculation unit and parity tests
+        run: npm run test:calculations
+
+      - name: Check browser sources for privileged Supabase secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RIEq \
+            --exclude-dir=node_modules \
+            --exclude-dir=.git \
+            --exclude-dir=test-artifacts \
+            --exclude-dir=playwright-report \
+            'SUPABASE_SERVICE_ROLE_KEY[[:space:]]*[:=]|sb_secret_[A-Za-z0-9_-]{20,}' \
+            mobile.html src services outputs/supabase-config.js; then
+            echo "Privileged Supabase secret pattern detected in browser sources."
+            exit 1
+          fi
+
+      - name: Build mobile frontend
+        run: npm run build
+
+      - name: Verify mobile production entry
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s dist/mobile.html
+          if grep -RIEq 'SUPABASE_SERVICE_ROLE_KEY|sb_secret_[A-Za-z0-9_-]{20,}' dist; then
+            echo "Privileged Supabase secret pattern detected in production assets."
+            exit 1
+          fi
+
+      - name: Initialize Android project
+        run: npm run tauri -- android init --ci --skip-targets-install
+
+      - name: Build CI-only x86_64 debug APK
+        run: npm run tauri -- android build --debug --apk --target x86_64 --ci
+
+      - name: Locate x86_64 test APK
+        id: smoke-apk
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUTPUT_ROOT="src-tauri/gen/android/app/build/outputs"
+          mapfile -t APK_FILES < <(find "${OUTPUT_ROOT}" -type f -name '*.apk' | sort)
+          if [[ ${#APK_FILES[@]} -eq 0 ]]; then
+            echo "Android build completed without an APK under ${OUTPUT_ROOT}."
+            exit 1
+          fi
+
+          X86_64_APK=""
+          for APK_FILE in "${APK_FILES[@]}"; do
+            if unzip -l "${APK_FILE}" | grep -qE 'lib/x86_64/.*\.so$'; then
+              X86_64_APK="${APK_FILE}"
+              break
+            fi
+          done
+
+          if [[ -z "${X86_64_APK}" ]]; then
+            printf 'Generated APKs do not contain an x86_64 native library:\n%s\n' "${APK_FILES[*]}"
+            exit 1
+          fi
+
+          "${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS}/apksigner" verify \
+            --verbose \
+            "${X86_64_APK}"
+          echo "path=${X86_64_APK}" >> "${GITHUB_OUTPUT}"
+          echo "CI-only x86_64 APK: ${X86_64_APK}"
+
+      - name: Prepare native smoke script
+        shell: bash
+        env:
+          SMOKE_APK: ${{ steps.smoke-apk.outputs.path }}
+        run: |
+          set -euo pipefail
+          cat > "${RUNNER_TEMP}/android-native-smoke.sh" <<'SMOKE_SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          ARTIFACT_DIR="${GITHUB_WORKSPACE}/artifacts/android-native-smoke"
+          RAW_LOG="${RUNNER_TEMP}/android-smoke-logcat-raw.txt"
+          SAFE_LOG="${ARTIFACT_DIR}/android-smoke-logcat.txt"
+          SCREENSHOT="${ARTIFACT_DIR}/android-smoke-screenshot.png"
+          METADATA="${ARTIFACT_DIR}/android-smoke-metadata.txt"
+          mkdir -p "${ARTIFACT_DIR}"
+
+          capture_diagnostics() {
+            adb exec-out screencap -p > "${SCREENSHOT}" 2>/dev/null || true
+            adb logcat -d -b main -b system -b crash -v threadtime > "${RAW_LOG}" 2>/dev/null || true
+            grep -E "${PACKAGE_ID}|AndroidRuntime|ActivityManager|ActivityTaskManager|chromium|WebView|Tauri|crash_dump" "${RAW_LOG}" 2>/dev/null \
+              | sed -E \
+                -e 's/(access_token|refresh_token|id_token|authorization|apikey|password)([=:][^[:space:]&"]*)/\1=[REDACTED]/Ig' \
+                -e 's/Bearer[[:space:]]+[A-Za-z0-9._~+\/=:-]+/Bearer [REDACTED]/Ig' \
+                -e 's/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/[REDACTED_EMAIL]/g' \
+              > "${SAFE_LOG}" || true
+            if [[ ! -s "${SAFE_LOG}" ]]; then
+              echo "No package-specific or fatal runtime log entries were emitted." > "${SAFE_LOG}"
+            fi
+          }
+          trap capture_diagnostics EXIT
+
+          echo "source_sha=${SOURCE_SHA}" > "${METADATA}"
+          echo "emulator_api=${EMULATOR_API_LEVEL}" >> "${METADATA}"
+          echo "emulator_arch=x86_64" >> "${METADATA}"
+          echo "package_id=${PACKAGE_ID}" >> "${METADATA}"
+
+          adb wait-for-device
+          adb install -r "${SMOKE_APK}"
+          echo "adb_install=passed" >> "${METADATA}"
+          PACKAGE_PATH="$(adb shell pm path "${PACKAGE_ID}" | tr -d '\r')"
+          if [[ "${PACKAGE_PATH}" != package:* ]]; then
+            echo "Expected package ${PACKAGE_ID} was not installed."
+            exit 1
+          fi
+          echo "installed_package_path=${PACKAGE_PATH}" >> "${METADATA}"
+
+          LAUNCHER_ACTIVITY="$(adb shell cmd package resolve-activity --brief \
+            -a android.intent.action.MAIN \
+            -c android.intent.category.LAUNCHER \
+            "${PACKAGE_ID}" | tr -d '\r' | tail -n 1)"
+          if [[ "${LAUNCHER_ACTIVITY}" != "${PACKAGE_ID}/"* ]]; then
+            echo "Launcher activity could not be resolved for ${PACKAGE_ID}: ${LAUNCHER_ACTIVITY}"
+            exit 1
+          fi
+          echo "launcher_activity=${LAUNCHER_ACTIVITY}" >> "${METADATA}"
+
+          adb logcat -c
+          LAUNCH_OUTPUT="$(adb shell am start -W -n "${LAUNCHER_ACTIVITY}" | tr -d '\r')"
+          echo "${LAUNCH_OUTPUT}"
+          if ! grep -q 'Status: ok' <<< "${LAUNCH_OUTPUT}"; then
+            echo "Android activity launch did not report Status: ok."
+            exit 1
+          fi
+
+          sleep 15
+          APP_PID="$(adb shell pidof "${PACKAGE_ID}" | tr -d '\r' | awk '{print $1}')"
+          if [[ -z "${APP_PID}" ]]; then
+            echo "Application process exited during startup."
+            exit 1
+          fi
+          sleep 5
+          APP_PID_AFTER="$(adb shell pidof "${PACKAGE_ID}" | tr -d '\r' | awk '{print $1}')"
+          if [[ -z "${APP_PID_AFTER}" || "${APP_PID_AFTER}" != "${APP_PID}" ]]; then
+            echo "Application process did not remain stable after launch."
+            exit 1
+          fi
+          echo "app_pid=${APP_PID}" >> "${METADATA}"
+          echo "process_stable=true" >> "${METADATA}"
+
+          if ! adb shell dumpsys activity activities | grep -q "${PACKAGE_ID}"; then
+            echo "Application activity is not present in ActivityManager state."
+            exit 1
+          fi
+
+          capture_diagnostics
+          trap - EXIT
+          test -s "${SCREENSHOT}"
+          if ! file "${SCREENSHOT}" | grep -q 'PNG image data'; then
+            echo "Emulator screenshot is not a valid PNG."
+            exit 1
+          fi
+
+          if grep -Eqi "Process: ${PACKAGE_ID}|Fatal signal.*${PACKAGE_ID}|Tauri.*(panic|fatal)|WebView.*(crash|renderer process.*gone)|chromium.*(crash|renderer process.*gone)" "${RAW_LOG}"; then
+            echo "Fatal Android/Tauri/WebView runtime error detected."
+            exit 1
+          fi
+
+          echo "fatal_runtime_detected=false" >> "${METADATA}"
+          echo "launch_status=passed" >> "${METADATA}"
+          echo "Android native runtime smoke passed for ${PACKAGE_ID} with PID ${APP_PID}."
+          SMOKE_SCRIPT
+          chmod +x "${RUNNER_TEMP}/android-native-smoke.sh"
+
+      - name: Enable KVM
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Install and launch APK on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2.34.0
+        env:
+          SMOKE_APK: ${{ steps.smoke-apk.outputs.path }}
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_5
+          cores: 2
+          ram-size: 4096M
+          emulator-boot-timeout: 600
+          force-avd-creation: true
+          disable-animations: true
+          emulator-options: -no-snapshot-load -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          script: bash "${RUNNER_TEMP}/android-native-smoke.sh"
+
+      - name: Summarize native smoke
+        if: success()
+        shell: bash
+        run: |
+          {
+            echo "### Android native runtime smoke"
+            echo "- CI-only APK: x86_64 debug"
+            echo "- adb install: passed"
+            echo "- Package: \`${PACKAGE_ID}\`"
+            echo "- Launch/process check: passed"
+            echo "- AndroidRuntime/Tauri/WebView fatal error: none"
+            echo "- ARM64 distribution artifact: unchanged"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload Android smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: BKT-Hukuk-Android-Native-Smoke
+          path: |
+            artifacts/android-native-smoke/android-smoke-screenshot.png
+            artifacts/android-native-smoke/android-smoke-logcat.txt
+            artifacts/android-native-smoke/android-smoke-metadata.txt
+          if-no-files-found: warn
+          retention-days: 14
