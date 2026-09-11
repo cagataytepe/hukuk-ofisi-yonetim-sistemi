@@ -60,13 +60,15 @@ jobs:
         shell: pwsh
         run: |
           git grep -q -E 'SUPABASE_SERVICE_ROLE_KEY[[:space:]]*[:=]|sb_secret_[A-Za-z0-9_-]{20,}' -- mobile.html src services outputs/supabase-config.js
-          if ($LASTEXITCODE -eq 0) {
+          $grepExitCode = $LASTEXITCODE
+          if ($grepExitCode -eq 0) {
             Write-Error "Privileged Supabase secret pattern detected in browser sources."
             exit 1
           }
-          if ($LASTEXITCODE -ne 1) {
-            throw "Secret scan command failed with exit code $LASTEXITCODE"
+          if ($grepExitCode -ne 1) {
+            throw "Secret scan command failed with exit code $grepExitCode"
           }
+          $global:LASTEXITCODE = 0
 
       - name: Run calculation unit and parity tests
         run: npm run test:calculations

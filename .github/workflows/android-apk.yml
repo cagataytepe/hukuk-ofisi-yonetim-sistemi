@@ -5,7 +5,6 @@ on:
   push:
     branches:
       - codex/android-apk-ci
-      - codex/enforcement-calculation-parity
 
 permissions:
   contents: read
