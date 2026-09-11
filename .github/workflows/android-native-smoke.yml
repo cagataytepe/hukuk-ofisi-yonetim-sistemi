@@ -2,6 +2,11 @@ name: Android Native Runtime Smoke
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - codex/enforcement-calculation-parity
+    paths:
+      - .github/workflows/android-native-smoke.yml
 
 permissions:
   contents: read
