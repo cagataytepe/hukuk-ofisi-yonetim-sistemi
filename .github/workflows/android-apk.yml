@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - codex/android-apk-ci
+      - codex/enforcement-calculation-parity
 
 permissions:
   contents: read
@@ -19,6 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
+      SOURCE_SHA: 88b7fb85409b58734d5f788c2cb6695b5b152851
       ANDROID_PLATFORM: android-36
       ANDROID_BUILD_TOOLS: 35.0.0
       NDK_VERSION: 27.0.12077973
@@ -26,6 +28,18 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+
+      - name: Verify application source SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          ACTUAL_SHA="$(git rev-parse HEAD)"
+          echo "Android application source SHA: ${ACTUAL_SHA}"
+          test "${ACTUAL_SHA}" = "${SOURCE_SHA}"
+          echo "### Android source provenance" >> "${GITHUB_STEP_SUMMARY}"
+          echo "\`${ACTUAL_SHA}\`" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -76,11 +90,14 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Run calculation unit and parity tests
+        run: npm run test:calculations
+
       - name: Check browser sources for privileged Supabase secrets
         shell: bash
         run: |
           set -euo pipefail
-          if grep -RInE \
+          if grep -RIEq \
             --exclude-dir=node_modules \
             --exclude-dir=.git \
             --exclude-dir=test-artifacts \
@@ -99,7 +116,7 @@ jobs:
         run: |
           set -euo pipefail
           test -s dist/mobile.html
-          if grep -RInE 'SUPABASE_SERVICE_ROLE_KEY|sb_secret_[A-Za-z0-9_-]{20,}' dist; then
+          if grep -RIEq 'SUPABASE_SERVICE_ROLE_KEY|sb_secret_[A-Za-z0-9_-]{20,}' dist; then
             echo "Privileged Supabase secret pattern detected in production assets."
             exit 1
           fi
@@ -141,12 +158,27 @@ jobs:
             --verbose \
             --print-certs \
             artifacts/BKT-Hukuk-arm64-debug.apk
+          (
+            cd artifacts
+            sha256sum BKT-Hukuk-arm64-debug.apk > SHA256SUMS.txt
+          )
+          APK_SIZE="$(stat -c%s artifacts/BKT-Hukuk-arm64-debug.apk)"
+          APK_SHA256="$(sha256sum artifacts/BKT-Hukuk-arm64-debug.apk | cut -d' ' -f1)"
+          echo "APK size: ${APK_SIZE} bytes"
+          echo "APK SHA256: ${APK_SHA256}"
+          echo "### Android artifact" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Source SHA: \`${SOURCE_SHA}\`" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- File: \`BKT-Hukuk-arm64-debug.apk\`" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Size: ${APK_SIZE} bytes" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- SHA256: \`${APK_SHA256}\`" >> "${GITHUB_STEP_SUMMARY}"
           echo "path=artifacts/BKT-Hukuk-arm64-debug.apk" >> "${GITHUB_OUTPUT}"
 
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
           name: BKT-Hukuk-Android-Debug
-          path: ${{ steps.apk.outputs.path }}
+          path: |
+            ${{ steps.apk.outputs.path }}
+            artifacts/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 14

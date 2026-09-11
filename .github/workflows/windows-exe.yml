@@ -1,0 +1,126 @@
+name: Windows NSIS Release Candidate
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex/enforcement-calculation-parity
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-exe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-windows-exe:
+    name: Build Windows NSIS installer
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      SOURCE_SHA: 88b7fb85409b58734d5f788c2cb6695b5b152851
+
+    steps:
+      - name: Check out application source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+
+      - name: Verify application source SHA
+        shell: pwsh
+        run: |
+          $actualSha = (git rev-parse HEAD).Trim()
+          Write-Host "Windows application source SHA: $actualSha"
+          if ($actualSha -ne $env:SOURCE_SHA) {
+            throw "Unexpected application source SHA: $actualSha"
+          }
+          "### Windows source provenance" | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+          "``$actualSha``" | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          cache-on-failure: true
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Check browser sources for privileged Supabase secrets
+        shell: pwsh
+        run: |
+          git grep -q -E 'SUPABASE_SERVICE_ROLE_KEY[[:space:]]*[:=]|sb_secret_[A-Za-z0-9_-]{20,}' -- mobile.html src services outputs/supabase-config.js
+          if ($LASTEXITCODE -eq 0) {
+            Write-Error "Privileged Supabase secret pattern detected in browser sources."
+            exit 1
+          }
+          if ($LASTEXITCODE -ne 1) {
+            throw "Secret scan command failed with exit code $LASTEXITCODE"
+          }
+
+      - name: Run calculation unit and parity tests
+        run: npm run test:calculations
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Verify desktop production entry
+        shell: pwsh
+        run: |
+          if (-not (Test-Path -LiteralPath "dist/index.html" -PathType Leaf)) {
+            throw "Desktop build completed without dist/index.html."
+          }
+          $matches = Get-ChildItem -LiteralPath dist -File -Recurse | Select-String -Pattern 'SUPABASE_SERVICE_ROLE_KEY|sb_secret_[A-Za-z0-9_-]{20,}'
+          if ($matches) {
+            Write-Error "Privileged Supabase secret pattern detected in production assets."
+            exit 1
+          }
+
+      - name: Build NSIS installer
+        run: npm run tauri -- build --bundles nsis
+
+      - name: Locate, verify and name installer
+        id: installer
+        shell: pwsh
+        run: |
+          $installers = @(Get-ChildItem -LiteralPath "src-tauri/target/release/bundle/nsis" -Filter "*.exe" -File -Recurse | Sort-Object FullName)
+          if ($installers.Count -eq 0) {
+            throw "Windows build completed without an NSIS installer."
+          }
+          New-Item -ItemType Directory -Path artifacts -Force | Out-Null
+          $target = "artifacts/BKT-Hukuk-Setup.exe"
+          Copy-Item -LiteralPath $installers[0].FullName -Destination $target
+          $hash = (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLowerInvariant()
+          $size = (Get-Item -LiteralPath $target).Length
+          "$hash  BKT-Hukuk-Setup.exe" | Set-Content -LiteralPath "artifacts/SHA256SUMS.txt" -Encoding ascii
+          $signature = Get-AuthenticodeSignature -LiteralPath $target
+          Write-Host "EXE size: $size bytes"
+          Write-Host "EXE SHA256: $hash"
+          Write-Host "Authenticode status: $($signature.Status)"
+          "### Windows artifact" | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+          "- Source SHA: ``$env:SOURCE_SHA``" | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+          "- File: ``BKT-Hukuk-Setup.exe``" | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+          "- Size: $size bytes" | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+          "- SHA256: ``$hash``" | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+          "- Authenticode: $($signature.Status)" | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+          "path=$target" | Add-Content -Path $env:GITHUB_OUTPUT
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: BKT-Hukuk-Windows
+          path: |
+            ${{ steps.installer.outputs.path }}
+            artifacts/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
