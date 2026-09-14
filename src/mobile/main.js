@@ -1,4 +1,5 @@
 import "../../outputs/supabase-config.js";
+import bktLogoUrl from "../../outputs/bkt-logo.png";
 import {
   accountDateInTimeZone,
   calculateMobileEnforcementAccount
@@ -1040,7 +1041,7 @@ function renderLogin(message = "") {
     <section class="mobile-login-hero" aria-label="BKT Hukuk ve Danışmanlık Bürosu">
       <div class="mobile-login-hero-inner">
         <div class="mobile-brand">
-          <span class="mobile-brand-mark"><img src="/outputs/bkt-logo.png" alt="BKT Hukuk logosu"/></span>
+          <span class="mobile-brand-mark"><img src="${escapeHtml(bktLogoUrl)}" alt="BKT Hukuk logosu"/></span>
           <span class="mobile-brand-copy">
             <strong>BKT</strong>
             <span>Hukuk ve Danışmanlık Bürosu</span>

@@ -46,6 +46,19 @@ test("ayrı mobil shell temel görüntüleme akışlarını çalıştırır", as
   const { email, password } = e2eCredentials();
 
   await page.goto("/mobile.html");
+  const loginLogo = page.getByRole("img", { name: "BKT Hukuk logosu" });
+  await expect(loginLogo).toBeVisible();
+  await expect.poll(() => loginLogo.evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true);
+  const logoRender = await loginLogo.evaluate(image => ({
+    src: image.currentSrc || image.src,
+    complete: image.complete,
+    naturalWidth: image.naturalWidth,
+    naturalHeight: image.naturalHeight
+  }));
+  expect(logoRender.src).toBeTruthy();
+  expect(logoRender.complete).toBe(true);
+  expect(logoRender.naturalWidth).toBeGreaterThan(0);
+  expect(logoRender.naturalHeight).toBeGreaterThan(0);
   await expect(page.locator("#mobileEmail")).toBeVisible();
   await page.locator("#mobileEmail").fill(email);
   await page.locator("#mobilePassword").fill(password);
