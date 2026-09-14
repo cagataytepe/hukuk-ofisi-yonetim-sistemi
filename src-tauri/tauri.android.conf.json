@@ -1,0 +1,20 @@
+{
+  "productName": "BKT Hukuk",
+  "build": {
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "BKT Hukuk",
+        "url": "mobile.html",
+        "visible": true,
+        "fullscreen": false
+      }
+    ]
+  },
+  "bundle": {
+    "active": true
+  }
+}

@@ -1,0 +1,114 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import {
+  calculateDesktopEnforcementAccount,
+  calculateMobileEnforcementAccount,
+  toMoneyCents
+} from "../../src/calculations/enforcementAccountAdapters.js";
+import {
+  I1004_ACCOUNT_DATES,
+  I1004_CALCULATION_TOOLS,
+  I1004_DESKTOP_VALUES,
+  I1004_EXPECTED_CENTS,
+  I1004_MOBILE_FILE,
+  I1004_SAVED_SNAPSHOT_DEBT
+} from "../fixtures/enforcement/i-1004.js";
+
+const MONEY_FIELDS = [
+  "principal",
+  "postInterest",
+  "attorneyFee",
+  "collectionFee",
+  "expenses",
+  "payments",
+  "currentDebt"
+];
+
+const STATUTORY_BOUNDARY_DATES = ["2026-07-30", "2026-07-31", "2026-08-01"];
+
+for (const accountDate of I1004_ACCOUNT_DATES) {
+  test(`I-1004 masaüstü ve mobil parity: ${accountDate}`, () => {
+    const desktop = calculateDesktopEnforcementAccount(
+      I1004_DESKTOP_VALUES,
+      I1004_CALCULATION_TOOLS,
+      accountDate
+    );
+    const mobile = calculateMobileEnforcementAccount(
+      I1004_MOBILE_FILE,
+      I1004_CALCULATION_TOOLS,
+      accountDate
+    );
+
+    for (const field of MONEY_FIELDS) {
+      const desktopCents = toMoneyCents(desktop[field]);
+      const mobileCents = toMoneyCents(mobile[field]);
+      assert.equal(mobileCents, desktopCents, `${field} adapter sonucu farklı`);
+      assert.equal(desktopCents, I1004_EXPECTED_CENTS[accountDate][field], `${field} fixture sonucu değişti`);
+    }
+  });
+}
+
+for (const accountDate of STATUTORY_BOUNDARY_DATES) {
+  test(`kanuni faiz sınırında masaüstü ve mobil parity: ${accountDate}`, () => {
+    const desktop = calculateDesktopEnforcementAccount(
+      I1004_DESKTOP_VALUES,
+      I1004_CALCULATION_TOOLS,
+      accountDate
+    );
+    const mobile = calculateMobileEnforcementAccount(
+      I1004_MOBILE_FILE,
+      I1004_CALCULATION_TOOLS,
+      accountDate
+    );
+
+    for (const field of MONEY_FIELDS) {
+      assert.equal(toMoneyCents(mobile[field]), toMoneyCents(desktop[field]), `${field} adapter sonucu farklı`);
+    }
+    assert.deepEqual(mobile.interestPeriods, desktop.interestPeriods);
+    assert.equal(desktop.interestPeriods.at(-1)?.rate, accountDate === "2026-07-30" ? 24 : 31);
+  });
+}
+
+test("mobil canlı hesap varken eski currentDebt snapshot değerini ana bakiye yapmaz", () => {
+  const live = calculateMobileEnforcementAccount(
+    I1004_MOBILE_FILE,
+    I1004_CALCULATION_TOOLS,
+    "2026-09-08"
+  );
+
+  assert.notEqual(toMoneyCents(live.currentDebt), toMoneyCents(I1004_SAVED_SNAPSHOT_DEBT));
+  assert.equal(toMoneyCents(live.currentDebt), I1004_EXPECTED_CENTS["2026-09-08"].currentDebt);
+});
+
+test("masaüstü ve mobil adapter ödeme girdisini aynı motora aynı şekilde taşır", () => {
+  const paymentEvents = [{ id: "payment-1", date: "2026-07-20", amount: 25_000 }];
+  const desktopValues = { ...I1004_DESKTOP_VALUES, paymentEvents };
+  const mobileFile = {
+    ...I1004_MOBILE_FILE,
+    payment_events: paymentEvents
+  };
+  const desktop = calculateDesktopEnforcementAccount(desktopValues, I1004_CALCULATION_TOOLS, "2026-09-08");
+  const mobile = calculateMobileEnforcementAccount(mobileFile, I1004_CALCULATION_TOOLS, "2026-09-08");
+
+  assert.equal(toMoneyCents(desktop.payments), 2_500_000);
+  assert.equal(toMoneyCents(mobile.currentDebt), toMoneyCents(desktop.currentDebt));
+  assert.equal(toMoneyCents(mobile.postInterest), toMoneyCents(desktop.postInterest));
+  assert.equal(toMoneyCents(mobile.principalOutstanding), toMoneyCents(desktop.principalOutstanding));
+  assert.equal(toMoneyCents(mobile.paymentsAppliedToFeriler), toMoneyCents(desktop.paymentsAppliedToFeriler));
+  assert.equal(toMoneyCents(mobile.paymentsAppliedToPrincipal), toMoneyCents(desktop.paymentsAppliedToPrincipal));
+  assert.equal(toMoneyCents(mobile.eligibleCosts), toMoneyCents(desktop.eligibleCosts));
+  assert.equal(toMoneyCents(mobile.attorneyFee), toMoneyCents(desktop.attorneyFee));
+  assert.equal(toMoneyCents(mobile.collectionFee), toMoneyCents(desktop.collectionFee));
+});
+
+test("adapter açık bir accountDate olmadan hesap yapmaz", () => {
+  assert.throws(
+    () => calculateDesktopEnforcementAccount(I1004_DESKTOP_VALUES, I1004_CALCULATION_TOOLS),
+    /accountDate zorunludur/
+  );
+  assert.throws(
+    () => calculateMobileEnforcementAccount(I1004_MOBILE_FILE, I1004_CALCULATION_TOOLS),
+    /accountDate zorunludur/
+  );
+});

@@ -2,10 +2,10 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "BKT Hukuk Büro Yönetim Sistemi",
   "mainBinaryName": "bkt-hukuk-buro-yonetim",
-  "version": "1.3.0-beta.2",
+  "version": "1.3.0-beta.3",
   "identifier": "tr.com.bkthukuk.ofisyonetim",
   "build": {
-    "beforeDevCommand": "npm.cmd run dev -- --host 127.0.0.1",
+    "beforeDevCommand": "npm.cmd run dev",
     "devUrl": "http://127.0.0.1:5173",
     "beforeBuildCommand": "npm.cmd run build",
     "frontendDist": "../dist"

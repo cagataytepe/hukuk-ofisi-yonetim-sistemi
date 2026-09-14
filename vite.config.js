@@ -6,6 +6,7 @@ const appTemplatePath = path.resolve("outputs/hukuk-burosu-takip-sistemi.html");
 const appRuntimeModuleId = "virtual:bkt-app-runtime-url";
 const resolvedAppRuntimeModuleId = `\0${appRuntimeModuleId}`;
 const appRuntimeDevPath = "/__bkt_app_runtime.js";
+const tauriDevHost = process.env.TAURI_DEV_HOST;
 
 function appRuntimeModule() {
   let serveMode = false;
@@ -54,9 +55,16 @@ export default defineConfig({
   clearScreen: false,
   plugins: [appRuntimeModule()],
   server: {
-    host: "127.0.0.1",
+    host: tauriDevHost || "127.0.0.1",
     port: 5173,
     strictPort: true,
+    hmr: tauriDevHost
+      ? {
+          protocol: "ws",
+          host: tauriDevHost,
+          port: 5173
+        }
+      : undefined,
     watch: {
       ignored: [
         "**/node_modules/**",
@@ -65,6 +73,14 @@ export default defineConfig({
         "**/test-artifacts/**",
         "**/playwright-report/**"
       ]
+    }
+  },
+  build: {
+    rollupOptions: {
+      input: {
+        desktop: path.resolve("index.html"),
+        mobile: path.resolve("mobile.html")
+      }
     }
   }
 });
