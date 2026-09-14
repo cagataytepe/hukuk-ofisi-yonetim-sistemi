@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 75
     env:
-      SOURCE_SHA: 88b7fb85409b58734d5f788c2cb6695b5b152851
+      SOURCE_SHA: 02c59aa940934cca54d2e622ce60d36ee1041daf
       PACKAGE_ID: tr.com.bkthukuk.ofisyonetim
       ANDROID_PLATFORM: android-36
       ANDROID_BUILD_TOOLS: 35.0.0
@@ -111,6 +111,9 @@ jobs:
 
       - name: Build mobile frontend
         run: npm run build
+
+      - name: Verify bundled mobile logo asset
+        run: npm run test:mobile-assets
 
       - name: Verify mobile production entry
         shell: bash
