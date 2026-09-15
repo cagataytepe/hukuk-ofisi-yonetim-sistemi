@@ -1111,6 +1111,10 @@ export class SupabaseRepository {
 
   async getCollections(filters = {}) {
     if (!this.available) return [];
+    const fileIds = Array.isArray(filters.fileIds)
+      ? [...new Set(filters.fileIds.filter(Boolean))]
+      : null;
+    if (!filters.fileId && fileIds && fileIds.length === 0) return [];
     try {
       return await fetchAllSupabaseRows(() => {
         let query = this.supabase
@@ -1120,6 +1124,7 @@ export class SupabaseRepository {
           .order("collection_date", { ascending: false })
           .order("created_at", { ascending: false });
         if (filters.fileId) query = query.eq("file_id", filters.fileId);
+        else if (fileIds) query = query.in("file_id", fileIds);
         if (filters.paymentPlanId) query = query.eq("payment_plan_id", filters.paymentPlanId);
         return query;
       });

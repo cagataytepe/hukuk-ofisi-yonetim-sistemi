@@ -25,6 +25,35 @@ export function accountDateInTimeZone(date = new Date(), timeZone = ENFORCEMENT_
   return `${values.year}-${values.month}-${values.day}`;
 }
 
+export function groupActiveCollectionsByFile(collections = []) {
+  const collectionsByFile = new Map();
+  for (const collection of Array.isArray(collections) ? collections : []) {
+    if (collection?.deleted_at || collection?.deletedAt) continue;
+    const fileId = collection?.file_id || collection?.fileId;
+    if (!fileId) continue;
+    if (!collectionsByFile.has(fileId)) collectionsByFile.set(fileId, []);
+    collectionsByFile.get(fileId).push(collection);
+  }
+  return collectionsByFile;
+}
+
+export function buildEnforcementAccountFile(file = {}, collections) {
+  if (!Array.isArray(collections)) {
+    throw new Error("İcra hesabı için tahsilat verisi yüklenmelidir.");
+  }
+  const fileId = file.id || file.file_id || file.fileId;
+  const paymentEvents = collections.filter(collection => {
+    if (collection?.deleted_at || collection?.deletedAt) return false;
+    const collectionFileId = collection?.file_id || collection?.fileId;
+    return !fileId || !collectionFileId || collectionFileId === fileId;
+  });
+  return {
+    ...file,
+    payment_events: paymentEvents,
+    enforcement_collections_hydrated: true
+  };
+}
+
 export function calculateDesktopEnforcementAccount(values = {}, tools = {}, accountDate = "") {
   const calculationDate = requireAccountDate(accountDate || values.accountDate);
   return calculateEnforcementAccount({
