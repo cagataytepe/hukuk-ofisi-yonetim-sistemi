@@ -2,6 +2,8 @@ import "../../outputs/supabase-config.js";
 import bktLogoUrl from "../../outputs/bkt-logo.png";
 import {
   accountDateInTimeZone,
+  buildEnforcementAccountFile,
+  groupActiveCollectionsByFile,
   calculateMobileEnforcementAccount
 } from "../calculations/enforcementAccountAdapters.js";
 
@@ -320,12 +322,13 @@ async function loadCached(key, loader, force = false) {
   return value;
 }
 
-function liveEnforcementAccount(file, calculationTools, paymentEvents = []) {
+function liveEnforcementAccount(file, calculationTools, paymentEvents) {
   if (fileTypeClass(file) !== "enforcement") return null;
-  return calculateMobileEnforcementAccount({
-    ...file,
-    payment_events: paymentEvents
-  }, calculationTools, accountDateInTimeZone());
+  return calculateMobileEnforcementAccount(
+    buildEnforcementAccountFile(file, paymentEvents),
+    calculationTools,
+    accountDateInTimeZone()
+  );
 }
 
 async function renderHome(force = false) {
@@ -485,7 +488,7 @@ async function renderFiles(force = false) {
   const routeAtStart = state.route;
   shell(`${pageHead("Dosyalar", "Dava ve icra dosyalarınızı mobil kartlarla inceleyin.")}<div class="mobile-search">${icon("search")}<input id="mobileFileSearch" type="search" placeholder="Dosya no, mahkeme veya müvekkil ara" value="${escapeHtml(state.fileSearch)}" /></div>${fileChips()}${skeleton(4)}`);
   try {
-    const [files, calculationTools, collections] = await Promise.all([loadCached("files", async () => {
+    const filesPromise = loadCached("files", async () => {
       const [fileRows, partyRows] = await Promise.all([
         repository.getFiles(),
         repository.getFileParties({ representedByOffice: true }).catch(error => {
@@ -498,18 +501,28 @@ async function renderFiles(force = false) {
         if (party.file_id && !primaryPartyByFile.has(party.file_id)) primaryPartyByFile.set(party.file_id, party);
       });
       return fileRows.map(file => ({ ...file, represented_party: primaryPartyByFile.get(file.id) || null }));
-    }, force), loadCached("calculation-tools", () => repository.getCalculationTools(), force), loadCached("collections", () => repository.getCollections(), force)]);
+    }, force);
+    const files = await filesPromise;
+    const enforcementFileIds = files
+      .filter(file => fileTypeClass(file) === "enforcement")
+      .map(file => file.id)
+      .filter(Boolean);
+    const [calculationTools, collections] = await Promise.all([
+      loadCached("calculation-tools", () => repository.getCalculationTools(), force),
+      loadCached(
+        "enforcement-list-collections",
+        () => repository.getCollections({ fileIds: enforcementFileIds }),
+        force
+      )
+    ]);
     if (state.route !== routeAtStart) return;
-    const collectionsByFile = new Map();
-    collections.forEach(collection => {
-      if (!collection.file_id) return;
-      if (!collectionsByFile.has(collection.file_id)) collectionsByFile.set(collection.file_id, []);
-      collectionsByFile.get(collection.file_id).push(collection);
-    });
-    renderFileResults(files.map(file => ({
+    const collectionsByFile = groupActiveCollectionsByFile(collections);
+    const fileListRows = files.map(file => ({
       ...file,
       calculated_enforcement_account: liveEnforcementAccount(file, calculationTools, collectionsByFile.get(file.id) || [])
-    })));
+    }));
+    state.cache.set("file-list-rows", fileListRows);
+    renderFileResults(fileListRows);
   } catch (error) {
     if (state.route !== routeAtStart) return;
     console.error("[BKT mobile] Dosyalar yüklenemedi.", { message: error?.message || String(error) });
@@ -1114,7 +1127,7 @@ app.addEventListener("input", event => {
   if (event.target.id === "mobileFileSearch") {
     state.fileSearch = event.target.value;
     state.filePage = 1;
-    renderFileResults(state.cache.get("files") || []);
+    renderFileResults(state.cache.get("file-list-rows") || []);
     document.querySelector("#mobileFileSearch")?.focus();
   }
   if (event.target.id === "mobileClientSearch") {
@@ -1191,11 +1204,11 @@ app.addEventListener("click", async event => {
   if (fileFilter) {
     state.fileFilter = fileFilter.dataset.fileFilter;
     state.filePage = 1;
-    return renderFileResults(state.cache.get("files") || []);
+    return renderFileResults(state.cache.get("file-list-rows") || []);
   }
   if (filePage) {
     state.filePage = Number(filePage.dataset.filePage) || 1;
-    return renderFileResults(state.cache.get("files") || []);
+    return renderFileResults(state.cache.get("file-list-rows") || []);
   }
   if (clientFilter) {
     state.clientFilter = clientFilter.dataset.clientFilter;

@@ -1363,12 +1363,17 @@ import {
         return savedRows;
       },
       async getCollections(filters = {}) {
+        const fileIds = Array.isArray(filters.fileIds)
+          ? [...new Set(filters.fileIds.filter(Boolean))]
+          : null;
+        if (!filters.fileId && fileIds && fileIds.length === 0) return [];
         const query = {
           select: "id,legacy_id,file_id,payment_plan_id,payment_installment_id,amount,currency,collection_date,payment_kind,description,metadata,created_at,updated_at,deleted_at",
           deleted_at: "is.null",
           order: "collection_date.desc,created_at.desc"
         };
         if (filters.fileId) query.file_id = `eq.${filters.fileId}`;
+        else if (fileIds) query.file_id = `in.(${fileIds.join(",")})`;
         if (filters.paymentPlanId) query.payment_plan_id = `eq.${filters.paymentPlanId}`;
         return repositorySelectAll(repository, "collections", query, {
           label: "BKT collections",
