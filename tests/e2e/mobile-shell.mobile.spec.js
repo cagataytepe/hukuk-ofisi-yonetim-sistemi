@@ -66,7 +66,9 @@ test("ayrı mobil shell temel görüntüleme akışlarını çalıştırır", as
 
   await expect(page.locator(".mobile-shell")).toBeVisible({ timeout: 30_000 });
   await expect(page.locator(".welcome-card")).toContainText("Hoş geldiniz");
-  await expect(page.locator(".metric-card")).toHaveCount(4);
+  await expect(page.locator(".daily-summary-card")).toBeVisible();
+  await expect(page.locator(".daily-summary-row")).toHaveCount(3);
+  await expect(page.locator(".dashboard-summary-card")).toHaveCount(3);
   await expect(page.locator(".mobile-section")).toHaveCount(3);
   await expect(page.locator(".mobile-bottom-nav")).toBeVisible();
   await expect(page.locator(".mobile-bottom-nav")).toHaveCSS("position", "fixed");

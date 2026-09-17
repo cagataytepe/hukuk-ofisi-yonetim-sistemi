@@ -362,17 +362,27 @@ async function renderHome(force = false) {
       file: filesById.get(item.file_id) || null,
       responsible_profile: profilesById.get(item.responsible_profile_id) || null
     });
-    const upcomingDeadlines = data.deadlines
-      .filter(item => !isCompleted(item.status) && item.due_date >= today && item.due_date <= deadlineLimit)
+    const activeDeadlines = data.deadlines.filter(item => !isCompleted(item.status));
+    const todayDeadlines = activeDeadlines.filter(item => item.due_date === today);
+    const upcomingDeadlines = activeDeadlines
+      .filter(item => item.due_date >= today && item.due_date <= deadlineLimit)
       .map(enrichWorkItem);
     const assignedTasks = data.assignedTasks.filter(item => !isCompleted(item.status)).map(enrichWorkItem);
+    const todayAssignedTasks = assignedTasks.filter(item => item.due_date === today);
     if (state.route !== routeAtStart) return;
     shell(`<div class="welcome-card"><h1>Hoş geldiniz, ${escapeHtml(state.user.displayName || "Kullanıcı")}</h1><small>${formatDate(today, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</small></div>
-      <section class="metric-grid">
-        ${metric(icon("calendarDay"), todayHearings.length, ["Bugünkü", "Duruşmalar"], "blue")}
-        ${metric(icon("calendarWeek"), weeklyHearings.length, ["Haftanın", "Duruşmaları"], "green")}
-        ${metric(icon("tasks"), assignedTasks.length, ["Bana Atanmış", "Görevler"], "purple")}
-        ${metric(icon("clock"), upcomingDeadlines.length, ["Yaklaşan", "Süreler"], "orange")}
+      <section class="daily-summary-card" aria-labelledby="mobileDailySummaryTitle">
+        <h2 id="mobileDailySummaryTitle">Günün Özeti</h2>
+        <div class="daily-summary-list">
+          ${dailySummaryRow("calendarDay", todayHearings.length, `Bugün ${todayHearings.length} Duruşmanız Bulunmaktadır`)}
+          ${dailySummaryRow("clock", todayDeadlines.length, `Bugün Son Günü Olan ${todayDeadlines.length} Süreli İş Bulunmaktadır`)}
+          ${dailySummaryRow("tasks", todayAssignedTasks.length, `Bugün Son Günü Olan ${todayAssignedTasks.length} Göreviniz Bulunmaktadır`)}
+        </div>
+      </section>
+      <section class="dashboard-summary-grid" aria-label="Genel sayaçlar">
+        ${dashboardSummaryCard("calendarWeek", "Duruşmalar", weeklyHearings.length, "hearings")}
+        ${dashboardSummaryCard("clock", "Süreli İşler", activeDeadlines.length, "deadlines")}
+        ${dashboardSummaryCard("tasks", "Bana Atanmış Görevler", assignedTasks.length, "tasks")}
       </section>
       ${homeSection("Yaklaşan Duruşmalar", "hearings", upcomingHearings, hearingCard, "Yaklaşan duruşma bulunmuyor.")}
       ${homeSection("Yaklaşan Süreler", "deadlines", upcomingDeadlines, deadlineCard, "Yaklaşan süreli iş bulunmuyor.")}
@@ -384,9 +394,12 @@ async function renderHome(force = false) {
   }
 }
 
-function metric(iconHtml, value, labelLines, tone) {
-  const labels = (Array.isArray(labelLines) ? labelLines : [labelLines]).map(label => `<span>${escapeHtml(label)}</span>`).join("");
-  return `<article class="metric-card ${tone}"><div class="metric-label">${labels}</div><div class="metric-value">${value}</div><div class="metric-card-head"><span class="metric-icon">${iconHtml}</span></div></article>`;
+function dailySummaryRow(iconName, value, description) {
+  return `<div class="daily-summary-row"><span class="daily-summary-icon">${icon(iconName)}</span><strong>${Number(value) || 0}</strong><span>${escapeHtml(description)}</span></div>`;
+}
+
+function dashboardSummaryCard(iconName, title, value, tone) {
+  return `<article class="dashboard-summary-card ${tone}"><span class="dashboard-summary-icon">${icon(iconName)}</span><span class="dashboard-summary-label">${escapeHtml(title)}</span><strong>${Number(value) || 0}</strong></article>`;
 }
 
 function homeSection(title, route, rows, renderer, emptyText) {

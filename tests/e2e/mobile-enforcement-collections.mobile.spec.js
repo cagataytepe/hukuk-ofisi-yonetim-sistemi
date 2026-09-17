@@ -131,7 +131,7 @@ async function fulfillJson(route, rows) {
   });
 }
 
-test("mobil icra listesi batch collections hydration sonrasında filtre ve detayda aynı hesabı korur", async ({ page }) => {
+test("mobil icra listesi batch collections hydration sonrasında arama, filtre, sayfalama ve detayda aynı hesabı korur", async ({ page }) => {
   test.setTimeout(120_000);
   const diagnostics = attachDiagnostics(page);
   const { email, password } = e2eCredentials();
@@ -142,10 +142,16 @@ test("mobil icra listesi batch collections hydration sonrasında filtre ve detay
   await page.locator("#mobileLoginButton").click();
   await expect(page.locator(".mobile-shell")).toBeVisible({ timeout: 30_000 });
 
-  const files = [
+  const parityFiles = [
     fileFixture(FILE_15K, "İ-1007", "2026/1007"),
     fileFixture(FILE_50K, "İ-1006", "2026/1006")
   ];
+  const paginationFiles = Array.from({ length: 10 }, (_, index) => {
+    const sequence = 999 - index;
+    const suffix = String(index).padStart(12, "0");
+    return fileFixture(`33333333-3333-4333-8333-${suffix}`, `İ-${sequence}`, `2026/${sequence}`);
+  });
+  const files = [...parityFiles, ...paginationFiles];
   const collections = [
     collectionFixture("collection-15k", FILE_15K, 15_000),
     collectionFixture("collection-50k", FILE_50K, 50_000)
@@ -180,7 +186,7 @@ test("mobil icra listesi batch collections hydration sonrasında filtre ve detay
   }
 
   await page.locator('.mobile-nav[data-route="files"]').click();
-  await expect(page.locator("[data-file-id]")).toHaveCount(2);
+  await expect(page.locator("[data-file-id]")).toHaveCount(10);
   await page.locator('[data-file-filter="enforcement"]').click();
 
   expect(batchCollectionRequests).toHaveLength(1);
@@ -189,9 +195,10 @@ test("mobil icra listesi batch collections hydration sonrasında filtre ve detay
   expect(batchFilter).toContain(FILE_15K);
   expect(batchFilter).toContain(FILE_50K);
 
+  const expectedByFileId = new Map();
   for (const fixture of [
-    { file: files[0], collection: collections[0] },
-    { file: files[1], collection: collections[1] }
+    { file: parityFiles[0], collection: collections[0] },
+    { file: parityFiles[1], collection: collections[1] }
   ]) {
     const expectedAccount = calculateMobileEnforcementAccount(
       buildEnforcementAccountFile(fixture.file, [fixture.collection]),
@@ -203,6 +210,7 @@ test("mobil icra listesi batch collections hydration sonrasında filtre ve detay
       currency: "TRY",
       maximumFractionDigits: 2
     }).format(expectedAccount.currentDebt);
+    expectedByFileId.set(fixture.file.id, expectedText);
 
     await page.locator("#mobileFileSearch").fill(fixture.file.display_id);
     const card = page.locator(`[data-file-id="${fixture.file.id}"]`);
@@ -214,6 +222,22 @@ test("mobil icra listesi batch collections hydration sonrasında filtre ve detay
     await page.getByRole("button", { name: "Geri" }).click();
     await expect(page.locator("#mobileFileSearch")).toBeVisible();
   }
+
+  await page.locator("#mobileFileSearch").fill("");
+  await page.locator('[data-file-filter="law"]').click();
+  await expect(page.locator("[data-file-id]")).toHaveCount(0);
+  await page.locator('[data-file-filter="enforcement"]').click();
+  const firstParityCard = page.locator(`[data-file-id="${FILE_15K}"]`);
+  await expect(firstParityCard).toBeVisible();
+  await expect(firstParityCard.locator(".file-card-account")).toContainText(expectedByFileId.get(FILE_15K));
+
+  const secondPageButton = page.getByRole("button", { name: "2. sayfa" });
+  await expect(secondPageButton).toBeVisible();
+  await secondPageButton.click();
+  await expect(firstParityCard).toHaveCount(0);
+  await page.locator('.mobile-pagination button:has-text("Geri")').click();
+  await expect(firstParityCard).toBeVisible();
+  await expect(firstParityCard.locator(".file-card-account")).toContainText(expectedByFileId.get(FILE_15K));
 
   expect(batchCollectionRequests).toHaveLength(1);
   diagnostics.assertClean();
