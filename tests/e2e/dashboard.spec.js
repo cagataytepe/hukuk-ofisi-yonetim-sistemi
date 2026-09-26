@@ -8,6 +8,7 @@ test("Dashboard Supabase verileriyle yüklenir ve bilgi kartları navigasyon yap
   await gotoSection(page, "dashboard");
   await expect(page.locator("#todayHearings")).toBeVisible();
   await expect(page.locator("#soonDeadlines")).toBeVisible();
+  await expect(page.locator('.metric-grid [aria-label="Bekleyen Süreli İşler"]')).toContainText("Bekleyen Süreli İşler");
   await expect(page.locator("#assignedTasks")).toBeVisible();
   await expect(page.locator("#lateDeadlines")).toBeVisible();
   await expect(page.locator("#hearingRows")).toBeVisible();

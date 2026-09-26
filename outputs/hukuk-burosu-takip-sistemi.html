@@ -7809,7 +7809,7 @@
         <div class="metric-grid">
           <div class="metric metric-hearings" data-dashboard-section="hearings" aria-label="Haftanın Duruşmaları"><span class="metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg></span><div class="metric-copy"><span>Haftanın Duruşmaları</span><strong id="todayHearings">0</strong></div></div>
           <div class="metric metric-tasks" data-dashboard-section="tasks" aria-label="Bana Atanmış Görevler"><span class="metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5h14v14H5z"/><path d="m8 12 2.2 2.2L16 9"/></svg></span><div class="metric-copy"><span>Bana Atanmış Görevler</span><strong id="assignedTasks">0</strong></div></div>
-          <div class="metric metric-deadlines" data-dashboard-section="deadlines" aria-label="Yaklaşan Süreler"><span class="metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg></span><div class="metric-copy"><span>Yaklaşan Süreler</span><strong id="soonDeadlines">0</strong></div></div>
+          <div class="metric metric-deadlines" data-dashboard-section="deadlines" aria-label="Bekleyen Süreli İşler"><span class="metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg></span><div class="metric-copy"><span>Bekleyen Süreli İşler</span><strong id="soonDeadlines">0</strong></div></div>
           <div class="metric metric-overdue overdue-metric" data-dashboard-section="deadlines" aria-label="Süresi Geçmiş İşler"><span class="metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v6"/><path d="M12 17h.01"/><path d="M10.3 3.9 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg></span><div class="metric-copy"><span>Süresi Geçmiş İşler</span><strong id="lateDeadlines">0</strong></div></div>
           <strong id="weekHearings" hidden>0</strong>
           <strong id="todayDeadlines" hidden>0</strong>
@@ -16400,7 +16400,7 @@
         return hearingDay >= weekStart && hearingDay <= weekEnd;
       });
       const activeDeadlines = (data.deadlines || [])
-        .filter(deadline => deadline.status !== "Tamamlandı")
+        .filter(deadline => !isCompletedDeadlineStatus(deadline.status))
         .sort((a, b) => daysLeft(a.due) - daysLeft(b.due));
       const upcomingDeadlines = activeDeadlines.filter(deadline => {
         const left = daysLeft(deadline.due);
@@ -16423,7 +16423,7 @@
       document.getElementById("todayHearings").innerHTML = dashboardLoading ? `<span class="skeleton-inline" aria-label="Yükleniyor"></span>` : weeklyHearings.length;
       document.getElementById("weekHearings").innerHTML = dashboardLoading ? `<span class="skeleton-inline" aria-label="Yükleniyor"></span>` : weeklyHearings.length;
       document.getElementById("todayDeadlines").textContent = todayDeadlines;
-      document.getElementById("soonDeadlines").textContent = upcomingDeadlines.length;
+      document.getElementById("soonDeadlines").textContent = activeDeadlines.length;
       document.getElementById("lateDeadlines").textContent = overdueDeadlines.length + overdueTasks.length;
       document.getElementById("assignedTasks").textContent = data.taskError ? "!" : assignedTasks.length;
 

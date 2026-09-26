@@ -352,6 +352,11 @@ async function renderHome(force = false) {
     const filesById = new Map((data.files || []).map(file => [file.id, file]));
     const upcomingHearings = data.upcomingHearings
       .filter(item => item.hearing_date >= today && item.hearing_date <= hearingLimit)
+      .sort((left, right) => {
+        const dateOrder = String(left.hearing_date || "").localeCompare(String(right.hearing_date || ""));
+        if (dateOrder !== 0) return dateOrder;
+        return String(left.hearing_time || "").padStart(8, "0").localeCompare(String(right.hearing_time || "").padStart(8, "0"));
+      })
       .map(item => ({
         ...item,
         file: filesById.get(item.file_id) || null,
@@ -380,7 +385,7 @@ async function renderHome(force = false) {
         </div>
       </section>
       <section class="dashboard-summary-grid" aria-label="Genel sayaçlar">
-        ${dashboardSummaryCard("calendarWeek", "Duruşmalar", weeklyHearings.length, "hearings")}
+        ${dashboardSummaryCard("calendarWeek", "Haftanın Duruşmaları", weeklyHearings.length, "hearings")}
         ${dashboardSummaryCard("clock", "Süreli İşler", activeDeadlines.length, "deadlines")}
         ${dashboardSummaryCard("tasks", "Bana Atanmış Görevler", assignedTasks.length, "tasks")}
       </section>
@@ -395,11 +400,11 @@ async function renderHome(force = false) {
 }
 
 function dailySummaryRow(iconName, value, description) {
-  return `<div class="daily-summary-row"><span class="daily-summary-icon">${icon(iconName)}</span><strong>${Number(value) || 0}</strong><span>${escapeHtml(description)}</span></div>`;
+  return `<div class="daily-summary-row"><span class="daily-summary-icon">${icon(iconName)}</span><strong class="daily-summary-value">${Number(value) || 0}</strong><span class="daily-summary-copy">${escapeHtml(description)}</span></div>`;
 }
 
-function dashboardSummaryCard(iconName, title, value, tone) {
-  return `<article class="dashboard-summary-card ${tone}"><span class="dashboard-summary-icon">${icon(iconName)}</span><span class="dashboard-summary-label">${escapeHtml(title)}</span><strong>${Number(value) || 0}</strong></article>`;
+function dashboardSummaryCard(iconName, title, value, route) {
+  return `<button type="button" class="dashboard-summary-card ${route}" data-route="${route}" aria-label="${escapeHtml(title)} sayfasını aç"><span class="dashboard-summary-icon">${icon(iconName)}</span><span class="dashboard-summary-label">${escapeHtml(title)}</span><strong>${Number(value) || 0}</strong></button>`;
 }
 
 function homeSection(title, route, rows, renderer, emptyText) {
@@ -580,7 +585,8 @@ function filePagination(currentPage, totalPages) {
 }
 
 function fileCard(file) {
-  const enforcement = fileTypeClass(file) === "enforcement";
+  const typeClass = fileTypeClass(file);
+  const enforcement = typeClass === "enforcement";
   const displayId = file.display_id || file.legacy_id || file.file_no || "Dosya";
   const court = file.court_or_office || "Mahkeme / icra dairesi belirtilmedi";
   const fileNo = file.file_no || "Dosya no yok";
@@ -595,7 +601,8 @@ function fileCard(file) {
   const detailLines = enforcement
     ? `<span class="list-note file-card-party">${escapeHtml(partyText)}</span><span class="list-note file-card-account">Güncel Kapak Hesabı: ${currentDebt === undefined || currentDebt === null || currentDebt === "" ? "Belirtilmedi" : escapeHtml(formatCurrency(currentDebt, accountInfo.currency || "TRY"))}</span>`
     : `<span class="list-note file-card-subject">${escapeHtml(file.subject || "Konu belirtilmedi")}</span><span class="list-note file-card-party">${escapeHtml(partyText)}</span>`;
-  return `<button class="mobile-list-card file-list-card ${enforcement ? "is-enforcement" : "is-lawsuit"}" data-file-id="${file.id}">${leading}<span class="list-content"><span class="list-title file-card-title">${escapeHtml(court)} · ${escapeHtml(fileNo)}</span>${detailLines}</span><span class="list-tail"><span class="mobile-badge ${statusTone}">${escapeHtml(file.status || (enforcement ? "İcra" : "Dava"))}</span><span class="chevron">›</span></span></button>`;
+  const cardTypeClass = enforcement ? "is-enforcement" : `is-lawsuit is-${typeClass}`;
+  return `<button class="mobile-list-card file-list-card ${cardTypeClass}" data-file-id="${file.id}">${leading}<span class="list-content"><span class="list-title file-card-title">${escapeHtml(court)} · ${escapeHtml(fileNo)}</span>${detailLines}</span><span class="list-tail"><span class="mobile-badge ${statusTone}">${escapeHtml(file.status || (enforcement ? "İcra" : "Dava"))}</span><span class="chevron">›</span></span></button>`;
 }
 
 async function renderFileDetail(force = false) {
@@ -731,7 +738,8 @@ async function renderHearings(force = false) {
 
 function hearingControls(range) {
   const views = [["day", "Günlük"], ["week", "Haftalık"], ["month", "Aylık"]];
-  return `<div class="hearing-view-toolbar"><div class="view-switch" role="group" aria-label="Duruşma görünümü">${views.map(([value, label]) => `<button class="${state.hearingView === value ? "active" : ""}" data-hearing-view="${value}">${label}</button>`).join("")}</div></div><div class="period-nav"><button data-hearing-move="-1" aria-label="Önceki dönem">‹</button><strong>${escapeHtml(range.label)}</strong><button class="period-today" data-hearing-move="0">Bugün</button><button data-hearing-move="1" aria-label="Sonraki dönem">›</button></div>`;
+  const currentPeriodLabel = state.hearingView === "month" ? "Bu Ay" : state.hearingView === "week" ? "Bu Hafta" : "Bugün";
+  return `<div class="hearing-view-toolbar"><div class="view-switch" role="group" aria-label="Duruşma görünümü">${views.map(([value, label]) => `<button class="${state.hearingView === value ? "active" : ""}" data-hearing-view="${value}">${label}</button>`).join("")}</div></div><div class="period-nav"><button data-hearing-move="-1" aria-label="Önceki dönem">‹</button><strong>${escapeHtml(range.label)}</strong><button class="period-today" data-hearing-move="0">${currentPeriodLabel}</button><button data-hearing-move="1" aria-label="Sonraki dönem">›</button></div>`;
 }
 
 function hearingParticipant(row) {
