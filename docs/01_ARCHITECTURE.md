@@ -37,6 +37,7 @@ Supabase tabloları ve RPC fonksiyonları
 - Zaman çizelgesi: `timeline_events`
 - Kullanıcılar/yetkiler: `profiles`, `roles`, `user_permissions`
 - Ofis giderleri: `office_expense_categories`, `office_expenses`, `office_expense_recurring_templates`, `office_expense_budgets`, `office_expense_partner_shares`
+- Hesaplama araçları: `interest_rates`, `attorney_fee_tariffs`, `attorney_fee_brackets`, `calculation_parameters`
 
 ## Settings Kullanımı
 
@@ -70,6 +71,30 @@ Bağımsız Belgeler modülü aktif mimarinin parçası değildir. Dava ve icra 
 - RLS authenticated kullanıcı ve profil/yetki kontrolleri üzerinden çalışır.
 - Silme işlemleri soft delete veya güvenli RPC fonksiyonları üzerinden yapılır.
 - Teknik hata ayrıntıları kullanıcıya değil, geliştirici konsoluna yazılır.
+
+## Merkezi Hesaplama Araçları
+
+Hesaplama araçları herhangi bir dosyaya bağlı ayar değildir. Yönetim yüzeyi `Ayarlar → Hesaplama Araçları` altındadır ve veri akışı diğer modüllerle aynıdır:
+
+```text
+Dosya formu / Dosya detayı / Kapak hesabı
+↓
+browserRepositoryBridge
+↓
+SupabaseRepository
+↓
+interest_rates / attorney_fee_tariffs / attorney_fee_brackets / calculation_parameters
+```
+
+- Faiz ve vekâlet ücreti tarifelerinde geçmiş satır overwrite edilmez; yeni yürürlük tarihi yeni bir dönem oluşturur ve önceki dönem bir gün önce kapanır.
+- Aynı tür/kapsam ve yürürlük tarihindeki mükerrer kayıt benzersiz indeksle engellenir. Dönem oluşturma ve güvenli gelecek dönem pasifleştirme işlemleri transaction içindeki `SECURITY DEFINER` RPC fonksiyonlarıyla yapılır.
+- Hesaplama tabloları authenticated aktif profiller tarafından okunabilir. Doğrudan INSERT/UPDATE/DELETE kapalıdır; yönetim RPC'leri aktif profil ve `manageUsers` izni doğrular.
+- İcra dosyası merkezi faiz türünü ve dosyaya özgü başlangıç tarihini saklar. Merkezi oran dosyaya kopyalanmaz; özel/sözleşmesel oran yalnızca merkezi tarifesi olmayan türlerde dosyaya özgü değer olarak kalır.
+- Güncel kapak hesabı hesap tarihinde yürürlükte olan merkezi tarife geçmişini yeniden okur. Faiz dönemleri başlangıç günü hariç, hesap günü dahil ve merkezi gün bazıyla hesaplanır.
+- Vekâlet ücreti mevcut iş kuralı gereği hesap tarihindeki tarifeyi, takipte kesinleşen tutarı hesap tabanı ve asıl alacağı üst sınır olarak kullanır.
+- Harç takipte kesinleşen tutar üzerinden; takip sonrası faiz yalnızca asıl alacak üzerinden hesaplanır.
+- Toplu tahsilat değeri hesap sonunda bakiyeden düşülür. Tarihçeli kısmi tahsilat ve mahsup sırası mevcut veri modelinde bulunmadığından bu katman yeni bir hukuki varsayım üretmez.
+- Ekrandaki kapak hesabı canlı hesaptır. Oluşturulan PDF hesap anındaki dönem/tarife dökümünü içerir; daha önce kaydedilmiş PDF dosyaları yeniden yazılmaz.
 
 ## Gelecek Geliştirme Kuralı
 
