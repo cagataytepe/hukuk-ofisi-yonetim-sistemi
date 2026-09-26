@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { e2eCredentials } from "./support/env.js";
 import { attachDiagnostics } from "./support/app.js";
+import { calculateEnforcementFileAccount } from "../../src/calculations/enforcementCalculator.js";
 
 async function expectFileStatusTones(cards) {
   const badges = await cards.locator(".list-tail .mobile-badge").evaluateAll(elements => elements.map(element => ({
@@ -40,6 +41,12 @@ async function expectFileStatusTones(cards) {
   }
 }
 
+function displayedCurrencyValue(value) {
+  const normalized = String(value || "").replace(/[^\d,.-]/g, "").replaceAll(".", "").replace(",", ".");
+  const amount = Number(normalized);
+  return Number.isFinite(amount) ? amount : NaN;
+}
+
 test("ayrı mobil shell temel görüntüleme akışlarını çalıştırır", async ({ page }) => {
   test.setTimeout(120_000);
   const diagnostics = attachDiagnostics(page);
@@ -53,7 +60,9 @@ test("ayrı mobil shell temel görüntüleme akışlarını çalıştırır", as
 
   await expect(page.locator(".mobile-shell")).toBeVisible({ timeout: 30_000 });
   await expect(page.locator(".welcome-card")).toContainText("Hoş geldiniz");
-  await expect(page.locator(".metric-card")).toHaveCount(4);
+  await expect(page.locator(".daily-summary-card")).toBeVisible();
+  await expect(page.locator(".daily-summary-row")).toHaveCount(3);
+  await expect(page.locator(".dashboard-summary-card")).toHaveCount(3);
   await expect(page.locator(".mobile-section")).toHaveCount(3);
   await expect(page.locator(".mobile-bottom-nav")).toBeVisible();
   await expect(page.locator(".mobile-bottom-nav")).toHaveCSS("position", "fixed");
@@ -191,12 +200,14 @@ test("ayrı mobil shell temel görüntüleme akışlarını çalıştırır", as
   await expect(page.getByRole("heading", { name: "Müvekkiller" })).toBeVisible();
   await expect(page.locator("#mobileClientSearch")).toBeVisible();
   await expect(page.locator(".mobile-list-card").first()).not.toContainText(/Telefon:\s*\d{11}/);
-  const firstClient = page.locator("[data-client-id]").first();
+  const firstClient = page.locator("[data-client-id]").filter({ hasText: /TCKN:\s*\d{11}/ }).first();
   await expect(firstClient).toBeVisible();
+  expect(await firstClient.evaluate(element => !/[•*]/.test(element.textContent || ""))).toBe(true);
   await firstClient.click();
   await expect(page.getByRole("heading", { name: "Müvekkil Kartı" })).toBeVisible();
   await expect(page.locator(".client-detail-hero")).toBeVisible();
-  await expect(page.locator(".info-card")).toContainText(/TCKN|VKN/);
+  await expect(page.locator(".info-card")).toContainText(/TCKN/);
+  expect(await page.locator(".info-card").evaluate(element => /\b\d{11}\b/.test(element.textContent || "") && !/[•*]/.test(element.textContent || ""))).toBe(true);
   const linkedClientFile = page.locator(".client-file-list [data-file-id]").first();
   await expect(linkedClientFile).toBeVisible();
   await linkedClientFile.click();
@@ -204,7 +215,48 @@ test("ayrı mobil shell temel görüntüleme akışlarını çalıştırır", as
   await page.getByRole("button", { name: "Geri" }).click();
   await expect(page.locator(".client-detail-hero")).toBeVisible();
 
+  await page.getByRole("button", { name: "Geri" }).click();
+  await expect(page.getByRole("heading", { name: "Müvekkiller" })).toBeVisible();
+  await page.locator('button[data-route="more"][aria-label="Menü"]').click();
+  await page.locator('.more-menu [data-route="payments"]').click();
+  await expect(page.getByRole("heading", { name: "Ödeme Takibi" })).toBeVisible();
+  const paymentPlanId = await page.evaluate(async () => {
+    const repository = window.BKTHukukRepository?.createBrowserRepository();
+    if (!repository) return "";
+    await repository.ready;
+    const plans = await repository.getPaymentPlans({});
+    return plans.find(plan => Array.isArray(plan.installments) && plan.installments.length)?.id || "";
+  });
+  if (!paymentPlanId) throw new Error("Taksit detayı testi için uygun aktif ödeme planı bulunamadı.");
+  const paymentPlan = page.locator(`[data-payment-plan-id="${paymentPlanId}"]`);
+  await expect(paymentPlan).toBeVisible({ timeout: 20_000 });
+  await paymentPlan.click();
+  await expect(page.getByRole("heading", { name: "Ödeme Planı" })).toBeVisible();
+  await expect(page.locator(".payment-installment-card").first()).toBeVisible();
+  await expect(page.locator(".payment-installment-values").first()).toContainText("Vade Tarihi");
+  await expect(page.locator(".payment-installment-values").first()).toContainText("Kalan");
+  await page.getByRole("button", { name: "Geri" }).click();
+  await expect(page.getByRole("heading", { name: "Ödeme Takibi" })).toBeVisible();
+
   await page.locator('.mobile-nav[data-route="home"]').click();
+  await expect(page.locator(".welcome-card")).toBeVisible();
+  const refreshResponse = page.waitForResponse(response => response.url().includes("/rest/v1/files") && response.status() === 200);
+  await page.evaluate(() => {
+    window.scrollTo(0, 0);
+    const target = document.querySelector(".mobile-content");
+    if (!target) throw new Error("Pull-to-refresh hedefi bulunamadı.");
+    const dispatchTouch = (type, y, includeTouch = true) => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      const touches = includeTouch ? [{ clientX: 120, clientY: y }] : [];
+      Object.defineProperty(event, "touches", { value: touches });
+      target.dispatchEvent(event);
+    };
+    dispatchTouch("touchstart", 80);
+    dispatchTouch("touchmove", 190);
+    dispatchTouch("touchend", 190, false);
+  });
+  await refreshResponse;
+  await expect(page.locator("#mobileToast")).toContainText("Veriler güncellendi.", { timeout: 20_000 });
   await page.locator(".topbar-profile-button").click();
   await expect(page.locator(".profile-overview")).toBeVisible();
   await expect(page.locator(".profile-overview .profile-avatar")).toHaveCount(0);
@@ -233,5 +285,43 @@ test("ayrı mobil shell temel görüntüleme akışlarını çalıştırır", as
     expect(layout.duplicateIds).toEqual([]);
   }
   await expect(page.locator('button:has-text("Yeni Dosya"), button:has-text("Yeni Duruşma"), button:has-text("Yeni Görev")')).toHaveCount(0);
+  diagnostics.assertClean();
+});
+
+test("mobil icra kapak hesabını merkezi tarifelerle güncel hesaplar", async ({ page }) => {
+  test.setTimeout(90_000);
+  const diagnostics = attachDiagnostics(page);
+  const { email, password } = e2eCredentials();
+
+  await page.goto("/mobile.html");
+  await page.locator("#mobileEmail").fill(email);
+  await page.locator("#mobilePassword").fill(password);
+  await page.locator("#mobileLoginButton").click();
+  await expect(page.locator(".mobile-shell")).toBeVisible({ timeout: 30_000 });
+
+  await page.locator('.mobile-nav[data-route="files"]').click();
+  await page.locator('[data-file-filter="enforcement"]').click();
+  await page.locator("#mobileFileSearch").fill("1004");
+  const row = page.locator("[data-file-id].is-enforcement").filter({ hasText: "1004" }).first();
+  await expect(row).toBeVisible({ timeout: 30_000 });
+  const fileId = await row.getAttribute("data-file-id");
+
+  const source = await page.evaluate(async id => {
+    const repository = window.BKTHukukRepository?.createBrowserRepository();
+    if (!repository) throw new Error("Mobil repository bulunamadı.");
+    await repository.ready;
+    const [file, tools] = await Promise.all([repository.getFile(id), repository.getCalculationTools()]);
+    const now = new Date();
+    const accountDate = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, "0"), String(now.getDate()).padStart(2, "0")].join("-");
+    return { file, tools, accountDate };
+  }, fileId);
+  const expected = calculateEnforcementFileAccount(source.file, source.tools, source.accountDate);
+  const listValue = displayedCurrencyValue(await row.locator(".file-card-account").innerText());
+  expect(listValue).toBeCloseTo(expected.currentDebt, 2);
+
+  await row.click();
+  await page.locator('[data-detail-tab="account"]').click();
+  const detailValue = displayedCurrencyValue(await page.locator(".enforcement-account-total strong").innerText());
+  expect(detailValue).toBeCloseTo(expected.currentDebt, 2);
   diagnostics.assertClean();
 });

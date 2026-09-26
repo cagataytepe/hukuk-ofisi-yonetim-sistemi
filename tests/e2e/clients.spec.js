@@ -16,6 +16,23 @@ test("Müvekkiller ekranı public.clients/file_parties kaynaklı müvekkil kart�
     await row.locator("[data-client-name]").click();
     await expect(page.locator("#clientDetailPanel")).toBeVisible();
     await expect(page.locator("#clientDetailTitle")).toContainText(prefix);
+
+    const identity = await page.evaluate(async () => {
+      const repository = window.BKTHukukRepository?.createBrowserRepository();
+      if (!repository) return "";
+      await repository.ready;
+      const clients = await repository.getRepresentedClients();
+      const client = clients.find(item => /^\d{11}$/.test(String(item.national_id || "").trim()));
+      return String(client?.national_id || "").trim();
+    });
+    if (!identity) throw new Error("Maskesiz TCKN testi için uygun aktif müvekkil bulunamadı.");
+    await page.locator("#closeClientDetail").click();
+    await page.locator("#clientSearch").fill(identity);
+    const identityRow = page.locator("#clientRows tr").first();
+    await expect(identityRow).toBeVisible({ timeout: 20_000 });
+    expect(await identityRow.evaluate((element, expected) => element.textContent.includes(expected) && !/[•*]/.test(element.textContent), identity)).toBe(true);
+    await identityRow.locator("[data-client-name]").click();
+    expect(await page.locator("#clientDetailContent").evaluate((element, expected) => element.textContent.includes(expected) && !/[•*]/.test(element.textContent), identity)).toBe(true);
   } finally {
     await deleteFileByPrefix(page, prefix);
   }

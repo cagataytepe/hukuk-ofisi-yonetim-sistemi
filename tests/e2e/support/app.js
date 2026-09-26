@@ -145,7 +145,7 @@ export async function clickRowActionByText(page, rowContainerSelector, rowText, 
   await row.locator(actionSelector).first().click();
 }
 
-export async function createLawsuitFile(page, prefix) {
+export async function createLawsuitFile(page, prefix, { representedSide = "client", status = "Açık" } = {}) {
   await gotoSection(page, "cases");
   await page.locator("#openNewFileForm").click();
   await page.locator('[data-file-type-card="Hukuk Dosyası"]').click();
@@ -155,12 +155,13 @@ export async function createLawsuitFile(page, prefix) {
   await page.fill("#caseOpenDate", todayIso());
   await page.fill("#caseSubject", `${prefix} test konusu`);
   await selectFirstOption(page, "#caseLawyer");
-  if (await page.locator("#caseStatus option").count()) await page.selectOption("#caseStatus", { label: "Açık" }).catch(() => {});
+  if (await page.locator("#caseStatus option").count()) await page.selectOption("#caseStatus", { label: status }).catch(() => {});
   await page.locator("#caseStepNext").click();
   await expect(page.locator("#lawClientPartyRows .law-party-name").first()).toBeVisible();
   await page.locator("#lawClientPartyRows .law-party-name").first().fill(`${prefix} Müvekkil`);
-  await page.locator("#lawClientPartyRows .party-represented").first().check();
   await page.locator("#lawOpponentPartyRows .law-party-name").first().fill(`${prefix} Karşı Taraf`);
+  const representedSelector = representedSide === "opponent" ? "#lawOpponentPartyRows" : "#lawClientPartyRows";
+  await page.locator(`${representedSelector} .party-represented`).first().check();
   await page.locator("#caseStepNext").click();
   await page.locator("#caseSubmit").click();
   await expect(page.locator("#caseRows")).toContainText(prefix, { timeout: 30_000 });

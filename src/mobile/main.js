@@ -1,4 +1,9 @@
 import "../../outputs/supabase-config.js";
+import {
+  calculateEnforcementFileAccount,
+  hasEnforcementAccountData
+} from "../calculations/enforcementCalculator.js";
+import { fileMatchesSearch } from "../search/fileSearch.js";
 
 let repository = null;
 const app = document.querySelector("#mobileApp");
@@ -13,6 +18,7 @@ const state = {
   deadlineDetailId: "",
   taskDetailId: "",
   clientDetailId: "",
+  paymentPlanDetailId: "",
   detailTab: "general",
   fileFilter: "all",
   fileSearch: "",
@@ -27,7 +33,8 @@ const state = {
   calendarDate: new Date(),
   selectedDate: localIso(new Date()),
   cache: new Map(),
-  loading: false
+  loading: false,
+  refreshing: false
 };
 
 const MOBILE_FILE_PAGE_SIZE = 10;
@@ -180,11 +187,8 @@ function fileSequence(file = {}) {
   return match ? Number(match[1]) : 0;
 }
 
-function maskIdentity(value) {
-  const clean = String(value || "").replace(/\s+/g, "");
-  if (!clean) return "Belirtilmedi";
-  if (clean.length <= 5) return clean;
-  return `${clean.slice(0, 3)}${"•".repeat(Math.max(3, clean.length - 5))}${clean.slice(-2)}`;
+function identityForDisplay(value) {
+  return String(value || "").trim() || "Belirtilmedi";
 }
 
 function isCompleted(status) {
@@ -275,7 +279,7 @@ function profileAvatarMarkup(className = "", allowImage = true) {
 }
 
 function topbar() {
-  const titles = { home: "Ana Sayfa", files: "Dosyalar", "file-detail": "Dosya Detayı", "deadline-detail": "Süreli İş Detayı", "task-detail": "Görev Detayı", "client-detail": "Müvekkil Kartı", calendar: "Takvim", tasks: "Görevler", more: "Diğer", clients: "Müvekkiller", hearings: "Duruşmalar", deadlines: "Süreli İşler", payments: "Ödeme Takibi", expenses: "Ofis Giderleri", notifications: "Bildirimler", profile: "Profilim" };
+  const titles = { home: "Ana Sayfa", files: "Dosyalar", "file-detail": "Dosya Detayı", "deadline-detail": "Süreli İş Detayı", "task-detail": "Görev Detayı", "client-detail": "Müvekkil Kartı", "payment-plan-detail": "Ödeme Planı", calendar: "Takvim", tasks: "Görevler", more: "Diğer", clients: "Müvekkiller", hearings: "Duruşmalar", deadlines: "Süreli İşler", payments: "Ödeme Takibi", expenses: "Ofis Giderleri", notifications: "Bildirimler", profile: "Profilim" };
   const mainRoutes = new Set(["home", "files", "calendar", "hearings", "deadlines", "more"]);
   const nested = !mainRoutes.has(state.route);
   return `<header class="mobile-topbar">
@@ -301,7 +305,7 @@ function bottomNav() {
 }
 
 function shell(content) {
-  app.innerHTML = `<div class="mobile-shell">${topbar()}<main class="mobile-content">${content}</main>${bottomNav()}</div>`;
+  app.innerHTML = `<div class="mobile-shell">${topbar()}<div class="mobile-pull-refresh ${state.refreshing ? "is-refreshing" : ""}" data-mobile-pull-refresh role="status" aria-live="polite"><span>${icon("refresh")}</span><strong>${state.refreshing ? "Veriler yenileniyor" : "Yenilemek için bırakın"}</strong></div><main class="mobile-content">${content}</main>${bottomNav()}</div>`;
 }
 
 function pageHead(title, copy = "", back = false) {
@@ -313,6 +317,80 @@ async function loadCached(key, loader, force = false) {
   const value = await loader();
   state.cache.set(key, value);
   return value;
+}
+
+const pullRefreshRoutes = new Set([
+  "home",
+  "files",
+  "hearings",
+  "deadlines",
+  "tasks",
+  "calendar",
+  "clients",
+  "payments",
+  "expenses",
+  "notifications"
+]);
+
+const pullGesture = { active: false, startX: 0, startY: 0, distance: 0 };
+
+function clearRouteCache(route) {
+  const exactKeys = {
+    home: ["dashboard"],
+    files: ["files", "calculation-tools"],
+    deadlines: ["mobile-deadlines"],
+    tasks: ["tasks"],
+    clients: ["clients", "represented-parties", "client-file-counts"],
+    payments: ["payments"],
+    expenses: ["expenses"],
+    notifications: ["notifications"]
+  };
+  (exactKeys[route] || []).forEach(key => state.cache.delete(key));
+  const prefixes = route === "hearings"
+    ? ["mobile-hearings:"]
+    : route === "calendar" ? ["calendar:"] : [];
+  if (prefixes.length) {
+    [...state.cache.keys()].forEach(key => {
+      if (prefixes.some(prefix => String(key).startsWith(prefix))) state.cache.delete(key);
+    });
+  }
+}
+
+function setPullRefreshVisual(distance = 0, refreshing = state.refreshing) {
+  const indicator = document.querySelector("[data-mobile-pull-refresh]");
+  if (!indicator) return;
+  const visibleDistance = refreshing ? 42 : Math.min(42, Math.max(0, distance));
+  indicator.style.height = `${visibleDistance}px`;
+  indicator.style.opacity = visibleDistance ? "1" : "0";
+  indicator.classList.toggle("is-ready", !refreshing && distance >= 36);
+  indicator.classList.toggle("is-refreshing", refreshing);
+  const label = indicator.querySelector("strong");
+  if (label) label.textContent = refreshing ? "Veriler yenileniyor" : distance >= 36 ? "Yenilemek için bırakın" : "Yenilemek için çekin";
+}
+
+async function refreshCurrentRoute() {
+  if (state.refreshing || !state.user || !pullRefreshRoutes.has(state.route)) return false;
+  const refreshedRoute = state.route;
+  state.refreshing = true;
+  clearRouteCache(refreshedRoute);
+  setPullRefreshVisual(42, true);
+  try {
+    await renderRoute(true);
+    if (state.route === refreshedRoute) showToast("Veriler güncellendi.");
+    return true;
+  } catch (error) {
+    console.error("[BKT mobile] Aşağı çekerek yenileme başarısız.", { route: refreshedRoute, message: error?.message || String(error) });
+    showToast("Veriler yenilenemedi.");
+    return false;
+  } finally {
+    state.refreshing = false;
+    setPullRefreshVisual(0, false);
+  }
+}
+
+function liveEnforcementAccount(file, calculationTools) {
+  if (fileTypeClass(file) !== "enforcement" || !hasEnforcementAccountData(file)) return null;
+  return calculateEnforcementFileAccount(file, calculationTools, localIso(new Date()));
 }
 
 async function renderHome(force = false) {
@@ -346,17 +424,27 @@ async function renderHome(force = false) {
       file: filesById.get(item.file_id) || null,
       responsible_profile: profilesById.get(item.responsible_profile_id) || null
     });
-    const upcomingDeadlines = data.deadlines
-      .filter(item => !isCompleted(item.status) && item.due_date >= today && item.due_date <= deadlineLimit)
+    const activeDeadlines = data.deadlines.filter(item => !isCompleted(item.status));
+    const todayDeadlines = activeDeadlines.filter(item => item.due_date === today);
+    const upcomingDeadlines = activeDeadlines
+      .filter(item => item.due_date >= today && item.due_date <= deadlineLimit)
       .map(enrichWorkItem);
     const assignedTasks = data.assignedTasks.filter(item => !isCompleted(item.status)).map(enrichWorkItem);
+    const todayAssignedTasks = assignedTasks.filter(item => item.due_date === today);
     if (state.route !== routeAtStart) return;
     shell(`<div class="welcome-card"><h1>Hoş geldiniz, ${escapeHtml(state.user.displayName || "Kullanıcı")}</h1><small>${formatDate(today, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</small></div>
-      <section class="metric-grid">
-        ${metric(icon("calendarDay"), todayHearings.length, ["Bugünkü", "Duruşmalar"], "blue")}
-        ${metric(icon("calendarWeek"), weeklyHearings.length, ["Haftanın", "Duruşmaları"], "green")}
-        ${metric(icon("tasks"), assignedTasks.length, ["Bana Atanmış", "Görevler"], "purple")}
-        ${metric(icon("clock"), upcomingDeadlines.length, ["Yaklaşan", "Süreler"], "orange")}
+      <section class="daily-summary-card" aria-labelledby="mobileDailySummaryTitle">
+        <h2 id="mobileDailySummaryTitle">Günün Özeti</h2>
+        <div class="daily-summary-list">
+          ${dailySummaryRow("calendarDay", todayHearings.length, `Bugün ${todayHearings.length} Duruşmanız Bulunmaktadır`)}
+          ${dailySummaryRow("clock", todayDeadlines.length, `Bugün Son Günü Olan ${todayDeadlines.length} Süreli İş Bulunmaktadır`)}
+          ${dailySummaryRow("tasks", todayAssignedTasks.length, `Bugün Son Günü Olan ${todayAssignedTasks.length} Göreviniz Bulunmaktadır`)}
+        </div>
+      </section>
+      <section class="dashboard-summary-grid" aria-label="Genel sayaçlar">
+        ${dashboardSummaryCard("calendarWeek", "Haftanın Duruşmaları", weeklyHearings.length, "hearings")}
+        ${dashboardSummaryCard("clock", "Süreli İşler", activeDeadlines.length, "deadlines")}
+        ${dashboardSummaryCard("tasks", "Bana Atanmış Görevler", assignedTasks.length, "tasks")}
       </section>
       ${homeSection("Yaklaşan Duruşmalar", "hearings", upcomingHearings, hearingCard, "Yaklaşan duruşma bulunmuyor.")}
       ${homeSection("Yaklaşan Süreler", "deadlines", upcomingDeadlines, deadlineCard, "Yaklaşan süreli iş bulunmuyor.")}
@@ -368,9 +456,12 @@ async function renderHome(force = false) {
   }
 }
 
-function metric(iconHtml, value, labelLines, tone) {
-  const labels = (Array.isArray(labelLines) ? labelLines : [labelLines]).map(label => `<span>${escapeHtml(label)}</span>`).join("");
-  return `<article class="metric-card ${tone}"><div class="metric-label">${labels}</div><div class="metric-value">${value}</div><div class="metric-card-head"><span class="metric-icon">${iconHtml}</span></div></article>`;
+function dailySummaryRow(iconName, value, description) {
+  return `<div class="daily-summary-row"><span class="daily-summary-icon">${icon(iconName)}</span><strong>${Number(value) || 0}</strong><span>${escapeHtml(description)}</span></div>`;
+}
+
+function dashboardSummaryCard(iconName, title, value, tone) {
+  return `<article class="dashboard-summary-card ${tone}"><span class="dashboard-summary-icon">${icon(iconName)}</span><span class="dashboard-summary-label">${escapeHtml(title)}</span><strong>${Number(value) || 0}</strong></article>`;
 }
 
 function homeSection(title, route, rows, renderer, emptyText) {
@@ -383,7 +474,12 @@ function hearingCard(row) {
   const participant = row.participant_profile?.display_name || row.participant_profile?.displayName || row.participant_name || row.attendee_name || "Belirtilmedi";
   const rawExcuse = String(row.excuse_type || "").trim();
   const excuse = !rawExcuse || ["yok", "hayır", "hayir", "none", "no"].includes(rawExcuse.toLocaleLowerCase("tr-TR")) ? "Mazeret Yok" : rawExcuse;
-  return `<article class="mobile-list-card hearing-card hearing-${fileTypeClass(row.file || row)}"><span class="hearing-time"><strong>${formatTime(row.hearing_time)}</strong><small>${formatDate(row.hearing_date, { day: "2-digit", month: "short" })}</small></span><div class="list-content"><span class="list-title hearing-title">${escapeHtml(court)} · ${escapeHtml(fileNo)}</span><div class="list-meta hearing-meta"><span>${escapeHtml(excuse)} - ${escapeHtml(participant)}</span></div></div></article>`;
+  const fileId = row.file_id || row.file?.id || "";
+  const tagName = fileId ? "button" : "article";
+  const attributes = fileId
+    ? `type="button" data-file-id="${escapeHtml(fileId)}"`
+    : 'aria-disabled="true"';
+  return `<${tagName} ${attributes} class="mobile-list-card hearing-card hearing-${fileTypeClass(row.file || row)}"><span class="hearing-time"><strong>${formatTime(row.hearing_time)}</strong><small>${formatDate(row.hearing_date, { day: "2-digit", month: "short" })}</small></span><span class="list-content"><span class="list-title hearing-title">${escapeHtml(court)} · ${escapeHtml(fileNo)}</span><span class="list-meta hearing-meta"><span>${escapeHtml(excuse)} - ${escapeHtml(participant)}</span></span></span></${tagName}>`;
 }
 
 function deadlineCard(row) {
@@ -470,24 +566,33 @@ async function renderTaskDetail(force = false) {
 
 async function renderFiles(force = false) {
   const routeAtStart = state.route;
-  shell(`${pageHead("Dosyalar", "Dava ve icra dosyalarınızı mobil kartlarla inceleyin.")}<div class="mobile-search">${icon("search")}<input id="mobileFileSearch" type="search" placeholder="Dosya no, mahkeme veya müvekkil ara" value="${escapeHtml(state.fileSearch)}" /></div>${fileChips()}${skeleton(4)}`);
+  shell(`${pageHead("Dosyalar", "Dava ve icra dosyalarınızı mobil kartlarla inceleyin.")}<div class="mobile-search">${icon("search")}<input id="mobileFileSearch" type="search" placeholder="Dosya no, mahkeme, müvekkil veya karşı taraf ara" value="${escapeHtml(state.fileSearch)}" /></div>${fileChips()}${skeleton(4)}`);
   try {
-    const files = await loadCached("files", async () => {
+    const [files, calculationTools] = await Promise.all([loadCached("files", async () => {
       const [fileRows, partyRows] = await Promise.all([
         repository.getFiles(),
-        repository.getFileParties({ representedByOffice: true }).catch(error => {
-          console.error("[BKT mobile] Dosya taraf sıfatları yüklenemedi.", { message: error?.message || String(error) });
+        repository.getFileParties({}).catch(error => {
+          console.error("[BKT mobile] Dosya tarafları yüklenemedi.", { message: error?.message || String(error) });
           return [];
         })
       ]);
       const primaryPartyByFile = new Map();
+      const partiesByFile = new Map();
       partyRows.forEach(party => {
-        if (party.file_id && !primaryPartyByFile.has(party.file_id)) primaryPartyByFile.set(party.file_id, party);
+        if (!party.file_id) return;
+        const related = partiesByFile.get(party.file_id) || [];
+        related.push(party);
+        partiesByFile.set(party.file_id, related);
+        if (party.represented_by_office && !primaryPartyByFile.has(party.file_id)) primaryPartyByFile.set(party.file_id, party);
       });
-      return fileRows.map(file => ({ ...file, represented_party: primaryPartyByFile.get(file.id) || null }));
-    }, force);
+      return fileRows.map(file => ({
+        ...file,
+        represented_party: primaryPartyByFile.get(file.id) || null,
+        related_parties: partiesByFile.get(file.id) || []
+      }));
+    }, force), loadCached("calculation-tools", () => repository.getCalculationTools(), force)]);
     if (state.route !== routeAtStart) return;
-    renderFileResults(files);
+    renderFileResults(files.map(file => ({ ...file, calculated_enforcement_account: liveEnforcementAccount(file, calculationTools) })));
   } catch (error) {
     if (state.route !== routeAtStart) return;
     console.error("[BKT mobile] Dosyalar yüklenemedi.", { message: error?.message || String(error) });
@@ -500,7 +605,6 @@ function fileChips() {
 }
 
 function renderFileResults(files) {
-  const query = state.fileSearch.trim().toLocaleLowerCase("tr-TR");
   const filtered = [...files].sort((left, right) => {
     const sequenceDifference = fileSequence(right) - fileSequence(left);
     if (sequenceDifference) return sequenceDifference;
@@ -511,13 +615,13 @@ function renderFileResults(files) {
     if (state.fileFilter === "law" && !type.includes("hukuk")) return false;
     if (state.fileFilter === "criminal" && !type.includes("ceza")) return false;
     if (state.fileFilter === "enforcement" && !enforcement) return false;
-    return !query || [file.display_id, file.legacy_id, file.file_no, file.court_or_office, file.client_name, file.subject].some(value => String(value || "").toLocaleLowerCase("tr-TR").includes(query));
+    return fileMatchesSearch(file, state.fileSearch, file.related_parties || []);
   });
   const totalPages = Math.max(1, Math.ceil(filtered.length / MOBILE_FILE_PAGE_SIZE));
   state.filePage = Math.min(Math.max(1, state.filePage), totalPages);
   const pageStart = (state.filePage - 1) * MOBILE_FILE_PAGE_SIZE;
   const pageRows = filtered.slice(pageStart, pageStart + MOBILE_FILE_PAGE_SIZE);
-  const content = `${pageHead("Dosyalar", `${filtered.length} kayıt görüntüleniyor.`)}<div class="mobile-search">${icon("search")}<input id="mobileFileSearch" type="search" placeholder="Dosya no, mahkeme veya müvekkil ara" value="${escapeHtml(state.fileSearch)}" /></div>${fileChips()}${filtered.length ? `<div class="mobile-list">${pageRows.map(fileCard).join("")}</div>${filePagination(state.filePage, totalPages)}` : emptyState("Dosya bulunamadı", "Arama veya filtre seçiminizi değiştirin.")}`;
+  const content = `${pageHead("Dosyalar", `${filtered.length} kayıt görüntüleniyor.`)}<div class="mobile-search">${icon("search")}<input id="mobileFileSearch" type="search" placeholder="Dosya no, mahkeme, müvekkil veya karşı taraf ara" value="${escapeHtml(state.fileSearch)}" /></div>${fileChips()}${filtered.length ? `<div class="mobile-list">${pageRows.map(fileCard).join("")}</div>${filePagination(state.filePage, totalPages)}` : emptyState("Dosya bulunamadı", "Arama veya filtre seçiminizi değiştirin.")}`;
   shell(content);
   const search = document.querySelector("#mobileFileSearch");
   search?.setSelectionRange(search.value.length, search.value.length);
@@ -575,9 +679,12 @@ async function renderFileDetail(force = false) {
     if (!data.file) throw new Error("Dosya bulunamadı.");
     const file = data.file;
     const enforcement = fileTypeClass(file) === "enforcement";
+    const calculationTools = enforcement
+      ? await loadCached("calculation-tools", () => repository.getCalculationTools(), force)
+      : null;
     const viewData = {
       ...data,
-      enforcementAccount: null
+      enforcementAccount: enforcement ? liveEnforcementAccount(file, calculationTools) : null
     };
     if (state.route !== routeAtStart) return;
     const tabs = enforcement
@@ -598,7 +705,12 @@ async function renderFileDetail(force = false) {
 function detailPanel(data) {
   const file = data.file;
   if (state.detailTab === "general") return infoCard([["Dosya ID", file.display_id || file.legacy_id],["Mahkeme / Daire", file.court_or_office],["Dosya No", file.file_no],["Müvekkil", file.client_name],["Karşı Taraf", file.opponent_name],["Konu", file.subject],["Sorumlu", file.responsible_profile?.display_name || file.responsible_name],["Açılış", formatDate(file.opening_date)],["Durum", file.status]]);
-  if (state.detailTab === "parties") return data.parties.length ? `<div class="mobile-list">${data.parties.map(party => `<article class="mobile-list-card"><span class="list-icon">${icon(party.client?.client_type === "legal" ? "building" : "user")}</span><div class="list-content"><span class="list-title">${escapeHtml(party.client?.name || party.name || "Taraf")}</span><div class="list-meta"><span>${escapeHtml(party.role_label || party.role || party.party_type || "Rol belirtilmedi")}</span><span>${party.represented_by_office ? "Büromuzca temsil ediliyor" : "Karşı taraf"}</span></div></div></article>`).join("")}</div>` : emptyState("Taraf bulunmuyor", "Bu dosyaya bağlı taraf kaydı yok.");
+  if (state.detailTab === "parties") return data.parties.length ? `<div class="mobile-list">${data.parties.map(party => {
+    const client = party.client || {};
+    const legal = isLegalClient(client);
+    const identity = legal ? (client.tax_id || party.tax_id) : (client.national_id || party.national_id || client.tax_id || party.tax_id);
+    return `<article class="mobile-list-card"><span class="list-icon">${icon(legal ? "building" : "user")}</span><div class="list-content"><span class="list-title">${escapeHtml(client.name || party.name || "Taraf")}</span><div class="list-meta"><span>${escapeHtml(party.role_label || party.role || party.party_type || "Rol belirtilmedi")}</span><span>${party.represented_by_office ? "Büromuzca temsil ediliyor" : "Karşı taraf"}</span><span>${legal ? "VKN" : "TCKN"}: ${escapeHtml(identityForDisplay(identity))}</span></div></div></article>`;
+  }).join("")}</div>` : emptyState("Taraf bulunmuyor", "Bu dosyaya bağlı taraf kaydı yok.");
   if (state.detailTab === "account") return enforcementAccountPanel(file, data.enforcementAccount);
   if (state.detailTab === "hearings") return listOrEmpty(data.hearings, hearingCard, "Duruşma bulunmuyor");
   if (state.detailTab === "deadlines") return listOrEmpty(data.deadlines, deadlineCard, "Süreli iş bulunmuyor");
@@ -654,7 +766,70 @@ function paymentPlanCard(plan) {
   const partyName = plan.party_name || plan.client?.name || "Ödeme planı";
   const nextInstallment = (plan.installments || []).find(installment => parseAmount(installment.paid_amount ?? installment.paidAmount) + 0.005 < parseAmount(installment.amount));
   const nextDueDate = nextInstallment?.due_date || nextInstallment?.dueDate || plan.first_due_date || plan.firstDueDate;
-  return `<article class="mobile-list-card mobile-payment-plan-card"><span class="list-icon">${icon("money")}</span><div class="list-content"><span class="list-title">${escapeHtml(partyName)}</span><div class="list-meta"><span>${escapeHtml(plan.plan_type || plan.type || "Ödeme Planı")}</span><span>Sonraki vade: ${formatDate(nextDueDate)}</span></div><div class="list-note">Tahsil: ${escapeHtml(formatCurrency(totals.collected, plan.currency || "TRY"))} · Kalan: ${escapeHtml(formatCurrency(totals.remaining, plan.currency || "TRY"))}</div></div><span class="mobile-badge ${status.tone}">${status.label}</span></article>`;
+  return `<button type="button" class="mobile-list-card mobile-payment-plan-card" data-payment-plan-id="${escapeHtml(plan.id || "")}"><span class="list-icon">${icon("money")}</span><span class="list-content"><span class="list-title">${escapeHtml(partyName)}</span><span class="list-meta"><span>${escapeHtml(plan.plan_type || plan.type || "Ödeme Planı")}</span><span>Sonraki vade: ${formatDate(nextDueDate)}</span></span><span class="list-note">Tahsil: ${escapeHtml(formatCurrency(totals.collected, plan.currency || "TRY"))} · Kalan: ${escapeHtml(formatCurrency(totals.remaining, plan.currency || "TRY"))}</span></span><span class="mobile-badge ${status.tone}">${status.label}</span></button>`;
+}
+
+function paymentInstallmentStatus(installment = {}) {
+  const amount = parseAmount(installment.amount);
+  const paid = parseAmount(installment.paid_amount ?? installment.paidAmount);
+  const remaining = Math.max(0, amount - paid);
+  if (remaining <= 0.005) return { label: "Ödendi", tone: "success" };
+  const dueDate = installment.due_date || installment.dueDate || "";
+  if (dueDate && dueDate < localIso(new Date())) return { label: "Gecikmiş", tone: "danger" };
+  if (paid > 0) return { label: "Kısmi", tone: "warn" };
+  return { label: "Ödenmedi", tone: "" };
+}
+
+function paymentInstallmentCard(installment = {}, index = 0, currency = "TRY") {
+  const amount = parseAmount(installment.amount);
+  const paid = parseAmount(installment.paid_amount ?? installment.paidAmount);
+  const remaining = Math.max(0, amount - paid);
+  const status = paymentInstallmentStatus(installment);
+  const paymentDate = installment.payment_date || installment.paid_at || installment.paid_date || installment.metadata?.paymentDate || "";
+  const values = [
+    ["Vade Tarihi", formatDate(installment.due_date || installment.dueDate)],
+    ["Taksit Tutarı", formatCurrency(amount, currency)],
+    ["Ödenen Tutar", formatCurrency(paid, currency)],
+    ["Kalan", formatCurrency(remaining, currency)],
+    ["Ödeme Tarihi", paid > 0 && paymentDate ? formatDate(paymentDate) : ""]
+  ].filter(([, value]) => value);
+  return `<article class="payment-installment-card"><div class="payment-installment-head"><strong>${escapeHtml(`${installment.sequence_no || installment.sequenceNo || index + 1}. Taksit`)}</strong><span class="mobile-badge ${status.tone}">${status.label}</span></div><dl class="payment-installment-values">${values.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl></article>`;
+}
+
+async function renderPaymentPlanDetail(force = false) {
+  const routeAtStart = state.route;
+  shell(skeleton(3));
+  try {
+    const key = `payment-plan-detail:${state.paymentPlanDetailId}`;
+    const data = await loadCached(key, async () => {
+      const plans = await repository.getPaymentPlans({ id: state.paymentPlanDetailId });
+      const plan = plans[0] || null;
+      const file = plan?.file_id ? await repository.getFile(plan.file_id) : null;
+      return { plan, file };
+    }, force);
+    if (state.route !== routeAtStart) return;
+    if (!data.plan) throw new Error("Ödeme planı bulunamadı.");
+    const plan = data.plan;
+    const currency = plan.currency || "TRY";
+    const totals = paymentPlanTotalsMobile(plan);
+    const installments = [...(plan.installments || [])].sort((left, right) => Number(left.sequence_no || 0) - Number(right.sequence_no || 0));
+    const fileLabel = data.file
+      ? [data.file.display_id || data.file.legacy_id, data.file.court_or_office, data.file.file_no].filter(Boolean).join(" · ")
+      : "Dosyadan bağımsız";
+    const partyName = plan.party_name || plan.client?.name || "Belirtilmedi";
+    shell(`<section class="record-detail-hero"><span class="list-icon">${icon("money")}</span><div><small>${escapeHtml(plan.plan_type || "Ödeme Planı")}</small><h2>${escapeHtml(partyName)}</h2></div><span class="mobile-badge ${paymentPlanStatusMobile(plan).tone}">${paymentPlanStatusMobile(plan).label}</span></section>${infoCard([
+      ["Bağlı Dosya", fileLabel],
+      ["Plan Bağlamı", plan.plan_type || "Ödeme Planı"],
+      ["Toplam Plan Tutarı", formatCurrency(totals.agreement, currency)],
+      ["Taksit Sayısı", String(plan.installment_count || installments.length || 0)],
+      ["Ödenen Toplam", formatCurrency(totals.collected, currency)],
+      ["Kalan Toplam", formatCurrency(totals.remaining, currency)]
+    ])}<section class="mobile-section payment-installment-section"><div class="section-heading"><h2>Taksitler</h2><span>${installments.length} kayıt</span></div>${installments.length ? `<div class="payment-installment-list">${installments.map((installment, index) => paymentInstallmentCard(installment, index, currency)).join("")}</div>` : emptyState("Taksit bulunmuyor", "Bu ödeme planına ait taksit kaydı yok.")}</section>`);
+  } catch (error) {
+    if (state.route !== routeAtStart) return;
+    console.error("[BKT mobile] Ödeme planı detayı yüklenemedi.", { message: error?.message || String(error) });
+    shell(emptyState("Ödeme planı detayı yüklenemedi", "Kayıt silinmiş veya bağlantı kesilmiş olabilir."));
+  }
 }
 function expenseCard(row, categoryMap = new Map()) { return `<article class="mobile-list-card"><span class="list-icon">${icon("briefcase")}</span><div class="list-content"><span class="list-title">${escapeHtml(row.title || row.description || categoryMap.get(row.category_id) || "Ofis gideri")}</span><div class="list-meta"><span>${escapeHtml(categoryMap.get(row.category_id) || row.category_name || "Kategori belirtilmedi")}</span><span>${formatDate(row.expense_date || row.due_date)}</span><span>${escapeHtml(row.payment_source_label || row.payment_source || "Ödeme kaynağı belirtilmedi")}</span></div></div><strong class="mobile-badge ${isCompleted(row.status) ? "success" : "warn"}">${formatCurrency(row.amount, row.currency || "TRY")}</strong></article>`; }
 function noteCard(row) { return `<article class="mobile-list-card"><span class="list-icon">${icon("note")}</span><div class="list-content"><span class="list-title">${escapeHtml(row.title || "Dosya Notu")}</span><div class="list-note">${escapeHtml(row.content || row.note || "")}</div><div class="list-meta"><span>${formatDate(row.created_at)}</span></div></div></article>`; }
@@ -886,7 +1061,7 @@ function clientCard(client, fileCount) {
   const legal = isLegalClient(client);
   const identity = legal ? client.tax_id : client.national_id;
   const initials = String(client.name || "M").split(/\s+/).slice(0, 2).map(part => part[0]).join("").toLocaleUpperCase("tr-TR");
-  return `<button type="button" class="mobile-list-card mobile-record-card client-list-card" data-client-id="${escapeHtml(client.id || "")}"><span class="profile-avatar">${escapeHtml(initials)}</span><span class="list-content"><span class="list-title">${escapeHtml(client.name || "Müvekkil")}</span><span class="list-meta"><span>${legal ? "Tüzel Kişi" : "Gerçek Kişi"}</span><span>${legal ? "VKN" : "TCKN"}: ${escapeHtml(maskIdentity(identity))}</span></span><span class="list-note">Telefon: ${escapeHtml(client.phone || "Belirtilmedi")}</span><span class="list-note">E-posta: ${escapeHtml(client.email || "Belirtilmedi")}</span></span><span class="mobile-badge">${fileCount} dosya</span></button>`;
+  return `<button type="button" class="mobile-list-card mobile-record-card client-list-card" data-client-id="${escapeHtml(client.id || "")}"><span class="profile-avatar">${escapeHtml(initials)}</span><span class="list-content"><span class="list-title">${escapeHtml(client.name || "Müvekkil")}</span><span class="list-meta"><span>${legal ? "Tüzel Kişi" : "Gerçek Kişi"}</span><span>${legal ? "VKN" : "TCKN"}: ${escapeHtml(identityForDisplay(identity))}</span></span><span class="list-note">Telefon: ${escapeHtml(client.phone || "Belirtilmedi")}</span><span class="list-note">E-posta: ${escapeHtml(client.email || "Belirtilmedi")}</span></span><span class="mobile-badge">${fileCount} dosya</span></button>`;
 }
 
 async function renderClientDetail(force = false) {
@@ -922,7 +1097,7 @@ async function renderClientDetail(force = false) {
     const fileRows = data.representedFiles.length
       ? `<div class="mobile-list client-file-list">${data.representedFiles.map(({ file, party }) => `<button type="button" class="mobile-list-card" data-file-id="${escapeHtml(file.id || "")}"><span class="list-icon">${icon(fileTypeClass(file) === "enforcement" ? "files" : "briefcase")}</span><span class="list-content"><span class="list-title">${escapeHtml(file.court_or_office || "Mahkeme / icra dairesi belirtilmedi")} · ${escapeHtml(file.file_no || "Dosya no yok")}</span><span class="list-meta"><span>${escapeHtml(file.display_id || file.legacy_id || "ID belirtilmedi")}</span><span>${escapeHtml(party.role_label || party.role || party.party_type || "Taraf rolü belirtilmedi")}</span><span>${escapeHtml(file.status || "Durum belirtilmedi")}</span></span></span><span class="chevron" aria-hidden="true">›</span></button>`).join("")}</div>`
       : emptyState("Bağlı dosya bulunmuyor", "Bu müvekkile bağlı aktif dosya kaydı yok.");
-    shell(`<section class="record-detail-hero client-detail-hero"><span class="profile-avatar">${escapeHtml(String(client.name || "M").split(/\s+/).slice(0, 2).map(part => part[0]).join("").toLocaleUpperCase("tr-TR"))}</span><div><small>${legal ? "Tüzel Kişi" : "Gerçek Kişi"}</small><h2>${escapeHtml(client.name || "Müvekkil")}</h2></div><span class="mobile-badge">${data.representedFiles.length} dosya</span></section>${infoCard([[legal ? "VKN" : "TCKN", maskIdentity(identity)],["Telefon", client.phone || "Belirtilmedi"],["E-posta", client.email || "Belirtilmedi"],["Adres", client.address || "Belirtilmedi"],["Aktif Dosyalar", String(Math.max(0, data.representedFiles.length - closedCount))],["Kapanan Dosyalar", String(closedCount)]])}<section class="mobile-section"><div class="section-heading"><h2>Bağlı Dosyalar</h2></div>${fileRows}</section>`);
+    shell(`<section class="record-detail-hero client-detail-hero"><span class="profile-avatar">${escapeHtml(String(client.name || "M").split(/\s+/).slice(0, 2).map(part => part[0]).join("").toLocaleUpperCase("tr-TR"))}</span><div><small>${legal ? "Tüzel Kişi" : "Gerçek Kişi"}</small><h2>${escapeHtml(client.name || "Müvekkil")}</h2></div><span class="mobile-badge">${data.representedFiles.length} dosya</span></section>${infoCard([[legal ? "VKN" : "TCKN", identityForDisplay(identity)],["Telefon", client.phone || "Belirtilmedi"],["E-posta", client.email || "Belirtilmedi"],["Adres", client.address || "Belirtilmedi"],["Aktif Dosyalar", String(Math.max(0, data.representedFiles.length - closedCount))],["Kapanan Dosyalar", String(closedCount)]])}<section class="mobile-section"><div class="section-heading"><h2>Bağlı Dosyalar</h2></div>${fileRows}</section>`);
   } catch (error) {
     if (state.route !== routeAtStart) return;
     console.error("[BKT mobile] Müvekkil kartı yüklenemedi.", { message: error?.message || String(error) });
@@ -1001,6 +1176,7 @@ async function renderRoute(force = false) {
   if (state.route === "deadline-detail") return renderDeadlineDetail(force);
   if (state.route === "task-detail") return renderTaskDetail(force);
   if (state.route === "client-detail") return renderClientDetail(force);
+  if (state.route === "payment-plan-detail") return renderPaymentPlanDetail(force);
   if (state.route === "hearings") return renderHearings(force);
   if (state.route === "deadlines") return renderDeadlines(force);
   if (state.route === "tasks") return renderTasks(force);
@@ -1105,6 +1281,7 @@ app.addEventListener("click", async event => {
   const deadlineTarget = event.target.closest("[data-deadline-id]");
   const taskTarget = event.target.closest("[data-task-id]");
   const clientTarget = event.target.closest("[data-client-id]");
+  const paymentPlanTarget = event.target.closest("[data-payment-plan-id]");
   const actionTarget = event.target.closest("[data-action]");
   const detailTab = event.target.closest("[data-detail-tab]");
   const fileFilter = event.target.closest("[data-file-filter]");
@@ -1157,6 +1334,12 @@ app.addEventListener("click", async event => {
     state.previousRoute = state.route || "clients";
     state.route = "client-detail";
     state.clientDetailId = clientTarget.dataset.clientId;
+    return renderRoute();
+  }
+  if (paymentPlanTarget) {
+    state.previousRoute = state.route || "payments";
+    state.route = "payment-plan-detail";
+    state.paymentPlanDetailId = paymentPlanTarget.dataset.paymentPlanId;
     return renderRoute();
   }
   if (detailTab) {
@@ -1252,6 +1435,56 @@ app.addEventListener("click", async event => {
     return renderLogin();
   }
 });
+
+app.addEventListener("touchstart", event => {
+  const touch = event.touches?.[0];
+  const scrollTop = document.scrollingElement?.scrollTop || window.scrollY || 0;
+  const target = event.target instanceof Element ? event.target : null;
+  const blockedTarget = target?.closest("input, textarea, select, .mobile-topbar, .mobile-bottom-nav");
+  if (!touch || blockedTarget || state.refreshing || !state.user || !pullRefreshRoutes.has(state.route) || scrollTop > 0) {
+    pullGesture.active = false;
+    return;
+  }
+  pullGesture.active = true;
+  pullGesture.startX = touch.clientX;
+  pullGesture.startY = touch.clientY;
+  pullGesture.distance = 0;
+}, { passive: true });
+
+app.addEventListener("touchmove", event => {
+  if (!pullGesture.active || state.refreshing) return;
+  const touch = event.touches?.[0];
+  if (!touch) return;
+  const deltaX = touch.clientX - pullGesture.startX;
+  const deltaY = touch.clientY - pullGesture.startY;
+  if (deltaY <= 0 || Math.abs(deltaX) > deltaY) {
+    pullGesture.active = false;
+    pullGesture.distance = 0;
+    setPullRefreshVisual(0, false);
+    return;
+  }
+  pullGesture.distance = Math.min(54, deltaY * 0.45);
+  if (pullGesture.distance > 4) event.preventDefault();
+  setPullRefreshVisual(pullGesture.distance, false);
+}, { passive: false });
+
+app.addEventListener("touchend", () => {
+  if (!pullGesture.active) return;
+  const shouldRefresh = pullGesture.distance >= 36;
+  pullGesture.active = false;
+  pullGesture.distance = 0;
+  if (shouldRefresh) {
+    void refreshCurrentRoute();
+  } else {
+    setPullRefreshVisual(0, false);
+  }
+}, { passive: true });
+
+app.addEventListener("touchcancel", () => {
+  pullGesture.active = false;
+  pullGesture.distance = 0;
+  setPullRefreshVisual(0, false);
+}, { passive: true });
 
 window.addEventListener("afterprint", () => {
   if ("mobileRestoreTitle" in document.body.dataset) {

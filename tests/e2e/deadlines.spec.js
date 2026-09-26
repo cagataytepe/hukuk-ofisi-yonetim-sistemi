@@ -18,7 +18,20 @@ test("Süreli İşler ekranı public.deadlines üzerinde CRUD ve tamamlama akı�
     await page.locator("#deadlineForm textarea").fill(`${prefix} açıklama`);
     await page.locator("#deadlineSubmit").click();
 
+    await expect(page.locator("#deadlineNote")).toHaveText("Süreli iş kaydedildi.", { timeout: 30_000 });
     await expect(page.locator("#deadlineFullRows")).toContainText(`${prefix} süreli iş`, { timeout: 30_000 });
+    await gotoSection(page, "dashboard");
+    await expect(page.locator("#deadlineRows")).toContainText(`${prefix} süreli iş`, { timeout: 20_000 });
+    await gotoSection(page, "deadlines");
+    await expect(page.locator("#deadlineFullRows")).toContainText(`${prefix} süreli iş`, { timeout: 20_000 });
+
+    await page.reload();
+    await expect(page.locator("body")).toHaveClass(/is-authenticated/, { timeout: 30_000 });
+    await gotoSection(page, "deadlines");
+    await expect(page.locator("#deadlineFullRows")).toContainText(`${prefix} süreli iş`, { timeout: 30_000 });
+    await clickRowActionByText(page, "#deadlineFullRows tr", prefix, "[data-edit-deadline]");
+    await expect(page.locator("#deadlineSubmit")).toHaveText("Güncelle");
+    await page.locator("#deadlineNew").click();
     await clickRowActionByText(page, "#deadlineFullRows tr", prefix, "[data-complete-deadline]");
     await expect(page.locator("#completedDeadlineRows")).toContainText(`${prefix} süreli iş`, { timeout: 20_000 });
     await clickRowActionByText(page, "#completedDeadlineRows tr", prefix, "[data-reopen-deadline]");

@@ -3,8 +3,12 @@ import bktLogoUrl from "../outputs/bkt-logo.png";
 import appRuntimeUrl from "virtual:bkt-app-runtime-url";
 import "../outputs/supabase-config.js";
 import { desktopRuntime } from "./platform/generatedFileSaver.js";
+import * as enforcementCalculator from "./calculations/enforcementCalculator.js";
+import * as fileSearch from "./search/fileSearch.js";
 
 window.BKT_DESKTOP_RUNTIME = desktopRuntime;
+window.BKT_ENFORCEMENT_CALCULATOR = enforcementCalculator;
+window.BKT_FILE_SEARCH = fileSearch;
 
 const assetMap = new Map([
   ["bkt-logo.png", bktLogoUrl]
