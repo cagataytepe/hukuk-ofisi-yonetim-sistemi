@@ -9,6 +9,8 @@ node_modules/
 dist/
 src-tauri/target/
 src-tauri/gen/
+src-tauri/firebase/google-services.json
+.npm-cache/
 .vite/
 
 # Supabase local state

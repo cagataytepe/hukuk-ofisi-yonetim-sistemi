@@ -1,7 +1,7 @@
 {
   "productName": "BKT Hukuk",
   "build": {
-    "beforeBuildCommand": "npm run build"
+    "beforeBuildCommand": "node scripts/prepare-android-firebase.mjs && npm run build"
   },
   "app": {
     "windows": [

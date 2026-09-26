@@ -7643,12 +7643,12 @@
       <form class="login-form" id="loginForm">
         <div class="field">
           <label for="loginEmail">E-posta Adresi</label>
-          <input id="loginEmail" name="email" type="email" autocomplete="email" required autofocus>
+          <input id="loginEmail" name="email" type="email" autocomplete="email" required autofocus disabled>
         </div>
         <div class="field password-field">
           <label for="loginPassword">Şifre</label>
-          <input id="loginPassword" name="password" type="password" autocomplete="current-password" required>
-          <button class="password-toggle" id="passwordToggle" type="button" aria-label="Şifreyi göster" title="Şifreyi göster">
+          <input id="loginPassword" name="password" type="password" autocomplete="current-password" required disabled>
+          <button class="password-toggle" id="passwordToggle" type="button" aria-label="Şifreyi göster" title="Şifreyi göster" disabled>
             <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"></path>
               <circle cx="12" cy="12" r="3"></circle>
@@ -7656,11 +7656,11 @@
           </button>
         </div>
         <div class="login-options">
-          <label class="check-line"><input id="rememberLogin" type="checkbox"> Beni Hatırla</label>
+          <label class="check-line"><input id="rememberLogin" type="checkbox" disabled> Beni Hatırla</label>
         </div>
-        <button class="btn primary login-submit" type="submit">Giriş Yap</button>
+        <button class="btn primary login-submit" type="submit" disabled>Giriş Yap</button>
         <div class="auth-link-row">
-          <button id="passwordResetButton" type="button">Şifremi Unuttum</button>
+          <button id="passwordResetButton" type="button" disabled>Şifremi Unuttum</button>
         </div>
         <div class="login-error" id="loginError" role="alert"></div>
       </form>
@@ -7809,7 +7809,7 @@
         <div class="metric-grid">
           <div class="metric metric-hearings" data-dashboard-section="hearings" aria-label="Haftanın Duruşmaları"><span class="metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg></span><div class="metric-copy"><span>Haftanın Duruşmaları</span><strong id="todayHearings">0</strong></div></div>
           <div class="metric metric-tasks" data-dashboard-section="tasks" aria-label="Bana Atanmış Görevler"><span class="metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5h14v14H5z"/><path d="m8 12 2.2 2.2L16 9"/></svg></span><div class="metric-copy"><span>Bana Atanmış Görevler</span><strong id="assignedTasks">0</strong></div></div>
-          <div class="metric metric-deadlines" data-dashboard-section="deadlines" aria-label="Yaklaşan Süreler"><span class="metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg></span><div class="metric-copy"><span>Yaklaşan Süreler</span><strong id="soonDeadlines">0</strong></div></div>
+          <div class="metric metric-deadlines" data-dashboard-section="deadlines" aria-label="Bekleyen Süreli İşler"><span class="metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg></span><div class="metric-copy"><span>Bekleyen Süreli İşler</span><strong id="soonDeadlines">0</strong></div></div>
           <div class="metric metric-overdue overdue-metric" data-dashboard-section="deadlines" aria-label="Süresi Geçmiş İşler"><span class="metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v6"/><path d="M12 17h.01"/><path d="M10.3 3.9 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg></span><div class="metric-copy"><span>Süresi Geçmiş İşler</span><strong id="lateDeadlines">0</strong></div></div>
           <strong id="weekHearings" hidden>0</strong>
           <strong id="todayDeadlines" hidden>0</strong>
@@ -11917,6 +11917,7 @@
       return {
         files: [],
         upcomingHearings: [],
+        dashboardUpcomingHearings: [],
         recentFiles: [],
         recentHearings: [],
         deadlines: [],
@@ -11941,6 +11942,8 @@
         participant_profile: profilesById.get(hearing.participant_profile_id || hearing.attendee_profile_id) || null
       });
       const upcomingHearings = (row.upcomingHearings || []).map(normalizeDashboardHearing);
+      const dashboardUpcomingHearings = (row.dashboardUpcomingHearings || row.upcomingHearings || [])
+        .map(normalizeDashboardHearing);
       const recentFiles = (row.recentFiles || []).map(fileFromRepositoryRow);
       const recentHearings = (row.recentHearings || []).map(normalizeDashboardHearing);
       const normalizeDashboardDeadline = deadline => deadlineFromRepositoryRow({
@@ -11959,6 +11962,7 @@
       return {
         files,
         upcomingHearings,
+        dashboardUpcomingHearings,
         recentFiles,
         recentHearings,
         deadlines,
@@ -16386,13 +16390,7 @@
       const data = dashboardData || emptyDashboardData();
       const files = data.files || [];
       const dashboardHearings = data.upcomingHearings || [];
-      const upcomingWindowEnd = addDays(today, 3);
-      const upcomingHearings = dashboardHearings
-        .filter(hearing => {
-          const hearingDay = dateOnly(hearing.date);
-          return !isCompletedHearing(hearing) && hearingDay >= today && hearingDay <= upcomingWindowEnd;
-        })
-        .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
+      const upcomingHearings = data.dashboardUpcomingHearings || [];
       const weekStart = addDays(today, -((today.getDay() + 6) % 7));
       const weekEnd = addDays(weekStart, 4);
       const weeklyHearings = dashboardHearings.filter(hearing => {
@@ -16400,7 +16398,7 @@
         return hearingDay >= weekStart && hearingDay <= weekEnd;
       });
       const activeDeadlines = (data.deadlines || [])
-        .filter(deadline => deadline.status !== "Tamamlandı")
+        .filter(deadline => !isCompletedDeadlineStatus(deadline.status))
         .sort((a, b) => daysLeft(a.due) - daysLeft(b.due));
       const upcomingDeadlines = activeDeadlines.filter(deadline => {
         const left = daysLeft(deadline.due);
@@ -16423,7 +16421,7 @@
       document.getElementById("todayHearings").innerHTML = dashboardLoading ? `<span class="skeleton-inline" aria-label="Yükleniyor"></span>` : weeklyHearings.length;
       document.getElementById("weekHearings").innerHTML = dashboardLoading ? `<span class="skeleton-inline" aria-label="Yükleniyor"></span>` : weeklyHearings.length;
       document.getElementById("todayDeadlines").textContent = todayDeadlines;
-      document.getElementById("soonDeadlines").textContent = upcomingDeadlines.length;
+      document.getElementById("soonDeadlines").textContent = activeDeadlines.length;
       document.getElementById("lateDeadlines").textContent = overdueDeadlines.length + overdueTasks.length;
       document.getElementById("assignedTasks").textContent = data.taskError ? "!" : assignedTasks.length;
 
@@ -21012,17 +21010,31 @@
       ...deadlineReportRows().map(d => [d.file, d.court, deadlineFileNo(d), d.task, d.description, d.lawyer, d.start, d.due, deadlineStatusText(d)])
     ]));
 
+    function setLoginBootstrapPending(pending) {
+      const form = document.getElementById("loginForm");
+      if (!form) return;
+      form.setAttribute("aria-busy", pending ? "true" : "false");
+      form.querySelectorAll("input, button").forEach(control => {
+        control.disabled = pending;
+      });
+    }
+
     async function initializeApplication() {
-      if (appRepository.ready) await appRepository.ready;
-      users = loadUsers();
-      renderInterestTypeOptions();
-      refreshStoredEnforcementBalances();
-      renderPeopleOptions();
-      resetCaseForm();
-      resetTaskForm();
-      resetPaymentPlanForm();
-      if (!(await restoreSession())) {
-        resetUserForm();
+      setLoginBootstrapPending(true);
+      try {
+        if (appRepository.ready) await appRepository.ready;
+        users = loadUsers();
+        renderInterestTypeOptions();
+        refreshStoredEnforcementBalances();
+        renderPeopleOptions();
+        resetCaseForm();
+        resetTaskForm();
+        resetPaymentPlanForm();
+        if (!(await restoreSession())) {
+          resetUserForm();
+        }
+      } finally {
+        setLoginBootstrapPending(false);
       }
     }
 

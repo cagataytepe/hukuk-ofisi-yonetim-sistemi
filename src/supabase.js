@@ -1,37 +1,27 @@
 import { createClient } from "@supabase/supabase-js";
+import {
+  createMobileAuthStorage,
+  getRememberSessionPreference,
+  setRememberSessionPreference
+} from "./mobile/session-persistence.mjs";
 
 const config = window.BKT_SUPABASE_CONFIG;
-const mobileSessionOnlyKey = "bkt.mobile.session-only";
-const isMobileEntry = /(?:^|\/)mobile\.html$/i.test(window.location.pathname);
+const isMobileEntry = /(?:^|\/)mobile\.html$/i.test(window.location.pathname)
+  || Boolean(document.querySelector("#mobileApp"));
 
 if (!config?.url || !config?.publishableKey) {
   throw new Error("Supabase bağlantı bilgileri eksik.");
 }
 
-const mobileAuthStorage = isMobileEntry
-  ? {
-      getItem(key) {
-        const storage = sessionStorage.getItem(mobileSessionOnlyKey) === "true" ? sessionStorage : localStorage;
-        return storage.getItem(key);
-      },
-      setItem(key, value) {
-        const sessionOnly = sessionStorage.getItem(mobileSessionOnlyKey) === "true";
-        const storage = sessionOnly ? sessionStorage : localStorage;
-        const alternateStorage = sessionOnly ? localStorage : sessionStorage;
-        alternateStorage.removeItem(key);
-        storage.setItem(key, value);
-      },
-      removeItem(key) {
-        localStorage.removeItem(key);
-        sessionStorage.removeItem(key);
-      }
-    }
-  : undefined;
+const mobileAuthStorage = isMobileEntry ? createMobileAuthStorage() : undefined;
 
 export function setMobileSessionPersistence(remember) {
   if (!isMobileEntry) return;
-  if (remember) sessionStorage.removeItem(mobileSessionOnlyKey);
-  else sessionStorage.setItem(mobileSessionOnlyKey, "true");
+  setRememberSessionPreference(Boolean(remember));
+}
+
+export function getMobileSessionPersistence() {
+  return !isMobileEntry || getRememberSessionPreference();
 }
 
 export const supabase = createClient(
@@ -41,7 +31,7 @@ export const supabase = createClient(
     auth: {
       persistSession: true,
       autoRefreshToken: true,
-      detectSessionInUrl: true,
+      detectSessionInUrl: !isMobileEntry,
       ...(mobileAuthStorage ? { storage: mobileAuthStorage } : {})
     }
   }

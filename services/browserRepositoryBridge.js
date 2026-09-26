@@ -1,6 +1,11 @@
 ﻿import { supabase } from "../src/supabase.js";
 
-import { setMobileSessionPersistence } from "../src/supabase.js";
+import { getMobileSessionPersistence, setMobileSessionPersistence } from "../src/supabase.js";
+import {
+  isoDateInTimeZone,
+  selectUpcomingHearings,
+  weekStartIso
+} from "../src/shared/upcomingHearings.mjs";
 
 import {
   buildCalculationTools,
@@ -72,6 +77,14 @@ import {
 
         return repository.reload();
       },
+      async initialize() {
+        if (!repository.available) {
+          repository.switchToOffline("Supabase bağlantı bilgileri veya supabase-js yüklenemedi.");
+          return false;
+        }
+        await repository.getSession();
+        return true;
+      },
       async reload() {
         try {
           const response = await fetch(
@@ -89,6 +102,7 @@ import {
           repository.available = true;
           repository.offline = false;
           repository.mode = "supabase";
+          document.getElementById("supabaseConnectionWarning")?.remove();
           notifyStatus("online", "Supabase bağlantısı kuruldu.");
           return true;
         } catch (error) {
@@ -99,7 +113,7 @@ import {
       async getSession() {
         if (!authClient) return null;
         const { data, error } = await authClient.auth.getSession();
-        if (error) return null;
+        if (error) throw error;
         return data?.session || null;
       },
       async signIn(identifier, password) {
@@ -116,16 +130,45 @@ import {
       setRememberSession(remember) {
         setMobileSessionPersistence(Boolean(remember));
       },
+      getRememberSession() {
+        return getMobileSessionPersistence();
+      },
       async signOut() {
-        if (authClient) await authClient.auth.signOut();
+        if (authClient) {
+          const { error } = await authClient.auth.signOut();
+          if (error) throw error;
+        }
         cache.clear();
         notifyStatus("unauthenticated", "Oturum kapatıldı.");
+      },
+      async registerPushDevice(token, previousToken = null) {
+        if (!authClient) throw new Error('Supabase unavailable');
+        const { data, error } = await authClient.rpc('register_push_device', {
+          p_token: token, p_previous_token: previousToken
+        });
+        if (error) throw error;
+        return data;
+      },
+      async disablePushDevice(token) {
+        if (!authClient) throw new Error('Supabase unavailable');
+        const { error } = await authClient.rpc('disable_push_device', { p_token: token });
+        if (error) throw error;
       },
       async restoreAuthUser() {
         const session = await repository.getSession();
         if (!session?.user) return null;
-        await repository.reload();
-        return repository.getCurrentUser();
+        let lastError = null;
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          try {
+            const loaded = await repository.reload();
+            if (!loaded) throw new Error("Supabase veri bağlantısı henüz hazır değil.");
+            return await repository.getCurrentUser();
+          } catch (error) {
+            lastError = error;
+            if (attempt < 2) await new Promise(resolve => window.setTimeout(resolve, 300 * (attempt + 1)));
+          }
+        }
+        throw lastError || new Error("Oturum geri yüklenemedi.");
       },
       async sendPasswordReset(email) {
         if (!authClient) throw new Error("Supabase Auth yüklenemedi.");
@@ -142,7 +185,8 @@ import {
       async getCurrentUser() {
         if (!authClient) return null;
         const { data, error } = await authClient.auth.getUser();
-        if (error || !data?.user) return null;
+        if (error) throw error;
+        if (!data?.user) return null;
         return repository.getProfileUser(data.user);
       },
       async getProfileUser(authUser) {
@@ -499,18 +543,8 @@ import {
       },
       async getDashboardData(filters = {}) {
         const now = new Date();
-        const todayIso = [
-          now.getFullYear(),
-          String(now.getMonth() + 1).padStart(2, "0"),
-          String(now.getDate()).padStart(2, "0")
-        ].join("-");
-        const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
-        const weekStartIso = [
-          weekStart.getFullYear(),
-          String(weekStart.getMonth() + 1).padStart(2, "0"),
-          String(weekStart.getDate()).padStart(2, "0")
-        ].join("-");
+        const todayIso = isoDateInTimeZone(now);
+        const dashboardWeekStartIso = weekStartIso(todayIso);
         const fileSelect = "id,legacy_id,display_id,record_kind,file_type,follow_type,file_no,court_or_office,decision_no,subject,status,opening_date,responsible_profile_id,responsible_name,client_name,opponent_name,description,account_info,instrument_info,metadata,created_at,updated_at,deleted_at";
         const hearingSelect = "id,legacy_id,file_id,court,case_file_no,hearing_date,hearing_time,client_name,party_role,excuse_type,attendee_profile_id,attendee_name,participant_profile_id,participant_name,note,outcome,status,metadata,created_at,updated_at,deleted_at";
         const deadlineSelect = "id,legacy_id,file_id,title,task,description,responsible_profile_id,responsible_name,start_date,due_date,status,completed_at,completed_late,created_at,updated_at,deleted_at,metadata";
@@ -528,7 +562,7 @@ import {
         }
         const [filesResponse, upcomingResponse, deadlinesResponse, profilesResponse] = await Promise.all([
           fetch(`${restUrl("files")}?select=${fileSelect}&deleted_at=is.null&order=created_at.desc`, { headers }),
-          fetch(`${restUrl("hearings")}?select=${hearingSelect}&deleted_at=is.null&hearing_date=gte.${encodeURIComponent(weekStartIso)}&order=hearing_date.asc.nullslast&order=hearing_time.asc.nullslast`, { headers }),
+          fetch(`${restUrl("hearings")}?select=${hearingSelect}&deleted_at=is.null&hearing_date=gte.${encodeURIComponent(dashboardWeekStartIso)}&order=hearing_date.asc.nullslast&order=hearing_time.asc.nullslast`, { headers }),
           fetch(`${restUrl("deadlines")}?select=${deadlineSelect}&deleted_at=is.null&order=due_date.asc.nullslast&order=created_at.desc`, { headers }),
           fetch(`${restUrl("profiles")}?select=${profileSelect}&deleted_at=is.null&is_active=eq.true&order=display_name.asc`, { headers })
         ]);
@@ -565,6 +599,7 @@ import {
         return {
           files,
           upcomingHearings,
+          dashboardUpcomingHearings: selectUpcomingHearings(upcomingHearings, { now }),
           recentFiles: [],
           recentHearings: [],
           deadlines,
@@ -2155,7 +2190,7 @@ import {
       });
     }
 
-    repository.ready = repository.preload();
+    repository.ready = repository.initialize();
     return repository;
   }
 

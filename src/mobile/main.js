@@ -1,5 +1,7 @@
 import "../../outputs/supabase-config.js";
 import bktLogoUrl from "../../outputs/bkt-logo.png";
+import { authenticatedPush, initializePush, logoutPush } from "./push.js";
+import { isoDateInTimeZone, selectUpcomingHearings } from "../shared/upcomingHearings.mjs";
 import {
   accountDateInTimeZone,
   buildEnforcementAccountFile,
@@ -34,7 +36,8 @@ const state = {
   calendarDate: new Date(),
   selectedDate: localIso(new Date()),
   cache: new Map(),
-  loading: false
+  loading: false,
+  bootPhase: "booting"
 };
 
 const MOBILE_FILE_PAGE_SIZE = 10;
@@ -337,10 +340,9 @@ async function renderHome(force = false) {
   try {
     const data = await loadCached("dashboard", () => repository.getDashboardData({ profileId: state.user.id }), force);
     const currentDate = new Date();
-    const today = localIso(currentDate);
-    const hearingLimit = addDaysIso(2, currentDate);
+    const today = isoDateInTimeZone(currentDate);
     const deadlineLimit = addDaysIso(7, currentDate);
-    const weekStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate());
+    const weekStart = localDate(today);
     weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekStart.getDate() + 4);
@@ -350,8 +352,10 @@ async function renderHome(force = false) {
     const weeklyHearings = data.upcomingHearings.filter(item => item.hearing_date >= weekStartIso && item.hearing_date <= weekEndIso);
     const profilesById = new Map((data.profiles || []).map(profile => [profile.id, profile]));
     const filesById = new Map((data.files || []).map(file => [file.id, file]));
-    const upcomingHearings = data.upcomingHearings
-      .filter(item => item.hearing_date >= today && item.hearing_date <= hearingLimit)
+    const dashboardUpcomingHearings = Array.isArray(data.dashboardUpcomingHearings)
+      ? data.dashboardUpcomingHearings
+      : selectUpcomingHearings(data.upcomingHearings, { now: currentDate });
+    const upcomingHearings = dashboardUpcomingHearings
       .map(item => ({
         ...item,
         file: filesById.get(item.file_id) || null,
@@ -380,7 +384,7 @@ async function renderHome(force = false) {
         </div>
       </section>
       <section class="dashboard-summary-grid" aria-label="Genel sayaçlar">
-        ${dashboardSummaryCard("calendarWeek", "Duruşmalar", weeklyHearings.length, "hearings")}
+        ${dashboardSummaryCard("calendarWeek", "Haftanın Duruşmaları", weeklyHearings.length, "hearings")}
         ${dashboardSummaryCard("clock", "Süreli İşler", activeDeadlines.length, "deadlines")}
         ${dashboardSummaryCard("tasks", "Bana Atanmış Görevler", assignedTasks.length, "tasks")}
       </section>
@@ -395,11 +399,11 @@ async function renderHome(force = false) {
 }
 
 function dailySummaryRow(iconName, value, description) {
-  return `<div class="daily-summary-row"><span class="daily-summary-icon">${icon(iconName)}</span><strong>${Number(value) || 0}</strong><span>${escapeHtml(description)}</span></div>`;
+  return `<div class="daily-summary-row"><span class="daily-summary-icon">${icon(iconName)}</span><strong class="daily-summary-value">${Number(value) || 0}</strong><span class="daily-summary-copy">${escapeHtml(description)}</span></div>`;
 }
 
-function dashboardSummaryCard(iconName, title, value, tone) {
-  return `<article class="dashboard-summary-card ${tone}"><span class="dashboard-summary-icon">${icon(iconName)}</span><span class="dashboard-summary-label">${escapeHtml(title)}</span><strong>${Number(value) || 0}</strong></article>`;
+function dashboardSummaryCard(iconName, title, value, route) {
+  return `<button type="button" class="dashboard-summary-card ${route}" data-route="${route}" aria-label="${escapeHtml(title)} sayfasını aç"><span class="dashboard-summary-icon">${icon(iconName)}</span><span class="dashboard-summary-label">${escapeHtml(title)}</span><strong>${Number(value) || 0}</strong></button>`;
 }
 
 function homeSection(title, route, rows, renderer, emptyText) {
@@ -580,7 +584,8 @@ function filePagination(currentPage, totalPages) {
 }
 
 function fileCard(file) {
-  const enforcement = fileTypeClass(file) === "enforcement";
+  const typeClass = fileTypeClass(file);
+  const enforcement = typeClass === "enforcement";
   const displayId = file.display_id || file.legacy_id || file.file_no || "Dosya";
   const court = file.court_or_office || "Mahkeme / icra dairesi belirtilmedi";
   const fileNo = file.file_no || "Dosya no yok";
@@ -595,7 +600,8 @@ function fileCard(file) {
   const detailLines = enforcement
     ? `<span class="list-note file-card-party">${escapeHtml(partyText)}</span><span class="list-note file-card-account">Güncel Kapak Hesabı: ${currentDebt === undefined || currentDebt === null || currentDebt === "" ? "Belirtilmedi" : escapeHtml(formatCurrency(currentDebt, accountInfo.currency || "TRY"))}</span>`
     : `<span class="list-note file-card-subject">${escapeHtml(file.subject || "Konu belirtilmedi")}</span><span class="list-note file-card-party">${escapeHtml(partyText)}</span>`;
-  return `<button class="mobile-list-card file-list-card ${enforcement ? "is-enforcement" : "is-lawsuit"}" data-file-id="${file.id}">${leading}<span class="list-content"><span class="list-title file-card-title">${escapeHtml(court)} · ${escapeHtml(fileNo)}</span>${detailLines}</span><span class="list-tail"><span class="mobile-badge ${statusTone}">${escapeHtml(file.status || (enforcement ? "İcra" : "Dava"))}</span><span class="chevron">›</span></span></button>`;
+  const cardTypeClass = enforcement ? "is-enforcement" : `is-lawsuit is-${typeClass}`;
+  return `<button class="mobile-list-card file-list-card ${cardTypeClass}" data-file-id="${file.id}">${leading}<span class="list-content"><span class="list-title file-card-title">${escapeHtml(court)} · ${escapeHtml(fileNo)}</span>${detailLines}</span><span class="list-tail"><span class="mobile-badge ${statusTone}">${escapeHtml(file.status || (enforcement ? "İcra" : "Dava"))}</span><span class="chevron">›</span></span></button>`;
 }
 
 async function renderFileDetail(force = false) {
@@ -731,7 +737,8 @@ async function renderHearings(force = false) {
 
 function hearingControls(range) {
   const views = [["day", "Günlük"], ["week", "Haftalık"], ["month", "Aylık"]];
-  return `<div class="hearing-view-toolbar"><div class="view-switch" role="group" aria-label="Duruşma görünümü">${views.map(([value, label]) => `<button class="${state.hearingView === value ? "active" : ""}" data-hearing-view="${value}">${label}</button>`).join("")}</div></div><div class="period-nav"><button data-hearing-move="-1" aria-label="Önceki dönem">‹</button><strong>${escapeHtml(range.label)}</strong><button class="period-today" data-hearing-move="0">Bugün</button><button data-hearing-move="1" aria-label="Sonraki dönem">›</button></div>`;
+  const currentPeriodLabel = state.hearingView === "month" ? "Bu Ay" : state.hearingView === "week" ? "Bu Hafta" : "Bugün";
+  return `<div class="hearing-view-toolbar"><div class="view-switch" role="group" aria-label="Duruşma görünümü">${views.map(([value, label]) => `<button class="${state.hearingView === value ? "active" : ""}" data-hearing-view="${value}">${label}</button>`).join("")}</div></div><div class="period-nav"><button data-hearing-move="-1" aria-label="Önceki dönem">‹</button><strong>${escapeHtml(range.label)}</strong><button class="period-today" data-hearing-move="0">${currentPeriodLabel}</button><button data-hearing-move="1" aria-label="Sonraki dönem">›</button></div>`;
 }
 
 function hearingParticipant(row) {
@@ -1062,7 +1069,17 @@ async function renderRoute(force = false) {
   return renderSimpleList(state.route, force);
 }
 
+function renderBoot(message = "Mobil uygulama hazırlanıyor...") {
+  app.innerHTML = `<main class="mobile-boot" data-boot-phase="${escapeHtml(state.bootPhase)}">
+    <img src="${escapeHtml(bktLogoUrl)}" alt="BKT Hukuk" />
+    <strong>BKT Hukuk</strong>
+    <span>${escapeHtml(message)}</span>
+  </main>`;
+}
+
 function renderLogin(message = "") {
+  state.bootPhase = "unauthenticated";
+  const remember = repository?.getRememberSession?.() !== false;
   app.innerHTML = `<main class="mobile-login">
     <section class="mobile-login-hero" aria-label="BKT Hukuk ve Danışmanlık Bürosu">
       <div class="mobile-login-hero-inner">
@@ -1089,7 +1106,7 @@ function renderLogin(message = "") {
           <label for="mobilePassword">Şifre</label>
           <span class="mobile-input-shell mobile-password-shell">${icon("lock")}<input id="mobilePassword" name="password" type="password" autocomplete="current-password" placeholder="Şifrenizi girin" required /><button class="mobile-password-toggle" type="button" data-action="toggle-login-password" aria-label="Şifreyi göster" title="Şifreyi göster">${icon("eye")}</button></span>
         </div>
-        <label class="mobile-remember"><input id="mobileRememberLogin" name="remember" type="checkbox" checked /><span>Beni Hatırla</span></label>
+        <label class="mobile-remember"><input id="mobileRememberLogin" name="remember" type="checkbox" ${remember ? "checked" : ""} /><span>Beni Hatırla</span></label>
         <button id="mobileLoginButton" class="mobile-primary" type="submit"><span>Giriş Yap</span>${icon("arrow")}</button>
         <p id="mobileLoginError" class="mobile-login-error" role="alert">${escapeHtml(message)}</p>
       </form>
@@ -1099,13 +1116,21 @@ function renderLogin(message = "") {
 }
 
 async function restoreSession() {
-  renderLogin();
+  state.bootPhase = "restoring-session";
+  renderBoot("Oturum kontrol ediliyor...");
   try {
     state.user = await repository.restoreAuthUser();
-    if (state.user) await renderRoute();
+    if (state.user) {
+      state.bootPhase = "authenticated";
+      await renderRoute();
+      return true;
+    }
+    renderLogin();
+    return false;
   } catch (error) {
     console.error("[BKT mobile] Oturum geri yüklenemedi.", { message: error?.message || String(error) });
     renderLogin(error.message || "Oturum açılamadı.");
+    return false;
   }
 }
 
@@ -1124,9 +1149,11 @@ app.addEventListener("submit", async event => {
     await repository.signIn(form.get("email"), form.get("password"));
     state.user = await repository.getCurrentUser();
     if (!state.user) throw new Error("Bu kullanıcı için uygulama profili bulunamadı.");
+    state.bootPhase = "authenticated";
     state.cache.clear();
     state.route = "home";
     await renderRoute(true);
+    await authenticatedPush(repository, state.user.id);
   } catch (error) {
     console.error("[BKT mobile] Giriş başarısız.", { message: error?.message || String(error) });
     errorNode.textContent = error.message || "Giriş sırasında bir hata oluştu.";
@@ -1297,7 +1324,14 @@ app.addEventListener("click", async event => {
     return renderRoute(true);
   }
   if (actionTarget.dataset.action === "logout") {
-    await repository.signOut();
+    try {
+      await logoutPush();
+      await repository.signOut();
+    } catch {
+      showToast("Oturum güvenle kapatılamadı. Bağlantıyı kontrol edip yeniden deneyin.");
+      if (state.user) await authenticatedPush(repository, state.user.id);
+      return;
+    }
     state.user = null;
     state.cache.clear();
     return renderLogin();
@@ -1313,10 +1347,26 @@ window.addEventListener("afterprint", () => {
 });
 
 async function bootstrapMobile() {
+  state.bootPhase = "booting";
+  renderBoot();
   await import("../../services/browserRepositoryBridge.js");
   repository = window.BKTHukukRepository?.createBrowserRepository();
   if (!repository) throw new Error("Mobil veri katmanı başlatılamadı.");
-  await restoreSession();
+  state.bootPhase = "repository-ready";
+  if (repository.ready) await repository.ready;
+  const restored = await restoreSession();
+  try {
+    await initializePush(async (target) => {
+      if (!state.user) return;
+      state.previousRoute = state.route;
+      state.route = target.route;
+      if (target.fileId) state.detailId = target.fileId;
+      await renderRoute(true);
+    });
+    if (restored && state.user) await authenticatedPush(repository, state.user.id);
+  } catch (error) {
+    console.warn("[BKT mobile] Native push başlangıcı ertelendi.", { message: error?.message || String(error) });
+  }
 }
 
 bootstrapMobile().catch(error => {

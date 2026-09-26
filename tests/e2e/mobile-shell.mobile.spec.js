@@ -85,7 +85,7 @@ test("ayrı mobil shell temel görüntüleme akışlarını çalıştırır", as
       return date;
     });
     return {
-      hearings: dates.slice(0, 3).map(date => format(date, { day: "2-digit", month: "short" })),
+      hearings: dates.slice(0, 4).map(date => format(date, { day: "2-digit", month: "short" })),
       deadlines: dates.map(date => `Son gün: ${format(date, { day: "2-digit", month: "short", year: "numeric" })}`)
     };
   });
@@ -93,6 +93,22 @@ test("ayrı mobil shell temel görüntüleme akışlarını çalıştırır", as
   const homeDeadlineDates = await page.locator(".home-section-deadlines .list-meta span:first-child").allTextContents();
   homeHearingDates.forEach(value => expect(homeDateWindows.hearings).toContain(value.trim()));
   homeDeadlineDates.forEach(value => expect(homeDateWindows.deadlines).toContain(value.trim()));
+  const homeHearingOrder = await page.locator(".home-section-hearings .hearing-card").evaluateAll(cards => cards.map(card => ({
+    date: card.querySelector(".hearing-time small")?.textContent?.trim() || "",
+    time: card.querySelector(".hearing-time strong")?.textContent?.trim() || ""
+  })));
+  const timeInMinutes = value => {
+    const [hour = 0, minute = 0] = String(value).split(":").map(Number);
+    return hour * 60 + minute;
+  };
+  for (let index = 1; index < homeHearingOrder.length; index += 1) {
+    const previous = homeHearingOrder[index - 1];
+    const current = homeHearingOrder[index];
+    const previousDate = homeDateWindows.hearings.indexOf(previous.date);
+    const currentDate = homeDateWindows.hearings.indexOf(current.date);
+    expect(currentDate).toBeGreaterThanOrEqual(previousDate);
+    if (currentDate === previousDate) expect(timeInMinutes(current.time)).toBeGreaterThanOrEqual(timeInMinutes(previous.time));
+  }
 
   await page.locator('.mobile-nav[data-route="files"]').click();
   await expect(page.locator("#mobileFileSearch")).toBeVisible();
@@ -109,6 +125,7 @@ test("ayrı mobil shell temel görüntüleme akışlarını çalıştırır", as
   await expect(firstFile.locator(".file-card-subject")).toBeVisible();
   await expect(firstFile.locator(".file-card-party")).toBeVisible();
   await expect(firstFile.locator(".file-card-id")).toBeVisible();
+  await expect(firstFile).toHaveClass(/is-(law|criminal)/);
   await expect(firstFile.locator(".list-content .file-card-id")).toHaveCount(0);
   await expectFileStatusTones(page.locator("[data-file-id].is-lawsuit"));
   const fileLeadingLayout = await firstFile.locator(".file-card-leading").evaluate(element => {
@@ -159,8 +176,13 @@ test("ayrı mobil shell temel görüntüleme akışlarını çalıştırır", as
   await page.locator('.mobile-nav[data-route="hearings"]').click();
   await expect(page.getByRole("heading", { name: "Duruşmalar" })).toBeVisible();
   await expect(page.locator('[data-hearing-view="week"]')).toHaveClass(/active/);
+  await expect(page.locator(".period-today")).toHaveText("Bu Hafta");
   await expect(page.locator('[data-hearing-view="day"]')).toBeVisible();
   await expect(page.locator('[data-hearing-view="month"]')).toBeVisible();
+  await page.locator('[data-hearing-view="day"]').click();
+  await expect(page.locator(".period-today")).toHaveText("Bugün");
+  await page.locator('[data-hearing-view="month"]').click();
+  await expect(page.locator(".period-today")).toHaveText("Bu Ay");
   await expect(page.locator('[data-action="print-hearings"]')).toHaveCount(0);
   await expect(page.locator(".mobile-print-hearings")).toHaveCount(0);
   await expect(page.locator(".hearing-arrow")).toHaveCount(0);

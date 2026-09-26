@@ -14,8 +14,13 @@ test("mobil ana sayfa özet alanı hedef genişliklerde taşmadan görünür", a
   await expect(page.locator(".daily-summary-card")).toBeVisible({ timeout: 30_000 });
   await expect(page.locator("#mobileDailySummaryTitle")).toHaveText("Günün Özeti");
   await expect(page.locator(".daily-summary-row")).toHaveCount(3);
+  await expect(page.locator(".daily-summary-copy")).toHaveText([
+    /Bugün \d+ Duruşmanız Bulunmaktadır/,
+    /Bugün Son Günü Olan \d+ Süreli İş Bulunmaktadır/,
+    /Bugün Son Günü Olan \d+ Göreviniz Bulunmaktadır/
+  ]);
   await expect(page.locator(".dashboard-summary-card")).toHaveCount(3);
-  await expect(page.locator(".dashboard-summary-card").nth(0)).toContainText("Duruşmalar");
+  await expect(page.locator(".dashboard-summary-card").nth(0)).toContainText("Haftanın Duruşmaları");
   await expect(page.locator(".dashboard-summary-card").nth(1)).toContainText("Süreli İşler");
   await expect(page.locator(".dashboard-summary-card").nth(2)).toContainText("Bana Atanmış Görevler");
 
@@ -24,7 +29,7 @@ test("mobil ana sayfa özet alanı hedef genişliklerde taşmadan görünür", a
     const layout = await page.evaluate(() => {
       const hero = document.querySelector(".daily-summary-card");
       const cards = [...document.querySelectorAll(".dashboard-summary-card")];
-      const descriptions = [...document.querySelectorAll(".daily-summary-row > span:last-child")];
+      const descriptions = [...document.querySelectorAll(".daily-summary-copy")];
       const cardTops = cards.map(card => Math.round(card.getBoundingClientRect().top));
       const heroBackground = hero ? getComputedStyle(hero, "::before").backgroundImage : "";
       return {
@@ -32,7 +37,7 @@ test("mobil ana sayfa özet alanı hedef genişliklerde taşmadan görünür", a
         cardsShareRow: cardTops.length === 3 && cardTops.every(top => top === cardTops[0]),
         descriptionsFit: descriptions.every(description => description.scrollWidth <= description.clientWidth),
         heroHeight: Math.round(hero?.getBoundingClientRect().height || 0),
-        hasCourthouseBackground: heroBackground.includes("courthouse-columns.svg")
+        usesAbstractBackground: !heroBackground.includes("courthouse-columns.svg") && heroBackground.includes("gradient")
       };
     });
 
@@ -40,7 +45,7 @@ test("mobil ana sayfa özet alanı hedef genişliklerde taşmadan görünür", a
     expect(layout.cardsShareRow, `${width}px genişlikte sayaçlar aynı satırda kalmalı`).toBe(true);
     expect(layout.descriptionsFit, `${width}px genişlikte açıklamalar taşmamalı`).toBe(true);
     expect(layout.heroHeight, `${width}px genişlikte hero gereksiz büyümemeli`).toBeLessThan(270);
-    expect(layout.hasCourthouseBackground).toBe(true);
+    expect(layout.usesAbstractBackground).toBe(true);
 
     if (width === 390) {
       await testInfo.attach("mobile-dashboard-summary-390", {
@@ -49,6 +54,15 @@ test("mobil ana sayfa özet alanı hedef genişliklerde taşmadan görünür", a
       });
     }
   }
+
+  await page.locator('.dashboard-summary-card[data-route="hearings"]').click();
+  await expect(page.getByRole("heading", { name: "Duruşmalar" })).toBeVisible();
+  await page.locator('.mobile-nav[data-route="home"]').click();
+  await page.locator('.dashboard-summary-card[data-route="deadlines"]').click();
+  await expect(page.getByRole("heading", { name: "Süreli İşler" })).toBeVisible();
+  await page.locator('.mobile-nav[data-route="home"]').click();
+  await page.locator('.dashboard-summary-card[data-route="tasks"]').click();
+  await expect(page.getByRole("heading", { name: "Görevler" })).toBeVisible();
 
   diagnostics.assertClean();
 });
