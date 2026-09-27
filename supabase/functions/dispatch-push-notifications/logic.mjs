@@ -71,38 +71,70 @@ export function hearingEvents(hearing, now) {
   const userId = hearing.participant_profile_id || hearing.attendee_profile_id;
   if (!userId) return [];
   const at = localInstant(hearing.hearing_date, hearing.hearing_time);
-  return [
-    ['24h', 24, 'Yarın Duruşmanız Var'],
-    ['1h', 1, '1 Saat Sonra Duruşmanız Var']
-  ].flatMap(([reminderType, hours, title]) => {
-    const scheduled = new Date(at.getTime() - hours * 3600_000);
-    if (!isDue(now, scheduled)) return [];
-    return [{ userId, eventType: 'hearing', entityId: hearing.id,
-      reminderType, scheduledFor: scheduled.toISOString(), title,
-      body: hearingBody(hearing), navigation: {
-        route: 'file-detail', file_id: hearing.file_id, hearing_id: hearing.id
-      } }];
-  });
+  const scheduled = new Date(at.getTime() - 3600_000);
+  if (!isDue(now, scheduled)) return [];
+  return [{ userId, eventType: 'hearing', entityId: hearing.id,
+    reminderType: '1h', scheduledFor: scheduled.toISOString(),
+    title: '1 Saat Sonra Duruşmanız Var', body: hearingBody(hearing), navigation: {
+      route: 'file-detail', file_id: hearing.file_id, hearing_id: hearing.id
+    } }];
+}
+
+export function hearingDigestEvents(records, now) {
+  const today = localDate(now);
+  const tomorrow = addDays(today, 1);
+  const scheduled = localInstant(today, '17:00');
+  if (!isDue(now, scheduled)) return [];
+  const counts = new Map();
+  for (const hearing of records) {
+    if (!active(hearing) || hearing.hearing_date !== tomorrow || !hearing.files ||
+        hearing.files.deleted_at || !hearing.hearing_time) continue;
+    const userId = hearing.participant_profile_id || hearing.attendee_profile_id;
+    if (!userId) continue;
+    counts.set(userId, (counts.get(userId) || 0) + 1);
+  }
+  return [...counts].map(([userId, count]) => ({
+    userId, eventType: 'hearing', entityId: userId, reminderType: 'tomorrow_digest',
+    scheduledFor: scheduled.toISOString(),
+    title: `Yarın ${count} Duruşmanız Var`,
+    body: `Yarın toplam ${count} duruşmanız bulunmaktadır.`,
+    navigation: { route: 'hearings', view: 'daily', date: tomorrow }
+  }));
 }
 
 export function dailyEvents(records, type, now) {
   const today = localDate(now);
+  const tomorrow = addDays(today, 1);
   const scheduled = localInstant(today);
   if (!isDue(now, scheduled)) return [];
-  const counts = new Map();
+  const groups = new Map();
   for (const row of records) {
-    if (!active(row) || row.due_date !== today || !row.responsible_profile_id) continue;
-    counts.set(row.responsible_profile_id, (counts.get(row.responsible_profile_id) || 0) + 1);
+    if (!active(row) || !row.responsible_profile_id ||
+        (row.due_date !== today && row.due_date !== tomorrow)) continue;
+    const reminderType = row.due_date === today ? 'today' : 'tomorrow';
+    const key = `${row.responsible_profile_id}:${reminderType}`;
+    const group = groups.get(key) || {
+      userId: row.responsible_profile_id, reminderType, dueDate: row.due_date, count: 0
+    };
+    group.count += 1;
+    groups.set(key, group);
   }
-  return [...counts].map(([userId, count]) => ({
-    userId, eventType: type, entityId: userId, reminderType: 'daily',
-    scheduledFor: scheduled.toISOString(),
-    title: type === 'deadline' ? 'Bugün Son Gün' : 'Bugünkü Görevler',
-    body: type === 'deadline'
-      ? `Bugün son günü olan ${count === 1 ? 'bir' : count} süreli işiniz bulunuyor.`
-      : `Bugün son günü olan ${count === 1 ? 'bir' : count} göreviniz bulunuyor.`,
-    navigation: { route: type === 'deadline' ? 'deadlines' : 'tasks' }
-  }));
+  return [...groups.values()].map(({ userId, reminderType, dueDate, count }) => {
+    const deadline = type === 'deadline';
+    const tomorrowEvent = reminderType === 'tomorrow';
+    const subject = deadline ? 'süreli iş' : 'görev';
+    const title = tomorrowEvent
+      ? `Yarın Son Günü Olan ${deadline ? 'Süreli İşleriniz' : 'Görevleriniz'} Var`
+      : deadline ? 'Bugün Son Gün' : 'Bugünkü Görevler';
+    const body = tomorrowEvent
+      ? `Yarın son günü olan ${count} ${subject}iniz bulunmaktadır.`
+      : `Bugün son günü olan ${count === 1 ? 'bir' : count} ${subject}iniz bulunuyor.`;
+    return {
+      userId, eventType: type, entityId: userId, reminderType,
+      scheduledFor: scheduled.toISOString(), title, body,
+      navigation: { route: deadline ? 'deadlines' : 'tasks', date: dueDate }
+    };
+  });
 }
 
 export function eventKey(event) {
@@ -110,7 +142,11 @@ export function eventKey(event) {
 }
 
 export function allowed(event, preference) {
-  if (event.eventType === 'hearing') return preference?.hearings_enabled !== false &&
-    preference?.[`hearing_${event.reminderType}_enabled`] !== false;
+  if (event.eventType === 'hearing') {
+    if (preference?.hearings_enabled === false) return false;
+    if (event.reminderType === '1h') return preference?.hearing_1h_enabled !== false;
+    if (event.reminderType === '24h') return false;
+    return event.reminderType === 'tomorrow_digest';
+  }
   return preference?.[`${event.eventType}s_enabled`] !== false;
 }

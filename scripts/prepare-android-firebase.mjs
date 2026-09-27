@@ -55,6 +55,17 @@ if (!manifestText.includes('android:roundIcon="@mipmap/ic_launcher_round"')) {
     'android:icon="@mipmap/ic_launcher"\n        android:roundIcon="@mipmap/ic_launcher_round"'
   );
 }
+if (!manifestText.includes('android:name="BKT_PUSH_NOTIFICATION"')) {
+  const pushIntentFilter = `
+            <intent-filter>
+                <action android:name="BKT_PUSH_NOTIFICATION" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>`;
+  const launcherActivity = manifestText.search(/<activity\b[^>]*android:name="(?:[^"]*\.)?MainActivity"[^>]*>/);
+  const activityClose = launcherActivity < 0 ? -1 : manifestText.indexOf('</activity>', launcherActivity);
+  if (activityClose < 0) throw new Error('Generated MainActivity was not found.');
+  manifestText = `${manifestText.slice(0, activityClose)}${pushIntentFilter}\n        ${manifestText.slice(activityClose)}`;
+}
 fs.writeFileSync(generatedManifest, manifestText);
 
-console.log('Firebase config and canonical BKT Android icons provisioned for tr.com.bkthukuk.ofisyonetim.');
+console.log('Firebase config, push click action and canonical BKT Android icons provisioned for tr.com.bkthukuk.ofisyonetim.');

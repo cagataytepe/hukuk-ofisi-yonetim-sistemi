@@ -38,7 +38,12 @@ export async function sendFcm(serviceAccount, device, delivery, fetcher = fetch,
   const url = `https://fcm.googleapis.com/v1/projects/${encodeURIComponent(serviceAccount.project_id)}/messages:send`;
   const data = Object.fromEntries(Object.entries({
     ...delivery.navigation, type: delivery.event_type, entity_id: delivery.entity_id,
-    event_key: delivery.event_key
+    event_key: delivery.event_key,
+    bkt_push_route: delivery.navigation?.route,
+    bkt_push_file_id: delivery.navigation?.file_id,
+    bkt_push_view: delivery.navigation?.view,
+    bkt_push_date: delivery.navigation?.date,
+    bkt_push_hearing_id: delivery.navigation?.hearing_id
   }).filter(([, value]) => value != null).map(([key, value]) => [key, String(value)]));
   const response = await fetcher(url, {
     method: 'POST',
@@ -47,7 +52,7 @@ export async function sendFcm(serviceAccount, device, delivery, fetcher = fetch,
       token: device.fcm_token,
       notification: { title: delivery.title, body: delivery.body },
       data, android: { notification: { channel_id: 'bkt_reminders_v1', tag: delivery.event_key,
-        visibility: 'PRIVATE' } }
+        visibility: 'PRIVATE', icon: 'ic_stat_bkt', click_action: 'BKT_PUSH_NOTIFICATION' } }
     } })
   });
   if (response.ok) return { kind: 'sent', messageId: (await response.json()).name };

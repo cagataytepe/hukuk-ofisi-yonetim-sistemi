@@ -98,6 +98,9 @@ jobs:
       - name: Run calculation unit and parity tests
         run: npm run test:calculations
 
+      - name: Run push scheduling, navigation and Android asset tests
+        run: npm run test:push
+
       - name: Check browser sources for privileged Supabase secrets
         shell: bash
         run: |

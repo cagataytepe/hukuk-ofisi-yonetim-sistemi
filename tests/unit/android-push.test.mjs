@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { addDays, allowed, dailyEvents, eventKey, hearingBody, hearingEvents,
+import { addDays, allowed, dailyEvents, eventKey, hearingBody, hearingDigestEvents, hearingEvents,
   isDue, localDate, localInstant } from '../../supabase/functions/dispatch-push-notifications/logic.mjs';
 import { sendFcm } from '../../supabase/functions/dispatch-push-notifications/fcm.mjs';
 import { failurePlan } from '../../supabase/functions/dispatch-push-notifications/delivery.mjs';
-import { registrationPlan } from '../../src/mobile/push-state.mjs';
+import { createNavigationQueue, registrationPlan } from '../../src/mobile/push-state.mjs';
 import { normalizePushNavigation } from '../../src/mobile/push.js';
 
 const user = '11111111-1111-4111-8111-111111111111';
@@ -20,15 +20,34 @@ const hearing = {
     court_or_office: 'Bakırköy 4. İş Mahkemesi', client_name: 'Ömer Şerif Turan' }
 };
 
-test('Istanbul hearing time and 24h/1h windows, delayed cron, separate keys', () => {
+test('Istanbul hearing time emits only the one-hour reminder', () => {
   assert.equal(localInstant('2026-09-22', '13:30').toISOString(), '2026-09-22T10:30:00.000Z');
-  const day = hearingEvents(hearing, new Date('2026-09-21T10:33:00Z'));
   const hour = hearingEvents(hearing, new Date('2026-09-22T09:34:00Z'));
-  assert.equal(day[0]?.reminderType, '24h');
+  assert.equal(hearingEvents(hearing, new Date('2026-09-21T10:33:00Z')).length, 0);
   assert.equal(hour[0]?.reminderType, '1h');
-  assert.notEqual(eventKey(day[0]), eventKey(hour[0]));
   assert.equal(hearingEvents(hearing, new Date('2026-09-22T09:46:00Z')).length, 0);
   assert.equal(isDue(new Date('2026-09-22T09:34:00Z'), new Date('2026-09-22T09:30:00Z')), true);
+});
+
+test('17:00 Istanbul digest groups tomorrow hearings per user with deterministic navigation', () => {
+  assert.equal(localDate(new Date('2026-09-21T21:01:00Z')), '2026-09-22');
+  const rows = [hearing, { ...hearing, id: '55555555-5555-4555-8555-555555555555' },
+    { ...hearing, id: '66666666-6666-4666-8666-666666666666' },
+    { ...hearing, id: '77777777-7777-4777-8777-777777777777', participant_profile_id: other },
+    { ...hearing, id: '88888888-8888-4888-8888-888888888888', status: 'cancelled' },
+    { ...hearing, id: '99999999-9999-4999-8999-999999999999', deleted_at: '2026-09-01' }];
+  assert.equal(hearingDigestEvents(rows, new Date('2026-09-21T13:59:00Z')).length, 0);
+  const events = hearingDigestEvents(rows, new Date('2026-09-21T14:04:00Z'));
+  const primary = events.find((event) => event.userId === user);
+  assert.equal(primary.title, 'Yarın 3 Duruşmanız Var');
+  assert.equal(primary.body, 'Yarın toplam 3 duruşmanız bulunmaktadır.');
+  assert.deepEqual(primary.navigation, { route: 'hearings', view: 'daily', date: '2026-09-22' });
+  assert.equal(primary.reminderType, 'tomorrow_digest');
+  assert.equal(eventKey(primary), eventKey({ ...primary }));
+  assert.equal(events.find((event) => event.userId === other).title, 'Yarın 1 Duruşmanız Var');
+  assert.equal(hearingDigestEvents(rows, new Date('2026-09-21T14:16:00Z')).length, 0);
+  assert.equal(allowed(primary, { hearings_enabled: false }), false);
+  assert.equal(allowed({ ...primary, reminderType: '24h' }, {}), false);
 });
 
 test('hearing body uses only its file and strips sensitive identifiers', () => {
@@ -56,7 +75,7 @@ test('production dispatcher has no manual device test path', () => {
   assert.match(source, /x-bkt-push-cron/);
 });
 
-test('daily deadline/task: Istanbul date, ownership, active only, aggregate count', () => {
+test('deadline/task reminders group today and tomorrow at 09:00 Istanbul', () => {
   const now = new Date('2026-09-22T06:04:00Z');
   assert.equal(localDate(now), '2026-09-22');
   assert.equal(addDays('2026-09-22', 1), '2026-09-23');
@@ -66,10 +85,18 @@ test('daily deadline/task: Istanbul date, ownership, active only, aggregate coun
     { ...base, status: 'Tamamlandı' }, { ...base, deleted_at: '2026-09-01' }];
   const deadlines = dailyEvents(rows, 'deadline', now);
   assert.equal(deadlines.find((item) => item.userId === user).body, 'Bugün son günü olan 2 süreli işiniz bulunuyor.');
-  assert.equal(deadlines.length, 2);
-  assert.equal(dailyEvents(rows, 'task', now).find((item) => item.userId === user).navigation.route, 'tasks');
+  assert.equal(deadlines.find((item) => item.userId === user && item.reminderType === 'tomorrow').body,
+    'Yarın son günü olan 1 süreli işiniz bulunmaktadır.');
+  assert.equal(deadlines.length, 3);
+  const tomorrowTask = dailyEvents(rows, 'task', now)
+    .find((item) => item.userId === user && item.reminderType === 'tomorrow');
+  assert.deepEqual(tomorrowTask.navigation, { route: 'tasks', date: '2026-09-23' });
+  assert.equal(tomorrowTask.title, 'Yarın Son Günü Olan Görevleriniz Var');
+  assert.equal(dailyEvents(rows, 'task', new Date('2026-09-22T05:59:00Z')).length, 0);
   assert.equal(dailyEvents(rows, 'task', new Date('2026-09-22T06:16:00Z')).length, 0);
   assert.equal(allowed(deadlines[0], { deadlines_enabled: false }), false);
+  assert.notEqual(eventKey(deadlines.find((item) => item.reminderType === 'today')),
+    eventKey(deadlines.find((item) => item.reminderType === 'tomorrow')));
 });
 
 test('token lifecycle plans cover first, repeat, refresh, denied, logout and account switch', () => {
@@ -105,7 +132,38 @@ test('notification tap rejects malformed file IDs and preserves login destinatio
   assert.deepEqual(normalizePushNavigation({ route: 'file-detail', fileId }), { route: 'file-detail', fileId });
   assert.equal(normalizePushNavigation({ route: 'file-detail', fileId: 'bad' }), null);
   assert.deepEqual(normalizePushNavigation({ route: 'deadlines' }), { route: 'deadlines' });
+  assert.deepEqual(normalizePushNavigation({ route: 'hearings', view: 'daily', date: '2026-09-22' }),
+    { route: 'hearings', view: 'daily', date: '2026-09-22' });
+  assert.deepEqual(normalizePushNavigation({ route: 'tasks', date: '2026-09-23' }),
+    { route: 'tasks', date: '2026-09-23' });
+  assert.equal(normalizePushNavigation({ route: 'hearings', view: 'daily', date: '22.09.2026' }), null);
   assert.equal(normalizePushNavigation({ route: 'admin' }), null);
+});
+
+test('pending navigation survives session restore and is consumed exactly once', async () => {
+  const queue = createNavigationQueue();
+  const target = { route: 'file-detail', fileId };
+  const visits = [];
+  queue.capture(target);
+  assert.equal(await queue.consume({ authenticated: false, navigate: async (value) => visits.push(value) }), false);
+  assert.deepEqual(queue.peek(), target);
+  assert.equal(await queue.consume({ authenticated: true, navigate: async (value) => visits.push(value) }), true);
+  assert.deepEqual(visits, [target]);
+  assert.equal(queue.peek(), null);
+  assert.equal(await queue.consume({ authenticated: true, navigate: async (value) => visits.push(value) }), false);
+});
+
+test('failed cold-start navigation remains pending for the next authenticated attempt', async () => {
+  const queue = createNavigationQueue();
+  const target = { route: 'hearings', view: 'daily', date: '2026-09-22' };
+  queue.capture(target);
+  await assert.rejects(queue.consume({ authenticated: true, navigate: async () => {
+    throw new Error('repository not ready');
+  } }));
+  assert.deepEqual(queue.peek(), target);
+  const visits = [];
+  await queue.consume({ authenticated: true, navigate: async (value) => visits.push(value) });
+  assert.deepEqual(visits, [target]);
 });
 
 test('FCM HTTP v1 uses bearer auth, whitelisted data and classifies invalid/transient responses', async () => {
@@ -125,7 +183,19 @@ test('FCM HTTP v1 uses bearer auth, whitelisted data and classifies invalid/tran
   assert.equal(result.kind, 'sent');
   assert.equal(endpoint, 'https://fcm.googleapis.com/v1/projects/unit-project/messages:send');
   assert.deepEqual(payload.message.notification, { title: delivery.title, body: delivery.body });
-  assert.deepEqual(payload.message.data, { route: 'deadlines', type: 'deadline', entity_id: user, event_key: 'deadline:one' });
+  assert.deepEqual(payload.message.data, {
+    route: 'deadlines', type: 'deadline', entity_id: user, event_key: 'deadline:one',
+    bkt_push_route: 'deadlines'
+  });
+  assert.equal(payload.message.android.notification.icon, 'ic_stat_bkt');
+  assert.equal(payload.message.android.notification.click_action, 'BKT_PUSH_NOTIFICATION');
+  const digest = { ...delivery, event_type: 'hearing', event_key: 'hearing:digest',
+    navigation: { route: 'hearings', view: 'daily', date: '2026-09-22' } };
+  await sendFcm(account, { fcm_token: 'device-token' }, digest, fetcher, tokenProvider);
+  assert.equal(payload.message.data.route, 'hearings');
+  assert.equal(payload.message.data.view, 'daily');
+  assert.equal(payload.message.data.date, '2026-09-22');
+  assert.equal(payload.message.data.bkt_push_date, '2026-09-22');
   const invalid = await sendFcm(account, { fcm_token: 'device-token' }, delivery,
     async () => Response.json({ error: { details: [{ errorCode: 'UNREGISTERED' }] } }, { status: 404 }), tokenProvider);
   assert.equal(invalid.kind, 'invalid');

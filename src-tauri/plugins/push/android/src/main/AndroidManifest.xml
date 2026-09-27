@@ -4,6 +4,8 @@
     <application>
         <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="bkt_reminders_v1" />
+        <meta-data android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_bkt" />
         <service android:name="tr.com.bkthukuk.push.BktFirebaseMessagingService"
             android:exported="false">
             <intent-filter>

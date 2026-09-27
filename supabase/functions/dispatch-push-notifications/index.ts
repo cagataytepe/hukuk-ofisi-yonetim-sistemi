@@ -1,5 +1,5 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2';
-import { addDays, allowed, dailyEvents, eventKey, hearingEvents, localDate } from './logic.mjs';
+import { addDays, allowed, dailyEvents, eventKey, hearingDigestEvents, hearingEvents, localDate } from './logic.mjs';
 import { sendFcm } from './fcm.mjs';
 import { failurePlan } from './delivery.mjs';
 
@@ -66,12 +66,15 @@ Deno.serve(async (request) => {
     ).gte('hearing_date', today).lte('hearing_date', addDays(today, 2)).is('deleted_at', null));
     const deadlines = await get(db.from('deadlines').select(
       'id,responsible_profile_id,due_date,status,completed_at,deleted_at'
-    ).eq('due_date', today).is('deleted_at', null).is('completed_at', null));
+    ).gte('due_date', today).lte('due_date', addDays(today, 1))
+      .is('deleted_at', null).is('completed_at', null));
     const tasks = await get(db.from('tasks').select(
       'id,responsible_profile_id,due_date,status,completed_at,deleted_at'
-    ).eq('due_date', today).is('deleted_at', null).is('completed_at', null));
+    ).gte('due_date', today).lte('due_date', addDays(today, 1))
+      .is('deleted_at', null).is('completed_at', null));
     const events = [
       ...hearingRows.flatMap((row: any) => hearingEvents(row, now)),
+      ...hearingDigestEvents(hearingRows, now),
       ...dailyEvents(deadlines, 'deadline', now), ...dailyEvents(tasks, 'task', now)
     ];
     const ids = [...new Set(events.map((item: any) => item.userId))];

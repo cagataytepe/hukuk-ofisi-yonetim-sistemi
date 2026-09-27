@@ -30,6 +30,8 @@ const state = {
   clientSearch: "",
   taskFilter: "active",
   deadlineFilter: "active",
+  taskDateFilter: "",
+  deadlineDateFilter: "",
   hearingView: "week",
   hearingAnchor: new Date(),
   hearingRows: [],
@@ -823,7 +825,9 @@ async function renderDeadlines(force = false) {
   try {
     const deadlines = await loadCached("mobile-deadlines", () => repository.getDeadlines({}), force);
     if (state.route !== routeAtStart) return;
-    const filtered = deadlines.filter(deadline => state.deadlineFilter === "completed" ? isCompleted(deadline.status) : !isCompleted(deadline.status));
+    const filtered = deadlines.filter(deadline =>
+      (state.deadlineFilter === "completed" ? isCompleted(deadline.status) : !isCompleted(deadline.status)) &&
+      (!state.deadlineDateFilter || deadline.due_date === state.deadlineDateFilter));
     shell(`${deadlineChips()}${filtered.length ? `<div class="mobile-list">${filtered.map(deadlineCard).join("")}</div>` : emptyState(state.deadlineFilter === "completed" ? "Tamamlanan süreli iş bulunmuyor" : "Aktif süreli iş bulunmuyor", "Seçili listede gösterilecek kayıt yok.")}`);
   } catch (error) {
     if (state.route !== routeAtStart) return;
@@ -842,8 +846,13 @@ async function renderTasks(force = false) {
   try {
     const tasks = await loadCached("tasks", () => repository.getTasks({ responsibleProfileId: state.user.id }), force);
     if (state.route !== routeAtStart) return;
-    const filtered = tasks.filter(task => state.taskFilter === "completed" ? isCompleted(task.status) : !isCompleted(task.status));
-    shell(`${pageHead("Görevler", `${filtered.length} görev görüntüleniyor.`)}${taskChips()}${filtered.length ? `<div class="mobile-list">${filtered.map(task => taskActionCard(task)).join("")}</div>` : emptyState("Görev bulunmuyor", "Seçili filtreye uygun göreviniz yok.")}`);
+    const filtered = tasks.filter(task =>
+      (state.taskFilter === "completed" ? isCompleted(task.status) : !isCompleted(task.status)) &&
+      (!state.taskDateFilter || task.due_date === state.taskDateFilter));
+    const taskSummary = state.taskDateFilter
+      ? `${formatDate(state.taskDateFilter)} son günlü ${filtered.length} görev görüntüleniyor.`
+      : `${filtered.length} görev görüntüleniyor.`;
+    shell(`${pageHead("Görevler", taskSummary)}${taskChips()}${filtered.length ? `<div class="mobile-list">${filtered.map(task => taskActionCard(task)).join("")}</div>` : emptyState("Görev bulunmuyor", "Seçili filtreye uygun göreviniz yok.")}`);
   } catch (error) {
     if (state.route !== routeAtStart) return;
     console.error("[BKT mobile] Görevler yüklenemedi.", { message: error?.message || String(error) });
@@ -1198,6 +1207,8 @@ app.addEventListener("click", async event => {
 
   if (routeTarget) {
     const targetRoute = routeTarget.dataset.route;
+    if (targetRoute === "deadlines") state.deadlineDateFilter = "";
+    if (targetRoute === "tasks") state.taskDateFilter = "";
     if (targetRoute === "more") {
       if (state.route === "more") {
         state.route = state.menuReturnRoute || "home";
@@ -1256,10 +1267,12 @@ app.addEventListener("click", async event => {
   }
   if (taskFilter) {
     state.taskFilter = taskFilter.dataset.taskFilter;
+    state.taskDateFilter = "";
     return renderTasks();
   }
   if (deadlineFilter) {
     state.deadlineFilter = deadlineFilter.dataset.deadlineFilter;
+    state.deadlineDateFilter = "";
     return renderDeadlines();
   }
   if (hearingView) {
@@ -1357,10 +1370,22 @@ async function bootstrapMobile() {
   const restored = await restoreSession();
   try {
     await initializePush(async (target) => {
-      if (!state.user) return;
+      if (!state.user) throw new Error("Authenticated session is not ready.");
       state.previousRoute = state.route;
       state.route = target.route;
       if (target.fileId) state.detailId = target.fileId;
+      if (target.route === "hearings") {
+        state.hearingView = "day";
+        state.hearingAnchor = localDate(target.date);
+      }
+      if (target.route === "deadlines") {
+        state.deadlineFilter = "active";
+        state.deadlineDateFilter = target.date || "";
+      }
+      if (target.route === "tasks") {
+        state.taskFilter = "active";
+        state.taskDateFilter = target.date || "";
+      }
       await renderRoute(true);
     });
     if (restored && state.user) await authenticatedPush(repository, state.user.id);

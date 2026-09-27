@@ -26,17 +26,26 @@ class BktFirebaseMessagingService : FirebaseMessagingService() {
                 channelId, "BKT Hukuk Hatırlatmaları", NotificationManager.IMPORTANCE_DEFAULT
             ))
         }
-        val route = message.data["route"]?.takeIf { it in setOf("file-detail", "deadlines", "tasks") }
+        val route = (message.data["bkt_push_route"] ?: message.data["route"])
+            ?.takeIf { it in setOf("file-detail", "hearings", "deadlines", "tasks") }
         val launch = packageManager.getLaunchIntentForPackage(packageName) ?: return
+        launch.action = "BKT_PUSH_NOTIFICATION"
         launch.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
         route?.let { launch.putExtra("bkt_push_route", it) }
-        message.data["file_id"]?.let { launch.putExtra("bkt_push_file_id", it) }
+        for ((dataKey, intentKey) in mapOf(
+            "file_id" to "bkt_push_file_id",
+            "hearing_id" to "bkt_push_hearing_id",
+            "view" to "bkt_push_view",
+            "date" to "bkt_push_date"
+        )) (message.data["bkt_push_${dataKey}"] ?: message.data[dataKey])
+            ?.let { launch.putExtra(intentKey, it) }
         val requestCode = (message.messageId ?: message.data["event_key"] ?: body).hashCode()
         val pending = PendingIntent.getActivity(
             this, requestCode, launch, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        val smallIcon = resources.getIdentifier("ic_stat_bkt", "drawable", packageName)
         val notification = NotificationCompat.Builder(this, channelId)
-            .setSmallIcon(applicationInfo.icon)
+            .setSmallIcon(if (smallIcon != 0) smallIcon else android.R.drawable.ic_dialog_info)
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))

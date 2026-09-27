@@ -1,9 +1,9 @@
 import { addPluginListener, invoke, isTauri } from '@tauri-apps/api/core';
-import { registrationPlan } from './push-state.mjs';
+import { createNavigationQueue, registrationPlan } from './push-state.mjs';
 
 const android = () => isTauri() && /Android/i.test(navigator.userAgent);
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-let pending = null;
+const navigationQueue = createNavigationQueue();
 let repository = null;
 let navigate = null;
 let currentUserId = null;
@@ -12,18 +12,28 @@ let registeredUserId = null;
 
 export function normalizePushNavigation(value) {
   if (!value || typeof value !== 'object') return null;
-  if (value.route === 'file-detail' && uuid.test(value.fileId || '')) {
-    return { route: 'file-detail', fileId: value.fileId };
+  const fileId = value.fileId || value.file_id;
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(value.date || '') ? value.date : null;
+  if (value.route === 'file-detail' && uuid.test(fileId || '')) {
+    return { route: 'file-detail', fileId };
   }
-  if (value.route === 'deadlines' || value.route === 'tasks') return { route: value.route };
+  if (value.route === 'hearings' && value.view === 'daily' && date) {
+    return { route: 'hearings', view: 'daily', date };
+  }
+  if (value.route === 'deadlines' || value.route === 'tasks') {
+    return { route: value.route, ...(date ? { date } : {}) };
+  }
   return null;
 }
 
 async function navigatePending() {
-  if (!currentUserId || !pending || !navigate) return;
-  const target = pending;
-  pending = null;
-  await navigate(target);
+  return navigationQueue.consume({ authenticated: Boolean(currentUserId), navigate });
+}
+
+async function captureNativePending(fallback = null) {
+  const stored = normalizePushNavigation(await invoke('plugin:push|get_pending_navigation'));
+  navigationQueue.capture(stored || normalizePushNavigation(fallback));
+  return navigatePending();
 }
 
 async function registerCurrentToken() {
@@ -46,16 +56,18 @@ async function registerCurrentToken() {
 export async function initializePush(onNavigate) {
   if (!android()) return;
   navigate = onNavigate;
-  pending = normalizePushNavigation(await invoke('plugin:push|get_pending_navigation'));
+  await captureNativePending();
   await addPluginListener('push', 'navigation', async (value) => {
-    pending = normalizePushNavigation(value);
-    await navigatePending();
+    await captureNativePending(value);
   });
   await addPluginListener('push', 'tokenRefreshed', async () => {
     try { await registerCurrentToken(); } catch { /* retry on next resume */ }
   });
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') registerCurrentToken().catch(() => {});
+    if (document.visibilityState === 'visible') {
+      captureNativePending().catch(() => {});
+      registerCurrentToken().catch(() => {});
+    }
   });
 }
 
@@ -84,5 +96,4 @@ export async function logoutPush() {
   currentToken = null;
   registeredUserId = null;
   repository = null;
-  pending = null;
 }
