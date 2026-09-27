@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - codex/enforcement-calculation-parity
+      - codex/android-push-notifications
     tags:
       - v1.3.0-beta.4
 
