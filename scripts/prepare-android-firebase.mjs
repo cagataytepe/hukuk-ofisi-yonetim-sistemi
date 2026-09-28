@@ -40,6 +40,13 @@ fs.writeFileSync(destination, raw, { mode: 0o600 });
 if (!fs.existsSync(canonicalAndroidIcons) || !fs.existsSync(generatedManifest)) {
   throw new Error('Canonical BKT Android icons or generated AndroidManifest.xml is missing.');
 }
+for (const staleLauncherOverride of [
+  path.join(generatedResources, 'drawable/ic_launcher_foreground.xml'),
+  path.join(generatedResources, 'mipmap-anydpi/ic_launcher.xml'),
+  path.join(generatedResources, 'mipmap-anydpi/ic_launcher_round.xml')
+]) {
+  fs.rmSync(staleLauncherOverride, { force: true });
+}
 for (const entry of fs.readdirSync(canonicalAndroidIcons, { withFileTypes: true })) {
   fs.cpSync(
     path.join(canonicalAndroidIcons, entry.name),
