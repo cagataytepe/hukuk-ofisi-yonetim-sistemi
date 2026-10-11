@@ -8203,7 +8203,7 @@
             </div>
             <div class="table-wrap">
               <table class="deadline-table">
-                <thead><tr><th>Dosya</th><th>Mahkeme / İcra Dairesi</th><th>İş Tanımı</th><th>Sorumlu</th><th>Son Gün</th><th>Kalan Süre</th><th>Durum</th><th>İşlem</th></tr></thead>
+                <thead><tr><th>Dosya</th><th>Mahkeme / İcra Dairesi</th><th>Dosya No</th><th>İş Tanımı</th><th>Sorumlu</th><th>Son Gün</th><th>Kalan Süre</th><th>Durum</th><th>İşlem</th></tr></thead>
                 <tbody id="deadlineFullRows"></tbody>
               </table>
             </div>
@@ -8213,7 +8213,7 @@
               <div class="panel-header"><h2>Tamamlanan İşler</h2></div>
               <div class="table-wrap">
                 <table class="completed-deadline-table">
-                  <thead><tr><th>Dosya</th><th>Mahkeme / İcra Dairesi</th><th>İş Tanımı</th><th>Sorumlu</th><th>Tamamlanma</th><th>Durum</th><th>İşlem</th></tr></thead>
+                  <thead><tr><th>Dosya</th><th>Mahkeme / İcra Dairesi</th><th>Dosya No</th><th>İş Tanımı</th><th>Sorumlu</th><th>Tamamlanma</th><th>Durum</th><th>İşlem</th></tr></thead>
                   <tbody id="completedDeadlineRows"></tbody>
                 </table>
               </div>
@@ -8457,8 +8457,8 @@
                 <div class="field full"><label for="paymentPlanType">Plan Türü</label><select id="paymentPlanType" required><option value="">Plan Türü Seçiniz</option><option>Müvekkil Vekâlet Ücreti</option><option>Borçlu Ödeme Planı</option></select></div>
                 <div class="field full" id="paymentFileField"><label for="paymentFile">Bağlı Dosya</label><input id="paymentFile" list="paymentFileList" placeholder="Dosya No, Mahkeme, Müvekkil veya Taraf Yazın"><datalist id="paymentFileList"></datalist></div>
                 <div class="field full"><label for="paymentPartyName">Ödeme Yapacak Kişi / Kurum</label><input id="paymentPartyName" required></div>
-                <div class="field"><label for="paymentAgreementAmount">Anlaşılan Toplam Tutar</label><input id="paymentAgreementAmount" type="number" min="0" step="0.01" required></div>
-                <div class="field"><label for="paymentInitialAmount">Peşinat / Önceden Ödenen</label><input id="paymentInitialAmount" type="number" min="0" step="0.01" value="0"></div>
+                <div class="field"><label for="paymentAgreementAmount">Anlaşılan Toplam Tutar</label><input id="paymentAgreementAmount" type="text" inputmode="decimal" required></div>
+                <div class="field"><label for="paymentInitialAmount">Peşinat / Önceden Ödenen</label><input id="paymentInitialAmount" type="text" inputmode="decimal" value="0"></div>
                 <div class="field"><label for="paymentInstallmentCount">Taksit Sayısı</label><input id="paymentInstallmentCount" type="number" min="1" step="1" value="1" required></div>
                 <div class="field"><label for="paymentFirstDueDate">İlk Taksit Tarihi</label><input id="paymentFirstDueDate" type="date" required></div>
                 <div class="field"><label for="paymentCurrency">Para Birimi</label><select id="paymentCurrency"><option value="TRY">TRY - Türk Lirası</option><option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option></select></div>
@@ -8489,7 +8489,7 @@
           <div class="panel-header"><h2 id="officeExpenseFormTitle">Yeni Gider</h2><button class="icon-btn" id="closeOfficeExpenseForm" type="button" aria-label="Formu kapat">Kapat</button></div>
           <div class="panel-body">
             <form class="form-grid office-expense-form" id="officeExpenseForm">
-              <div class="field"><label for="officeExpenseAmount">Tutar *</label><input id="officeExpenseAmount" type="number" min="0.01" step="0.01" required></div>
+              <div class="field"><label for="officeExpenseAmount">Tutar *</label><input id="officeExpenseAmount" type="text" inputmode="decimal" required></div>
               <div class="field"><label for="officeExpenseDate">Gider Tarihi *</label><input id="officeExpenseDate" type="date" required></div>
               <div class="field"><label for="officeExpenseDueDate">Vade Tarihi</label><input id="officeExpenseDueDate" type="date"></div>
               <div class="field"><label for="officeExpenseCategory">Kategori *</label><select id="officeExpenseCategory" required><option value="">Kategori Seçiniz</option></select></div>
@@ -8867,8 +8867,6 @@
   </dialog>
 
   <script>
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12);
     const appRepository = window.BKTHukukRepository.createBrowserRepository();
     const localCalculationSource = "Merkezi Hesaplama Tarifesi";
     const enforcementImportMigrationKey = "dosyaSorgulama20260608";
@@ -10820,12 +10818,14 @@
     }
 
     function daysLeft(due) {
+      const sharedResult = window.BKT_LOCAL_DATE?.daysUntilLocalDate?.(due, new Date());
+      if (Number.isFinite(sharedResult)) return sharedResult;
       const target = dateOnly(due);
-      return Math.round((target - today) / 86400000);
+      return Math.round((target - currentLocalDay()) / 86400000);
     }
 
     function sameDay(value, offset = 0) {
-      const date = new Date(today);
+      const date = currentLocalDay();
       date.setDate(date.getDate() + offset);
       return value === toIsoDate(date);
     }
@@ -10909,10 +10909,15 @@
       return `${year}-${month}-${day}`;
     }
 
-    document.getElementById("hearingReportStart").value = toIsoDate(today);
-    document.getElementById("hearingReportEnd").value = toIsoDate(today);
-    document.getElementById("deadlineReportStart").value = toIsoDate(today);
-    document.getElementById("deadlineReportEnd").value = toIsoDate(today);
+    function currentLocalDay(value = new Date()) {
+      return window.BKT_LOCAL_DATE?.localDayAtNoon?.(value)
+        || new Date(value.getFullYear(), value.getMonth(), value.getDate(), 12);
+    }
+
+    document.getElementById("hearingReportStart").value = currentIsoDate();
+    document.getElementById("hearingReportEnd").value = currentIsoDate();
+    document.getElementById("deadlineReportStart").value = currentIsoDate();
+    document.getElementById("deadlineReportEnd").value = currentIsoDate();
 
     function addDays(date, count) {
       const next = new Date(date);
@@ -12280,6 +12285,22 @@
     function accountNumber(value) {
       const number = Number(String(value ?? "").replace(",", "."));
       return Number.isFinite(number) ? number : 0;
+    }
+
+    function parseMoneyInput(value) {
+      const shared = window.BKT_USER_INPUT?.parseTurkishMoney?.(value);
+      if (shared !== undefined) return shared;
+      const number = Number(String(value ?? "").trim().replace(",", "."));
+      return Number.isFinite(number) ? number : null;
+    }
+
+    function validIsoDateInput(value) {
+      const shared = window.BKT_USER_INPUT?.isValidIsoDate?.(value);
+      if (typeof shared === "boolean") return shared;
+      const match = String(value ?? "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (!match) return false;
+      const date = new Date(`${value}T00:00:00Z`);
+      return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
     }
 
     function currentIsoDate() {
@@ -14065,6 +14086,7 @@
     }
 
     function fileDetailUpcomingSummary(file = {}) {
+      const today = currentLocalDay();
       const hearings = fileDetailRelated("hearings").items || [];
       const deadlines = fileDetailRelated("deadlines").items || [];
       const activeHearings = hearings
@@ -14431,7 +14453,7 @@
       if (!can("create")) return "";
       return `
         <form class="inline-detail-form" id="fileDetailCollectionForm">
-          <input name="amount" type="number" min="0" step="0.01" placeholder="Tahsilat tutarı" required>
+          <input name="amount" type="text" inputmode="decimal" placeholder="Tahsilat tutarı" required>
           <select name="currency">
             ${["TRY", "USD", "EUR"].map(value => optionMarkup(value, value, "TRY")).join("")}
           </select>
@@ -14626,8 +14648,8 @@
     async function submitFileDetailCollection(file, form) {
       const repositoryFileId = fileDetailRepositoryId(file);
       const values = Object.fromEntries(new FormData(form));
-      const amount = accountNumber(values.amount);
-      if (!repositoryFileId || amount <= 0) throw new Error("Geçerli tahsilat tutarı girilmedi.");
+      const amount = parseMoneyInput(values.amount);
+      if (!repositoryFileId || amount === null || amount <= 0) throw new Error("Geçerli tahsilat tutarı girilmedi.");
       const payload = {
         file_id: repositoryFileId,
         amount,
@@ -15598,6 +15620,7 @@
 
     function paymentPeriodRange(value = document.getElementById("paymentPeriodFilter")?.value || "") {
       if (!value) return null;
+      const today = currentLocalDay();
       if (value === "week") {
         const start = startOfWeek(today);
         return { start: toIsoDate(start), end: toIsoDate(addDays(start, 6)), label: "Bu Hafta" };
@@ -15679,8 +15702,8 @@
     }
 
     function paymentPlanPreview() {
-      const amount = accountNumber(document.getElementById("paymentAgreementAmount").value);
-      const initial = Math.min(amount, accountNumber(document.getElementById("paymentInitialAmount").value));
+      const amount = parseMoneyInput(document.getElementById("paymentAgreementAmount").value) ?? 0;
+      const initial = Math.min(amount, parseMoneyInput(document.getElementById("paymentInitialAmount").value) ?? 0);
       const count = Math.max(1, Number(document.getElementById("paymentInstallmentCount").value) || 1);
       const currency = document.getElementById("paymentCurrency").value || "TRY";
       const remaining = Math.max(0, amount - initial);
@@ -15898,15 +15921,23 @@
       const remaining = Math.max(0, accountNumber(installment.amount) - accountNumber(installment.paidAmount));
       const amountText = prompt("Ödenen tutarı giriniz:", remaining.toFixed(2));
       if (amountText === null) return;
-      const amount = accountNumber(amountText);
+      const amount = parseMoneyInput(amountText);
+      if (amount === null) {
+        showToast("Geçerli bir ödeme tutarı giriniz (ör. 1.250,50).", "warning");
+        return;
+      }
       if (amount <= 0 || amount > remaining + 0.005) {
         showToast("Ödeme tutarı kalan taksit tutarından büyük olamaz.", "warning");
         return;
       }
       const paidDate = prompt("Ödeme tarihini YYYY-AA-GG biçiminde giriniz:", currentIsoDate());
       if (paidDate === null) return;
+      const nextPaidDate = paidDate.trim();
+      if (!validIsoDateInput(nextPaidDate)) {
+        showToast("Ödeme tarihi YYYY-AA-GG biçiminde ve geçerli bir tarih olmalıdır.", "warning");
+        return;
+      }
       const nextPaidAmount = accountNumber(installment.paidAmount) + amount;
-      const nextPaidDate = paidDate || currentIsoDate();
       const nextPayments = [...(installment.payments || []), { amount, date: nextPaidDate, createdAt: new Date().toISOString() }];
       try {
         await appRepository.updatePaymentInstallment(installment.id, {
@@ -16001,6 +16032,7 @@
       if (detail) detail.hidden = true;
       if (render && activeSection === "calendar") renderUnifiedCalendar();
       try {
+        const today = currentLocalDay();
         const selected = calendarParticipantFilterValue();
         const filters = { dateFrom: toIsoDate(startOfWeek(today)) };
         if (isUuid(selected)) filters.participantProfileId = selected;
@@ -16060,6 +16092,7 @@
     }
 
     function renderUnifiedCalendar() {
+      const today = currentLocalDay();
       const calendarStartDate = toIsoDate(startOfWeek(today));
       const hearingItems = unifiedCalendarHearings
         .filter(calendarHearingMatchesFilter)
@@ -16172,27 +16205,27 @@
       renderEnforcementPagination(enforcementCases.length, enforcementTotalPages);
 
       if (repositoryDeadlinesLoading) {
-        document.getElementById("deadlineFullRows").innerHTML = skeletonRows(3, { table: true, colspan: 8 });
-        document.getElementById("completedDeadlineRows").innerHTML = skeletonRows(2, { table: true, colspan: 7 });
+        document.getElementById("deadlineFullRows").innerHTML = skeletonRows(3, { table: true, colspan: 9 });
+        document.getElementById("completedDeadlineRows").innerHTML = skeletonRows(2, { table: true, colspan: 8 });
         renderCompletedDeadlinePagination(0, 1);
       } else if (repositoryDeadlinesError) {
-        document.getElementById("deadlineFullRows").innerHTML = `<tr><td colspan="8" class="empty-table-cell">${escapeHtml(repositoryDeadlinesError)}</td></tr>`;
-        document.getElementById("completedDeadlineRows").innerHTML = `<tr><td colspan="7" class="empty-table-cell">${escapeHtml(repositoryDeadlinesError)}</td></tr>`;
+        document.getElementById("deadlineFullRows").innerHTML = `<tr><td colspan="9" class="empty-table-cell">${escapeHtml(repositoryDeadlinesError)}</td></tr>`;
+        document.getElementById("completedDeadlineRows").innerHTML = `<tr><td colspan="8" class="empty-table-cell">${escapeHtml(repositoryDeadlinesError)}</td></tr>`;
         renderCompletedDeadlinePagination(0, 1);
       } else {
         document.getElementById("deadlineFullRows").innerHTML = activeDeadlines.map(d => `
           <tr>
-            <td data-label="Dosya No">${escapeHtml(d.file)}</td><td data-label="Mahkeme / İcra Dairesi" title="${escapeHtml(d.court || "-")}">${escapeHtml(d.court)}</td><td data-label="İş Tanımı" title="${escapeHtml(d.task || "-")}">${escapeHtml(d.task)}</td><td data-label="Sorumlu">${escapeHtml(personDisplayName(d.lawyer))}</td>
+            <td data-label="Dosya">${escapeHtml(d.file)}</td><td data-label="Mahkeme / İcra Dairesi" title="${escapeHtml(d.court || "-")}">${escapeHtml(d.court)}</td><td data-label="Dosya No">${escapeHtml(deadlineFileNo(d) || "-")}</td><td data-label="İş Tanımı" title="${escapeHtml(d.task || "-")}">${escapeHtml(d.task)}</td><td data-label="Sorumlu">${escapeHtml(personDisplayName(d.lawyer))}</td>
             <td data-label="Son Tarih">${formatDate(d.due)}</td><td data-label="Kalan Süre">${deadlinePill(d.due)}</td><td data-label="Durum">${renderStatusBadge(daysLeft(d.due) < 0 ? "Gecikmiş" : "Aktif")}</td><td data-label="İşlem">${deadlineActions(d)}</td>
           </tr>
-        `).join("") || `<tr><td colspan="8">Aktif süreli iş bulunmuyor.</td></tr>`;
+        `).join("") || `<tr><td colspan="9">Aktif süreli iş bulunmuyor.</td></tr>`;
 
         document.getElementById("completedDeadlineRows").innerHTML = visibleCompletedDeadlines.map(d => `
           <tr>
-            <td data-label="Dosya No">${escapeHtml(d.file)}</td><td data-label="Mahkeme / İcra Dairesi" title="${escapeHtml(d.court || "-")}">${escapeHtml(d.court)}</td><td data-label="İş Tanımı" title="${escapeHtml(d.task || "-")}">${escapeHtml(d.task)}</td><td data-label="Sorumlu">${escapeHtml(personDisplayName(d.lawyer))}</td>
+            <td data-label="Dosya">${escapeHtml(d.file)}</td><td data-label="Mahkeme / İcra Dairesi" title="${escapeHtml(d.court || "-")}">${escapeHtml(d.court)}</td><td data-label="Dosya No">${escapeHtml(deadlineFileNo(d) || "-")}</td><td data-label="İş Tanımı" title="${escapeHtml(d.task || "-")}">${escapeHtml(d.task)}</td><td data-label="Sorumlu">${escapeHtml(personDisplayName(d.lawyer))}</td>
             <td data-label="Tamamlanma">${formatDate(deadlineCompletionDate(d) || d.due)}</td><td data-label="Durum" class="completed-deadline-status">${completedDeadlinePill(d)}</td><td data-label="İşlem">${deadlineActions(d)}</td>
           </tr>
-        `).join("") || `<tr><td colspan="7">Tamamlanan iş bulunmuyor.</td></tr>`;
+        `).join("") || `<tr><td colspan="8">Tamamlanan iş bulunmuyor.</td></tr>`;
         renderCompletedDeadlinePagination(completedDeadlines.length, completedTotalPages);
       }
 
@@ -16387,6 +16420,7 @@
     }
 
     function renderDashboard() {
+      const today = currentLocalDay();
       const data = dashboardData || emptyDashboardData();
       const files = data.files || [];
       const dashboardHearings = data.upcomingHearings || [];
@@ -16596,6 +16630,7 @@
     }
 
     function renderDashboardFinanceBrief() {
+      const today = currentLocalDay();
       const plans = Array.isArray(repositoryPaymentPlans) ? repositoryPaymentPlans : [];
       const monthStart = new Date(today.getFullYear(), today.getMonth(), 1, 12);
       const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1, 12);
@@ -16762,7 +16797,7 @@
 
     function daysBetween(value) {
       const target = dateOnly(value);
-      return Math.round((target - today) / 86400000);
+      return Math.round((target - currentLocalDay()) / 86400000);
     }
 
     function renderSearch() {
@@ -16980,6 +17015,7 @@
     }
 
     function renderCalendar(mode) {
+      const today = currentLocalDay();
       activeCalendar = mode;
       const calendar = document.getElementById("hearingCalendar");
       const range = document.getElementById("calendarRange");
@@ -17740,6 +17776,12 @@
       return "Gider";
     }
 
+    function officeExpenseAmountInput() {
+      const amount = parseMoneyInput(document.getElementById("officeExpenseAmount").value);
+      if (amount === null || amount <= 0) throw new Error("Geçerli bir gider tutarı giriniz (ör. 1.250,50).");
+      return amount;
+    }
+
     function officeExpensePayload() {
       const expenseDate = document.getElementById("officeExpenseDate").value;
       const explicitDueDate = document.getElementById("officeExpenseDueDate").value;
@@ -17748,7 +17790,7 @@
         : null;
       return {
         title: officeExpenseGeneratedTitle(),
-        amount: Number(document.getElementById("officeExpenseAmount").value),
+        amount: officeExpenseAmountInput(),
         expense_date: expenseDate,
         due_date: explicitDueDate || recurringDueDate,
         category_id: document.getElementById("officeExpenseCategory").value,
@@ -17770,7 +17812,7 @@
         description: document.getElementById("officeExpenseDescription").value.trim() || null,
         category_id: document.getElementById("officeExpenseCategory").value,
         subcategory_id: document.getElementById("officeExpenseSubcategory").value || null,
-        amount: Number(document.getElementById("officeExpenseAmount").value),
+        amount: officeExpenseAmountInput(),
         frequency: document.getElementById("officeExpenseFrequency").value,
         interval_count: 1,
         day_of_month: Number(document.getElementById("officeExpenseDayOfMonth").value) || null,
@@ -17811,7 +17853,7 @@
       } catch (error) {
         console.error("Ofis gideri kaydedilemedi.", { code: error?.code, message: error?.message, details: error?.details, hint: error?.hint });
         document.getElementById("officeExpenseFormNote").textContent = "İşlem tamamlanamadı. Form bilgileriniz korunmuştur.";
-        showToast("İşlem tamamlanamadı.", "error");
+        showToast(error?.message || "İşlem tamamlanamadı.", "error");
       } finally {
         officeExpenseSubmitPending = false;
         submit.disabled = false;
@@ -18326,7 +18368,7 @@
         </html>
       `;
       const blob = new Blob(["\ufeff" + workbook], { type: "application/vnd.ms-excel;charset=utf-8" });
-      await saveGeneratedOutput({ filename: "durusma-raporu.xls", mimeType: blob.type, data: blob, extensions: ["xls"] });
+      await saveGeneratedOutput({ filename: `${reportTitle}.xls`, mimeType: blob.type, data: blob, extensions: ["xls"] });
     }
 
     async function exportHearingReportPdf() {
@@ -18358,7 +18400,7 @@
         marginY
       });
       const pdf = buildPdfFromJpegs(pages.map(page => page.image), pageWidth, pageHeight);
-      await saveGeneratedOutput({ filename: "durusma-raporu.pdf", mimeType: pdf.type, data: pdf, extensions: ["pdf"] });
+      await saveGeneratedOutput({ filename: `${title}.pdf`, mimeType: pdf.type, data: pdf, extensions: ["pdf"] });
     }
 
     function deadlineReportRange() {
@@ -18415,7 +18457,7 @@
         emptyMessage: "Bu tarih aralığında süreli iş bulunmuyor."
       });
       const pdf = buildPdfFromJpegs(pages.map(page => page.image), pageWidth, pageHeight);
-      await saveGeneratedOutput({ filename: "sureli-is-raporu.pdf", mimeType: pdf.type, data: pdf, extensions: ["pdf"] });
+      await saveGeneratedOutput({ filename: `${title}.pdf`, mimeType: pdf.type, data: pdf, extensions: ["pdf"] });
     }
 
     function renderHearingReportPdfPages({ title, headers, rows, pageWidth, pageHeight, marginX, marginY, emptyMessage = "Bu tarih aralığında duruşma bulunmuyor." }) {
@@ -19271,7 +19313,7 @@
       [fields[0].value, fields[1].value, fields[2].value, fields[3].value, fields[4].value, fields[5].value, fields[6].value, fields[7].value] =
         [hearingFileLabel, h.date, h.time, h.client || "", h.partyRole || "", normalizeExcuseType(h), hearingPersonValue, h.note || ""];
       applyExcuseRules();
-      document.getElementById("hearingSubmit").textContent = `${id} Güncelle`;
+      document.getElementById("hearingSubmit").textContent = "Güncelle";
       switchSection("hearings");
     }
 
@@ -20254,9 +20296,14 @@
         showNote("paymentPlanNote", "Listeden geçerli bir dosya seçiniz.");
         return;
       }
-      const agreementAmount = accountNumber(document.getElementById("paymentAgreementAmount").value);
-      const initialPayment = accountNumber(document.getElementById("paymentInitialAmount").value);
-      if (agreementAmount <= 0 || initialPayment > agreementAmount) {
+      const agreementAmount = parseMoneyInput(document.getElementById("paymentAgreementAmount").value);
+      const initialText = document.getElementById("paymentInitialAmount").value.trim();
+      const initialPayment = initialText ? parseMoneyInput(initialText) : 0;
+      if (agreementAmount === null || initialPayment === null) {
+        showNote("paymentPlanNote", "Tutarları 1.250,50 veya 1250.50 gibi geçerli bir biçimde giriniz.");
+        return;
+      }
+      if (agreementAmount <= 0 || initialPayment < 0 || initialPayment > agreementAmount) {
         showNote("paymentPlanNote", "Anlaşma tutarı sıfırdan büyük olmalı; peşinat toplam tutarı aşmamalıdır.");
         return;
       }
@@ -20630,7 +20677,7 @@
         showNote("hearingNote", "Duruşma kaydedilemedi.");
       } finally {
         submitButton.disabled = false;
-        submitButton.textContent = editing.hearingId ? `${editing.hearingId} Güncelle` : "Duruşmayı Kaydet";
+        submitButton.textContent = editing.hearingId ? "Güncelle" : "Duruşmayı Kaydet";
       }
     });
 
@@ -21005,7 +21052,7 @@
 
     document.getElementById("exportCases").addEventListener("click", exportCasesExcel);
     document.getElementById("exportHearings").addEventListener("click", exportHearingsExcel);
-    document.getElementById("exportDeadlines").addEventListener("click", () => exportCsv("sureli-is-raporu.csv", [
+    document.getElementById("exportDeadlines").addEventListener("click", () => exportCsv(`${deadlineReportRange().reportTitle}.csv`, [
       ["Dosya", "Mahkeme", "Dosya No", "İş", "Açıklama", "Sorumlu", "Başlangıç", "Son Gün", "Durum"],
       ...deadlineReportRows().map(d => [d.file, d.court, deadlineFileNo(d), d.task, d.description, d.lawyer, d.start, d.due, deadlineStatusText(d)])
     ]));

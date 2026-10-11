@@ -4,6 +4,7 @@ import {
   validateAttorneyFeeTimeline,
   validateInterestTimeline
 } from "../src/calculations/calculationTools.js";
+import { chunkValues } from "../src/shared/repositoryPagination.mjs";
 
 export class SupabaseRepository {
   constructor(supabaseClient) {
@@ -72,16 +73,18 @@ export class SupabaseRepository {
 
   async list(table, filters = {}) {
     if (!this.available) return [];
-    let query = this.supabase.from(table).select("*").is("deleted_at", null);
-    Object.entries(filters).forEach(([key, value]) => {
-      query = query.eq(key, value);
-    });
-    const { data, error } = await query;
-    if (error) {
+    try {
+      return await fetchAllSupabaseRows(() => {
+        let query = this.supabase.from(table).select("*").is("deleted_at", null);
+        Object.entries(filters).forEach(([key, value]) => {
+          query = query.eq(key, value);
+        });
+        return query;
+      });
+    } catch (error) {
       this.switchOffline();
       return [];
     }
-    return data || [];
   }
 
   async upsert(table, row, conflictTarget = "id") {
@@ -118,28 +121,26 @@ export class SupabaseRepository {
 
   async getFiles() {
     if (!this.available) return [];
-    const { data, error } = await this.supabase
-      .from("files")
-      .select("*")
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false });
-    if (error) {
+    try {
+      return await fetchAllSupabaseRows(() => this.supabase
+        .from("files")
+        .select("*")
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false }));
+    } catch (error) {
       this.switchOffline();
       return [];
     }
-    return data || [];
   }
 
   async getFileIdCandidates() {
     if (!this.available) return [];
-    const { data, error } = await this.supabase
+    return fetchAllSupabaseRows(() => this.supabase
       .from("files")
       .select("id,legacy_id,display_id,record_kind,file_type,follow_type,metadata,deleted_at,created_at")
-      .order("created_at", { ascending: false });
-    if (error) {
-      throw error;
-    }
-    return data || [];
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false }));
   }
 
   async getDashboardData(filters = {}) {
@@ -180,42 +181,45 @@ export class SupabaseRepository {
         console.error("[BKT dashboard tasks] Current profile id could not be resolved.", { message: error?.message || String(error) });
       }
     }
-    const [filesResult, upcomingResult, deadlinesResult, profilesResult] = await Promise.all([
-      this.supabase.from("files").select("*").is("deleted_at", null).order("created_at", { ascending: false }),
-      this.supabase.from("hearings").select("*").is("deleted_at", null).gte("hearing_date", weekStartIso).order("hearing_date", { ascending: true }).order("hearing_time", { ascending: true }),
-      this.supabase.from("deadlines").select("*").is("deleted_at", null).order("due_date", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false }),
-      this.supabase.from("profiles").select("id,display_name,email,title,role_id,is_active,deleted_at").is("deleted_at", null).eq("is_active", true).order("display_name", { ascending: true })
-    ]);
-    const failed = [filesResult, upcomingResult, deadlinesResult, profilesResult].find(result => result.error);
-    if (failed) {
-      console.error("[BKT dashboard] Supabase dashboard verisi okunamadı.", failed.error);
-      throw failed.error;
+    let files = [];
+    let upcomingHearings = [];
+    let deadlines = [];
+    let profiles = [];
+    try {
+      [files, upcomingHearings, deadlines, profiles] = await Promise.all([
+        fetchAllSupabaseRows(() => this.supabase.from("files").select("*").is("deleted_at", null).order("created_at", { ascending: false }).order("id", { ascending: false })),
+        fetchAllSupabaseRows(() => this.supabase.from("hearings").select("*").is("deleted_at", null).gte("hearing_date", weekStartIso).order("hearing_date", { ascending: true }).order("hearing_time", { ascending: true }).order("id", { ascending: true })),
+        fetchAllSupabaseRows(() => this.supabase.from("deadlines").select("*").is("deleted_at", null).order("due_date", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false }).order("id", { ascending: false })),
+        fetchAllSupabaseRows(() => this.supabase.from("profiles").select("id,display_name,email,title,role_id,is_active,deleted_at").is("deleted_at", null).eq("is_active", true).order("display_name", { ascending: true }).order("id", { ascending: true }))
+      ]);
+    } catch (error) {
+      console.error("[BKT dashboard] Supabase dashboard verisi okunamadı.", error);
+      throw error;
     }
     let assignedTasks = [];
     let overdueTasks = [];
     let taskError = "";
     try {
-      const assignedTaskQuery = profileId
-        ? this.supabase
-            .from("tasks")
-            .select("*")
-            .is("deleted_at", null)
-            .eq("responsible_profile_id", profileId)
-            .order("due_date", { ascending: true, nullsFirst: false })
-            .order("created_at", { ascending: false })
-        : Promise.resolve({ data: [], error: null });
-      const overdueTaskQuery = this.supabase
-        .from("tasks")
-        .select("*")
-        .is("deleted_at", null)
-        .lt("due_date", todayIso)
-        .order("due_date", { ascending: true, nullsFirst: false })
-        .order("created_at", { ascending: false });
-      const [assignedResult, overdueResult] = await Promise.all([assignedTaskQuery, overdueTaskQuery]);
-      const taskFailure = [assignedResult, overdueResult].find(result => result.error);
-      if (taskFailure) throw taskFailure.error;
-      assignedTasks = assignedResult.data || [];
-      overdueTasks = overdueResult.data || [];
+      [assignedTasks, overdueTasks] = await Promise.all([
+        profileId
+          ? fetchAllSupabaseRows(() => this.supabase
+              .from("tasks")
+              .select("*")
+              .is("deleted_at", null)
+              .eq("responsible_profile_id", profileId)
+              .order("due_date", { ascending: true, nullsFirst: false })
+              .order("created_at", { ascending: false })
+              .order("id", { ascending: false }))
+          : Promise.resolve([]),
+        fetchAllSupabaseRows(() => this.supabase
+          .from("tasks")
+          .select("*")
+          .is("deleted_at", null)
+          .lt("due_date", todayIso)
+          .order("due_date", { ascending: true, nullsFirst: false })
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false }))
+      ]);
     } catch (error) {
       console.error("[BKT dashboard tasks] Supabase task data could not be loaded.", {
         code: error?.code,
@@ -226,16 +230,16 @@ export class SupabaseRepository {
       taskError = "Görev bilgileri yüklenemedi.";
     }
     return {
-      files: filesResult.data || [],
-      upcomingHearings: upcomingResult.data || [],
+      files,
+      upcomingHearings,
       recentFiles: [],
       recentHearings: [],
-      deadlines: deadlinesResult.data || [],
+      deadlines,
       assignedTasks,
       overdueTasks,
       deadlineError: "",
       taskError,
-      profiles: profilesResult.data || [],
+      profiles,
       generatedAt: new Date().toISOString()
     };
   }
@@ -356,26 +360,27 @@ export class SupabaseRepository {
 
   async getHearings(filters = {}) {
     if (!this.available) return [];
-    let query = this.supabase
-      .from("hearings")
-      .select("*")
-      .is("deleted_at", null)
-      .order("hearing_date", { ascending: true })
-      .order("hearing_time", { ascending: true });
-
-    if (filters.dateFrom) query = query.gte("hearing_date", filters.dateFrom);
-    if (filters.dateTo) query = query.lte("hearing_date", filters.dateTo);
-    if (filters.fileId) query = query.eq("file_id", filters.fileId);
-    if (filters.status) query = query.eq("status", filters.status);
-    if (filters.excuseType) query = query.eq("excuse_type", filters.excuseType);
-    if (filters.participantProfileId) query = query.eq("participant_profile_id", filters.participantProfileId);
-
-    const { data, error } = await query;
-    if (error) {
+    try {
+      return await fetchAllSupabaseRows(() => {
+        let query = this.supabase
+          .from("hearings")
+          .select("*")
+          .is("deleted_at", null)
+          .order("hearing_date", { ascending: true })
+          .order("hearing_time", { ascending: true })
+          .order("id", { ascending: true });
+        if (filters.dateFrom) query = query.gte("hearing_date", filters.dateFrom);
+        if (filters.dateTo) query = query.lte("hearing_date", filters.dateTo);
+        if (filters.fileId) query = query.eq("file_id", filters.fileId);
+        if (filters.status) query = query.eq("status", filters.status);
+        if (filters.excuseType) query = query.eq("excuse_type", filters.excuseType);
+        if (filters.participantProfileId) query = query.eq("participant_profile_id", filters.participantProfileId);
+        return query;
+      });
+    } catch (error) {
       this.switchOffline();
       return [];
     }
-    return data || [];
   }
 
   async getHearing(id) {
@@ -498,21 +503,24 @@ export class SupabaseRepository {
 
   async getDeadlines(filters = {}) {
     if (!this.available) return [];
-    let query = this.supabase
-      .from("deadlines")
-      .select("*")
-      .is("deleted_at", null)
-      .order("due_date", { ascending: true })
-      .order("created_at", { ascending: false });
-
-    if (filters.dateFrom) query = query.gte("due_date", filters.dateFrom);
-    if (filters.dateTo) query = query.lte("due_date", filters.dateTo);
-    if (filters.fileId) query = query.eq("file_id", filters.fileId);
-    if (filters.status) query = query.eq("status", filters.status);
-    if (filters.responsibleProfileId) query = query.eq("responsible_profile_id", filters.responsibleProfileId);
-
-    const { data, error } = await query;
-    if (error) {
+    let data = [];
+    try {
+      data = await fetchAllSupabaseRows(() => {
+        let query = this.supabase
+          .from("deadlines")
+          .select("*")
+          .is("deleted_at", null)
+          .order("due_date", { ascending: true })
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false });
+        if (filters.dateFrom) query = query.gte("due_date", filters.dateFrom);
+        if (filters.dateTo) query = query.lte("due_date", filters.dateTo);
+        if (filters.fileId) query = query.eq("file_id", filters.fileId);
+        if (filters.status) query = query.eq("status", filters.status);
+        if (filters.responsibleProfileId) query = query.eq("responsible_profile_id", filters.responsibleProfileId);
+        return query;
+      });
+    } catch (error) {
       console.error("[BKT deadlines] Supabase SELECT hatası.", {
         code: error.code,
         message: error.message,
@@ -524,24 +532,16 @@ export class SupabaseRepository {
 
     const [files, profiles] = await Promise.all([
       this.getFiles(),
-      this.supabase
+      fetchAllSupabaseRows(() => this.supabase
         .from("profiles")
         .select("id,display_name,email,title,role_id,is_active,deleted_at")
         .is("deleted_at", null)
         .eq("is_active", true)
         .order("display_name", { ascending: true })
+        .order("id", { ascending: true }))
     ]);
-    if (profiles.error) {
-      console.error("[BKT deadlines] Profil listesi okunamadı.", {
-        code: profiles.error.code,
-        message: profiles.error.message,
-        details: profiles.error.details,
-        hint: profiles.error.hint
-      });
-      throw profiles.error;
-    }
     const filesById = new Map((files || []).map(file => [file.id, file]));
-    const profilesById = new Map((profiles.data || []).map(profile => [profile.id, profile]));
+    const profilesById = new Map((profiles || []).map(profile => [profile.id, profile]));
     return (data || []).map(row => ({
       ...row,
       file: filesById.get(row.file_id) || null,
@@ -691,24 +691,27 @@ export class SupabaseRepository {
 
   async getTasks(filters = {}) {
     if (!this.available) return [];
-    let query = this.supabase
-      .from("tasks")
-      .select("*")
-      .is("deleted_at", null)
-      .order("due_date", { ascending: true, nullsFirst: false })
-      .order("created_at", { ascending: false });
-
-    if (filters.dateFrom) query = query.gte("due_date", filters.dateFrom);
-    if (filters.dateTo) query = query.lte("due_date", filters.dateTo);
-    if (filters.fileId) query = query.eq("file_id", filters.fileId);
-    if (filters.status) query = query.eq("status", filters.status);
-    if (filters.taskType) query = query.eq("task_type", filters.taskType);
-    if (filters.priority) query = query.eq("priority", filters.priority);
-    const responsibleFilter = filters.responsibleProfileId || filters.assignedToProfileId;
-    if (responsibleFilter) query = query.eq("responsible_profile_id", responsibleFilter);
-
-    const { data, error } = await query;
-    if (error) {
+    let data = [];
+    try {
+      data = await fetchAllSupabaseRows(() => {
+        let query = this.supabase
+          .from("tasks")
+          .select("*")
+          .is("deleted_at", null)
+          .order("due_date", { ascending: true, nullsFirst: false })
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false });
+        if (filters.dateFrom) query = query.gte("due_date", filters.dateFrom);
+        if (filters.dateTo) query = query.lte("due_date", filters.dateTo);
+        if (filters.fileId) query = query.eq("file_id", filters.fileId);
+        if (filters.status) query = query.eq("status", filters.status);
+        if (filters.taskType) query = query.eq("task_type", filters.taskType);
+        if (filters.priority) query = query.eq("priority", filters.priority);
+        const responsibleFilter = filters.responsibleProfileId || filters.assignedToProfileId;
+        if (responsibleFilter) query = query.eq("responsible_profile_id", responsibleFilter);
+        return query;
+      });
+    } catch (error) {
       console.error("[BKT tasks] Supabase SELECT hatası.", {
         code: error.code,
         message: error.message,
@@ -720,24 +723,16 @@ export class SupabaseRepository {
 
     const [files, profiles] = await Promise.all([
       this.getFiles(),
-      this.supabase
+      fetchAllSupabaseRows(() => this.supabase
         .from("profiles")
         .select("id,display_name,email,title,role_id,is_active,deleted_at")
         .is("deleted_at", null)
         .eq("is_active", true)
         .order("display_name", { ascending: true })
+        .order("id", { ascending: true }))
     ]);
-    if (profiles.error) {
-      console.error("[BKT tasks] Profil listesi okunamadı.", {
-        code: profiles.error.code,
-        message: profiles.error.message,
-        details: profiles.error.details,
-        hint: profiles.error.hint
-      });
-      throw profiles.error;
-    }
     const filesById = new Map((files || []).map(file => [file.id, file]));
-    const profilesById = new Map((profiles.data || []).map(profile => [profile.id, profile]));
+    const profilesById = new Map((profiles || []).map(profile => [profile.id, profile]));
     return (data || []).map(row => ({
       ...row,
       file: filesById.get(row.file_id) || null,
@@ -884,14 +879,18 @@ export class SupabaseRepository {
 
   async getClients(filters = {}) {
     if (!this.available) return [];
-    let query = this.supabase
-      .from("clients")
-      .select("*")
-      .is("deleted_at", null)
-      .order("name", { ascending: true });
-    if (filters.clientType) query = query.eq("client_type", filters.clientType);
-    const { data, error } = await query;
-    if (error) {
+    try {
+      return await fetchAllSupabaseRows(() => {
+        let query = this.supabase
+          .from("clients")
+          .select("*")
+          .is("deleted_at", null)
+          .order("name", { ascending: true })
+          .order("id", { ascending: true });
+        if (filters.clientType) query = query.eq("client_type", filters.clientType);
+        return query;
+      });
+    } catch (error) {
       console.error("[BKT clients] Supabase SELECT hatası.", {
         filters,
         code: error.code,
@@ -901,14 +900,15 @@ export class SupabaseRepository {
       });
       throw error;
     }
-    return data || [];
   }
 
   async getFileParties(filters = {}) {
     if (!this.available) return [];
-    let query = this.supabase
-      .from("file_parties")
-      .select(`
+    try {
+      return await fetchAllSupabaseRows(() => {
+        let query = this.supabase
+          .from("file_parties")
+          .select(`
         id,
         legacy_id,
         file_id,
@@ -929,16 +929,17 @@ export class SupabaseRepository {
         updated_at,
         deleted_at,
         client:clients(id,name,tax_id,national_id,phone,email,client_type)
-      `)
-      .is("deleted_at", null)
-      .order("is_primary", { ascending: false })
-      .order("created_at", { ascending: true });
-    if (filters.fileId) query = query.eq("file_id", filters.fileId);
-    if (filters.clientId) query = query.eq("client_id", filters.clientId);
-    if (typeof filters.representedByOffice === "boolean") query = query.eq("represented_by_office", filters.representedByOffice);
-
-    const { data, error } = await query;
-    if (error) {
+          `)
+          .is("deleted_at", null)
+          .order("is_primary", { ascending: false })
+          .order("created_at", { ascending: true })
+          .order("id", { ascending: true });
+        if (filters.fileId) query = query.eq("file_id", filters.fileId);
+        if (filters.clientId) query = query.eq("client_id", filters.clientId);
+        if (typeof filters.representedByOffice === "boolean") query = query.eq("represented_by_office", filters.representedByOffice);
+        return query;
+      });
+    } catch (error) {
       console.error("[BKT file parties] Supabase SELECT hatası.", {
         fileId: filters.fileId,
         code: error.code,
@@ -948,7 +949,6 @@ export class SupabaseRepository {
       });
       throw error;
     }
-    return data || [];
   }
 
   async getRepresentedClients() {
@@ -1036,14 +1036,28 @@ export class SupabaseRepository {
     return data;
   }
 
+  async deleteFileParty(id) {
+    if (!this.available || !this.isUuid(id)) return null;
+    const { data, error } = await this.supabase
+      .from("file_parties")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", id)
+      .is("deleted_at", null)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
   async syncFileParties(fileId, parties = []) {
     if (!this.available || !this.isUuid(fileId)) return [];
     const cleanParties = (Array.isArray(parties) ? parties : [])
       .map(normalizeRepositoryParty)
-      .filter(party => party.name || party.taxId);
+      .filter(party => party.name || party.nationalId || party.taxId);
     if (!cleanParties.length) return [];
     const existingParties = await this.getFileParties({ fileId });
     const existingByKey = new Map(existingParties.map(party => [filePartyIdentityKey(party), party]));
+    const retainedExistingIds = new Set();
     const savedRows = [];
 
     for (const party of cleanParties) {
@@ -1102,9 +1116,14 @@ export class SupabaseRepository {
         ? await this.updateFileParty(existing.id, row)
         : await this.createFileParty(row);
       if (saved) {
+        if (existing?.id) retainedExistingIds.add(existing.id);
         existingByKey.set(filePartyIdentityKey(saved), saved);
         savedRows.push(saved);
       }
+    }
+
+    for (const existing of existingParties) {
+      if (!retainedExistingIds.has(existing.id)) await this.deleteFileParty(existing.id);
     }
     return savedRows;
   }
@@ -1122,7 +1141,8 @@ export class SupabaseRepository {
           .select("*")
           .is("deleted_at", null)
           .order("collection_date", { ascending: false })
-          .order("created_at", { ascending: false });
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false });
         if (filters.fileId) query = query.eq("file_id", filters.fileId);
         else if (fileIds) query = query.in("file_id", fileIds);
         if (filters.paymentPlanId) query = query.eq("payment_plan_id", filters.paymentPlanId);
@@ -1206,16 +1226,21 @@ export class SupabaseRepository {
 
   async getPaymentPlans(filters = {}) {
     if (!this.available) return [];
-    let query = this.supabase
-      .from("payment_plans")
-      .select("*, client:clients(id,name,tax_id,national_id,client_type)")
-      .is("deleted_at", null)
-      .order("updated_at", { ascending: false })
-      .order("created_at", { ascending: false });
-    if (filters.fileId) query = query.eq("file_id", filters.fileId);
-    if (filters.clientId) query = query.eq("client_id", filters.clientId);
-    const { data, error } = await query;
-    if (error) {
+    let data = [];
+    try {
+      data = await fetchAllSupabaseRows(() => {
+        let query = this.supabase
+          .from("payment_plans")
+          .select("*, client:clients(id,name,tax_id,national_id,client_type)")
+          .is("deleted_at", null)
+          .order("updated_at", { ascending: false })
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false });
+        if (filters.fileId) query = query.eq("file_id", filters.fileId);
+        if (filters.clientId) query = query.eq("client_id", filters.clientId);
+        return query;
+      });
+    } catch (error) {
       console.error("[BKT payment plans] Supabase SELECT hatası.", {
         filters,
         code: error.code,
@@ -1227,13 +1252,18 @@ export class SupabaseRepository {
     }
     const planIds = (data || []).map(row => row.id).filter(Boolean);
     if (!planIds.length) return data || [];
-    const { data: installments, error: installmentError } = await this.supabase
-      .from("payment_installments")
-      .select("*")
-      .in("payment_plan_id", planIds)
-      .is("deleted_at", null)
-      .order("sequence_no", { ascending: true });
-    if (installmentError) {
+    let installments = [];
+    try {
+      const pages = await Promise.all(chunkValues(planIds).map(ids => fetchAllSupabaseRows(() => this.supabase
+        .from("payment_installments")
+        .select("*")
+        .in("payment_plan_id", ids)
+        .is("deleted_at", null)
+        .order("payment_plan_id", { ascending: true })
+        .order("sequence_no", { ascending: true })
+        .order("id", { ascending: true }))));
+      installments = pages.flat();
+    } catch (installmentError) {
       console.error("[BKT payment installments] Supabase SELECT hatası.", {
         planIds,
         code: installmentError.code,
@@ -1385,13 +1415,15 @@ export class SupabaseRepository {
 
   async getFileNotes(filters = {}) {
     if (!this.available || !filters.fileId) return [];
-    const { data, error } = await this.supabase
-      .from("file_notes")
-      .select("id,legacy_id,file_id,note_text,author_profile_id,author_name,created_at,updated_at,deleted_at,author_profile:profiles!file_notes_author_profile_id_fkey(id,display_name)")
-      .eq("file_id", filters.fileId)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false });
-    if (error) {
+    try {
+      return await fetchAllSupabaseRows(() => this.supabase
+        .from("file_notes")
+        .select("id,legacy_id,file_id,note_text,author_profile_id,author_name,created_at,updated_at,deleted_at,author_profile:profiles!file_notes_author_profile_id_fkey(id,display_name)")
+        .eq("file_id", filters.fileId)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false }));
+    } catch (error) {
       console.error("[BKT file notes] Supabase SELECT hatası.", {
         fileId: filters.fileId,
         code: error.code,
@@ -1401,7 +1433,6 @@ export class SupabaseRepository {
       });
       throw error;
     }
-    return data || [];
   }
 
   async createFileNote(row) {
@@ -1466,14 +1497,16 @@ export class SupabaseRepository {
 
   async getTimelineEvents(filters = {}) {
     if (!this.available || !filters.fileId) return [];
-    const { data, error } = await this.supabase
-      .from("timeline_events")
-      .select("id,legacy_id,file_id,event_type,title,description,event_date,actor_profile_id,actor_name,metadata,created_at,updated_at,deleted_at,actor_profile:profiles!timeline_events_actor_profile_id_fkey(id,display_name)")
-      .eq("file_id", filters.fileId)
-      .is("deleted_at", null)
-      .order("event_date", { ascending: false })
-      .order("created_at", { ascending: false });
-    if (error) {
+    try {
+      return await fetchAllSupabaseRows(() => this.supabase
+        .from("timeline_events")
+        .select("id,legacy_id,file_id,event_type,title,description,event_date,actor_profile_id,actor_name,metadata,created_at,updated_at,deleted_at,actor_profile:profiles!timeline_events_actor_profile_id_fkey(id,display_name)")
+        .eq("file_id", filters.fileId)
+        .is("deleted_at", null)
+        .order("event_date", { ascending: false })
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false }));
+    } catch (error) {
       console.error("[BKT timeline events] Supabase SELECT hatası.", {
         fileId: filters.fileId,
         code: error.code,
@@ -1483,7 +1516,6 @@ export class SupabaseRepository {
       });
       throw error;
     }
-    return data || [];
   }
 
   async createTimelineEvent(row) {
@@ -1633,15 +1665,14 @@ export class SupabaseRepository {
 
   async getOfficeExpenseCategories() {
     if (!this.available) return [];
-    const { data, error } = await this.supabase
+    return fetchAllSupabaseRows(() => this.supabase
       .from("office_expense_categories")
       .select("*")
       .is("deleted_at", null)
       .eq("active", true)
       .order("sort_order", { ascending: true })
-      .order("name", { ascending: true });
-    if (error) throw error;
-    return data || [];
+      .order("name", { ascending: true })
+      .order("id", { ascending: true }));
   }
 
   async createOfficeExpenseCategory(row) {
@@ -1658,23 +1689,23 @@ export class SupabaseRepository {
 
   async getOfficeExpenses(filters = {}) {
     if (!this.available) return [];
-    let query = this.supabase
-      .from("office_expenses")
-      .select("*,category:office_expense_categories!office_expenses_category_id_fkey(id,name,slug,color),subcategory:office_expense_categories!office_expenses_subcategory_id_fkey(id,name,slug,color),paid_by_profile:profiles!office_expenses_paid_by_profile_id_fkey(id,display_name),created_by_profile:profiles!office_expenses_created_by_profile_id_fkey(id,display_name)")
-      .is("deleted_at", null);
-    if (filters.id) query = query.eq("id", filters.id);
-    if (filters.dateFrom) query = query.gte("expense_date", filters.dateFrom);
-    if (filters.dateTo) query = query.lte("expense_date", filters.dateTo);
-    if (filters.categoryId) query = query.eq("category_id", filters.categoryId);
-    if (filters.subcategoryId) query = query.eq("subcategory_id", filters.subcategoryId);
-    if (filters.paidByProfileId) query = query.eq("paid_by_profile_id", filters.paidByProfileId);
-    if (filters.paymentMethod) query = query.eq("payment_method", filters.paymentMethod);
-    if (filters.status) query = query.eq("status", filters.status);
-    if (filters.minAmount !== undefined && filters.minAmount !== "") query = query.gte("amount", Number(filters.minAmount));
-    if (filters.maxAmount !== undefined && filters.maxAmount !== "") query = query.lte("amount", Number(filters.maxAmount));
-    const { data, error } = await query.order("expense_date", { ascending: false }).order("created_at", { ascending: false });
-    if (error) throw error;
-    return data || [];
+    return fetchAllSupabaseRows(() => {
+      let query = this.supabase
+        .from("office_expenses")
+        .select("*,category:office_expense_categories!office_expenses_category_id_fkey(id,name,slug,color),subcategory:office_expense_categories!office_expenses_subcategory_id_fkey(id,name,slug,color),paid_by_profile:profiles!office_expenses_paid_by_profile_id_fkey(id,display_name),created_by_profile:profiles!office_expenses_created_by_profile_id_fkey(id,display_name)")
+        .is("deleted_at", null);
+      if (filters.id) query = query.eq("id", filters.id);
+      if (filters.dateFrom) query = query.gte("expense_date", filters.dateFrom);
+      if (filters.dateTo) query = query.lte("expense_date", filters.dateTo);
+      if (filters.categoryId) query = query.eq("category_id", filters.categoryId);
+      if (filters.subcategoryId) query = query.eq("subcategory_id", filters.subcategoryId);
+      if (filters.paidByProfileId) query = query.eq("paid_by_profile_id", filters.paidByProfileId);
+      if (filters.paymentMethod) query = query.eq("payment_method", filters.paymentMethod);
+      if (filters.status) query = query.eq("status", filters.status);
+      if (filters.minAmount !== undefined && filters.minAmount !== "") query = query.gte("amount", Number(filters.minAmount));
+      if (filters.maxAmount !== undefined && filters.maxAmount !== "") query = query.lte("amount", Number(filters.maxAmount));
+      return query.order("expense_date", { ascending: false }).order("created_at", { ascending: false }).order("id", { ascending: false });
+    });
   }
 
   async getOfficeExpense(id) {
@@ -1704,15 +1735,15 @@ export class SupabaseRepository {
 
   async getRecurringOfficeExpenses(filters = {}) {
     if (!this.available) return [];
-    let query = this.supabase
-      .from("office_expense_recurring_templates")
-      .select("*,category:office_expense_categories!office_expense_recurring_templates_category_id_fkey(id,name,slug,color),subcategory:office_expense_categories!office_expense_recurring_templates_subcategory_id_fkey(id,name,slug,color)")
-      .is("deleted_at", null);
-    if (filters.active !== undefined) query = query.eq("active", Boolean(filters.active));
-    if (filters.categoryId) query = query.eq("category_id", filters.categoryId);
-    const { data, error } = await query.order("next_due_date", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false });
-    if (error) throw error;
-    return data || [];
+    return fetchAllSupabaseRows(() => {
+      let query = this.supabase
+        .from("office_expense_recurring_templates")
+        .select("*,category:office_expense_categories!office_expense_recurring_templates_category_id_fkey(id,name,slug,color),subcategory:office_expense_categories!office_expense_recurring_templates_subcategory_id_fkey(id,name,slug,color)")
+        .is("deleted_at", null);
+      if (filters.active !== undefined) query = query.eq("active", Boolean(filters.active));
+      if (filters.categoryId) query = query.eq("category_id", filters.categoryId);
+      return query.order("next_due_date", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false }).order("id", { ascending: false });
+    });
   }
 
   async createRecurringOfficeExpense(row) {
@@ -1735,16 +1766,16 @@ export class SupabaseRepository {
 
   async getOfficeExpenseBudgets(filters = {}) {
     if (!this.available) return [];
-    let query = this.supabase
-      .from("office_expense_budgets")
-      .select("*,category:office_expense_categories!office_expense_budgets_category_id_fkey(id,name,slug,color)")
-      .is("deleted_at", null);
-    if (filters.year) query = query.eq("year", Number(filters.year));
-    if (filters.month !== undefined && filters.month !== "") query = query.eq("month", Number(filters.month));
-    if (filters.categoryId) query = query.eq("category_id", filters.categoryId);
-    const { data, error } = await query.order("year", { ascending: false }).order("month", { ascending: false, nullsFirst: false });
-    if (error) throw error;
-    return data || [];
+    return fetchAllSupabaseRows(() => {
+      let query = this.supabase
+        .from("office_expense_budgets")
+        .select("*,category:office_expense_categories!office_expense_budgets_category_id_fkey(id,name,slug,color)")
+        .is("deleted_at", null);
+      if (filters.year) query = query.eq("year", Number(filters.year));
+      if (filters.month !== undefined && filters.month !== "") query = query.eq("month", Number(filters.month));
+      if (filters.categoryId) query = query.eq("category_id", filters.categoryId);
+      return query.order("year", { ascending: false }).order("month", { ascending: false, nullsFirst: false }).order("id", { ascending: false });
+    });
   }
 
   async createOfficeExpenseBudget(row) {
@@ -1767,15 +1798,15 @@ export class SupabaseRepository {
 
   async getOfficeExpensePartnerShares(filters = {}) {
     if (!this.available) return [];
-    let query = this.supabase
-      .from("office_expense_partner_shares")
-      .select("*,profile:profiles!office_expense_partner_shares_profile_id_fkey(id,display_name)")
-      .is("deleted_at", null);
-    if (filters.active !== undefined) query = query.eq("active", Boolean(filters.active));
-    if (filters.date) query = query.lte("effective_from", filters.date).or(`effective_to.is.null,effective_to.gte.${filters.date}`);
-    const { data, error } = await query.order("effective_from", { ascending: false });
-    if (error) throw error;
-    return data || [];
+    return fetchAllSupabaseRows(() => {
+      let query = this.supabase
+        .from("office_expense_partner_shares")
+        .select("*,profile:profiles!office_expense_partner_shares_profile_id_fkey(id,display_name)")
+        .is("deleted_at", null);
+      if (filters.active !== undefined) query = query.eq("active", Boolean(filters.active));
+      if (filters.date) query = query.lte("effective_from", filters.date).or(`effective_to.is.null,effective_to.gte.${filters.date}`);
+      return query.order("effective_from", { ascending: false }).order("id", { ascending: false });
+    });
   }
 
   async saveOfficeExpensePartnerShares(rows = []) {

@@ -6,6 +6,7 @@ import {
   selectUpcomingHearings,
   weekStartIso
 } from "../src/shared/upcomingHearings.mjs";
+import { chunkValues, collectPaginatedRows } from "../src/shared/repositoryPagination.mjs";
 
 import {
   buildCalculationTools,
@@ -141,10 +142,11 @@ import {
         cache.clear();
         notifyStatus("unauthenticated", "Oturum kapatıldı.");
       },
-      async registerPushDevice(token, previousToken = null) {
+      async registerPushDevice(token, previousToken = null, { platform = 'android', environment = null } = {}) {
         if (!authClient) throw new Error('Supabase unavailable');
         const { data, error } = await authClient.rpc('register_push_device', {
-          p_token: token, p_previous_token: previousToken
+          p_token: token, p_previous_token: previousToken,
+          p_platform: platform, p_environment: platform === 'ios' ? environment : null
         });
         if (error) throw error;
         return data;
@@ -224,7 +226,6 @@ import {
       },
       async listProfiles() {
         if (!authClient) return [];
-        const query = `${restUrl("profiles")}?select=id,role_id,display_name,title,email,is_active&is_active=eq.true&deleted_at=is.null&order=display_name.asc`;
         console.debug("[BKT profiles] sorgu", {
           table: "public.profiles",
           select: ["id", "role_id", "display_name", "title", "email"],
@@ -232,25 +233,20 @@ import {
           order: "display_name.asc"
         });
 
-        let response;
+        let profiles;
         try {
-          response = await fetch(query, { headers: await authHeaders(repository) });
+          profiles = await repositorySelectAll(repository, "profiles", {
+            select: "id,role_id,display_name,title,email,is_active",
+            is_active: "eq.true",
+            deleted_at: "is.null",
+            order: "display_name.asc,id.asc"
+          }, { label: "BKT profiles", message: "Kullanıcı profilleri yüklenemedi" });
         } catch (error) {
           console.error("[BKT profiles] sorgu hatası", { message: error?.message || String(error) });
           showConnectionWarning("Kullanıcı profilleri yüklenemedi.");
           throw new Error("Kullanıcı profilleri yüklenemedi.");
         }
 
-        if (!response.ok) {
-          console.error("[BKT profiles] sorgu hatası", {
-            status: response.status,
-            statusText: response.statusText
-          });
-          showConnectionWarning("Kullanıcı profilleri yüklenemedi.");
-          throw new Error("Kullanıcı profilleri yüklenemedi.");
-        }
-
-        const profiles = await response.json();
         console.debug("[BKT profiles] dönen profil sayısı", profiles.length);
         console.debug("[BKT profiles] dönen profiller", profiles.map(profile => ({
           id: profile.id,
@@ -387,12 +383,11 @@ import {
         return true;
       },
       async getFiles() {
-        const response = await fetch(
-          `${restUrl("files")}?select=*&deleted_at=is.null&order=created_at.desc`,
-          { headers: await authHeaders(repository) }
-        );
-        if (!response.ok) throw new Error(`Dosyalar okunamadı: ${response.status}`);
-        return response.json();
+        return repositorySelectAll(repository, "files", {
+          select: "*",
+          deleted_at: "is.null",
+          order: "created_at.desc,id.desc"
+        }, { label: "BKT files", message: "Dosyalar okunamadı" });
       },
       async getFileIdCandidates() {
         const select = [
@@ -406,12 +401,10 @@ import {
           "deleted_at",
           "created_at"
         ].join(",");
-        const response = await fetch(
-          `${restUrl("files")}?select=${select}&order=created_at.desc`,
-          { headers: await authHeaders(repository) }
-        );
-        if (!response.ok) throw new Error(`Dosya ID adayları okunamadı: ${response.status}`);
-        return response.json();
+        return repositorySelectAll(repository, "files", {
+          select,
+          order: "created_at.desc,id.desc"
+        }, { label: "BKT file id candidates", message: "Dosya ID adayları okunamadı" });
       },
       async getFile(id) {
         if (!id) return null;
@@ -550,7 +543,6 @@ import {
         const deadlineSelect = "id,legacy_id,file_id,title,task,description,responsible_profile_id,responsible_name,start_date,due_date,status,completed_at,completed_late,created_at,updated_at,deleted_at,metadata";
         const taskSelect = "id,legacy_id,task_type,file_id,title,description,responsible_profile_id,responsible_name,due_date,status,priority,completed_at,created_by_profile_id,created_at,updated_at,deleted_at,metadata";
         const profileSelect = "id,display_name,email,title,role_id,is_active,deleted_at";
-        const headers = await authHeaders(repository);
         let profileId = isUuid(filters.profileId) ? filters.profileId : "";
         if (!profileId && authClient) {
           try {
@@ -560,36 +552,23 @@ import {
             console.error("[BKT dashboard tasks] Current profile id could not be resolved.", { message: error?.message || String(error) });
           }
         }
-        const [filesResponse, upcomingResponse, deadlinesResponse, profilesResponse] = await Promise.all([
-          fetch(`${restUrl("files")}?select=${fileSelect}&deleted_at=is.null&order=created_at.desc`, { headers }),
-          fetch(`${restUrl("hearings")}?select=${hearingSelect}&deleted_at=is.null&hearing_date=gte.${encodeURIComponent(dashboardWeekStartIso)}&order=hearing_date.asc.nullslast&order=hearing_time.asc.nullslast`, { headers }),
-          fetch(`${restUrl("deadlines")}?select=${deadlineSelect}&deleted_at=is.null&order=due_date.asc.nullslast&order=created_at.desc`, { headers }),
-          fetch(`${restUrl("profiles")}?select=${profileSelect}&deleted_at=is.null&is_active=eq.true&order=display_name.asc`, { headers })
+        const [files, upcomingHearings, deadlines, profiles] = await Promise.all([
+          repositorySelectAll(repository, "files", { select: fileSelect, deleted_at: "is.null", order: "created_at.desc,id.desc" }, { label: "BKT dashboard files", message: "Dashboard dosyaları okunamadı" }),
+          repositorySelectAll(repository, "hearings", { select: hearingSelect, deleted_at: "is.null", hearing_date: `gte.${dashboardWeekStartIso}`, order: "hearing_date.asc.nullslast,hearing_time.asc.nullslast,id.asc" }, { label: "BKT dashboard hearings", message: "Dashboard duruşmaları okunamadı" }),
+          repositorySelectAll(repository, "deadlines", { select: deadlineSelect, deleted_at: "is.null", order: "due_date.asc.nullslast,created_at.desc,id.desc" }, { label: "BKT dashboard deadlines", message: "Dashboard süreli işleri okunamadı" }),
+          repositorySelectAll(repository, "profiles", { select: profileSelect, deleted_at: "is.null", is_active: "eq.true", order: "display_name.asc,id.asc" }, { label: "BKT dashboard profiles", message: "Dashboard profilleri okunamadı" })
         ]);
-        const responses = [
-          ["files", filesResponse],
-          ["upcomingHearings", upcomingResponse],
-          ["deadlines", deadlinesResponse],
-          ["profiles", profilesResponse]
-        ];
-        const failed = responses.find(([, response]) => !response.ok);
-        if (failed) throw new Error(`Dashboard verisi okunamadı (${failed[0]}): ${failed[1].status} ${await safeResponseText(failed[1])}`);
-        const [files, upcomingHearings, deadlines, profiles] = await Promise.all(responses.map(([, response]) => response.json()));
         let assignedTasks = [];
         let overdueTasks = [];
         let taskError = "";
         try {
           const taskRequests = [
             profileId
-              ? fetch(`${restUrl("tasks")}?select=${taskSelect}&deleted_at=is.null&responsible_profile_id=eq.${encodeURIComponent(profileId)}&order=due_date.asc.nullslast&order=created_at.desc`, { headers })
-              : Promise.resolve(null),
-            fetch(`${restUrl("tasks")}?select=${taskSelect}&deleted_at=is.null&due_date=lt.${encodeURIComponent(todayIso)}&order=due_date.asc.nullslast&order=created_at.desc`, { headers })
+              ? repositorySelectAll(repository, "tasks", { select: taskSelect, deleted_at: "is.null", responsible_profile_id: `eq.${profileId}`, order: "due_date.asc.nullslast,created_at.desc,id.desc" }, { label: "BKT dashboard assigned tasks", message: "Atanmış görevler okunamadı" })
+              : Promise.resolve([]),
+            repositorySelectAll(repository, "tasks", { select: taskSelect, deleted_at: "is.null", due_date: `lt.${todayIso}`, order: "due_date.asc.nullslast,created_at.desc,id.desc" }, { label: "BKT dashboard overdue tasks", message: "Geciken görevler okunamadı" })
           ];
-          const [assignedResponse, overdueResponse] = await Promise.all(taskRequests);
-          if (assignedResponse && !assignedResponse.ok) throw new Error(`assignedTasks: ${assignedResponse.status} ${await safeResponseText(assignedResponse)}`);
-          if (overdueResponse && !overdueResponse.ok) throw new Error(`overdueTasks: ${overdueResponse.status} ${await safeResponseText(overdueResponse)}`);
-          assignedTasks = assignedResponse ? await assignedResponse.json() : [];
-          overdueTasks = overdueResponse ? await overdueResponse.json() : [];
+          [assignedTasks, overdueTasks] = await Promise.all(taskRequests);
         } catch (error) {
           console.error("[BKT dashboard tasks] Supabase task data could not be loaded.", {
             message: error?.message || String(error)
@@ -612,24 +591,19 @@ import {
         };
       },
       async getHearings(filters = {}) {
-        const params = [
-          "select=id,legacy_id,file_id,court,case_file_no,hearing_date,hearing_time,client_name,party_role,excuse_type,attendee_profile_id,attendee_name,participant_profile_id,participant_name,note,outcome,status,metadata,created_at,updated_at,deleted_at",
-          "deleted_at=is.null",
-          "order=hearing_date.asc.nullslast",
-          "order=hearing_time.asc.nullslast"
-        ];
-        if (filters.dateFrom) params.push(`hearing_date=gte.${encodeURIComponent(filters.dateFrom)}`);
-        if (filters.dateTo) params.push(`hearing_date=lte.${encodeURIComponent(filters.dateTo)}`);
-        if (filters.fileId) params.push(`file_id=eq.${encodeURIComponent(filters.fileId)}`);
-        if (filters.status) params.push(`status=eq.${encodeURIComponent(filters.status)}`);
-        if (filters.excuseType) params.push(`excuse_type=eq.${encodeURIComponent(filters.excuseType)}`);
-        if (filters.participantProfileId) params.push(`participant_profile_id=eq.${encodeURIComponent(filters.participantProfileId)}`);
-
-        const response = await fetch(`${restUrl("hearings")}?${params.join("&")}`, {
-          headers: await authHeaders(repository)
-        });
-        if (!response.ok) throw new Error(`Duruşmalar okunamadı: ${response.status} ${await safeResponseText(response)}`);
-        const hearings = await response.json();
+        const query = {
+          select: "id,legacy_id,file_id,court,case_file_no,hearing_date,hearing_time,client_name,party_role,excuse_type,attendee_profile_id,attendee_name,participant_profile_id,participant_name,note,outcome,status,metadata,created_at,updated_at,deleted_at",
+          deleted_at: "is.null",
+          order: "hearing_date.asc.nullslast,hearing_time.asc.nullslast,id.asc"
+        };
+        if (filters.dateFrom && filters.dateTo) query.and = `(hearing_date.gte.${filters.dateFrom},hearing_date.lte.${filters.dateTo})`;
+        else if (filters.dateFrom) query.hearing_date = `gte.${filters.dateFrom}`;
+        else if (filters.dateTo) query.hearing_date = `lte.${filters.dateTo}`;
+        if (filters.fileId) query.file_id = `eq.${filters.fileId}`;
+        if (filters.status) query.status = `eq.${filters.status}`;
+        if (filters.excuseType) query.excuse_type = `eq.${filters.excuseType}`;
+        if (filters.participantProfileId) query.participant_profile_id = `eq.${filters.participantProfileId}`;
+        const hearings = await repositorySelectAll(repository, "hearings", query, { label: "BKT hearings", message: "Duruşmalar okunamadı" });
         const [files, profiles] = await Promise.all([
           repository.getFiles(),
           repository.listProfiles().catch(() => [])
@@ -774,31 +748,18 @@ import {
         });
       },
       async getDeadlines(filters = {}) {
-        const params = [
-          "select=id,legacy_id,file_id,title,task,description,responsible_profile_id,responsible_name,start_date,due_date,status,completed_at,completed_late,created_at,updated_at,deleted_at,metadata",
-          "deleted_at=is.null",
-          "order=due_date.asc.nullslast",
-          "order=created_at.desc"
-        ];
-        if (filters.dateFrom) params.push(`due_date=gte.${encodeURIComponent(filters.dateFrom)}`);
-        if (filters.dateTo) params.push(`due_date=lte.${encodeURIComponent(filters.dateTo)}`);
-        if (filters.fileId) params.push(`file_id=eq.${encodeURIComponent(filters.fileId)}`);
-        if (filters.status) params.push(`status=eq.${encodeURIComponent(filters.status)}`);
-        if (filters.responsibleProfileId) params.push(`responsible_profile_id=eq.${encodeURIComponent(filters.responsibleProfileId)}`);
-
-        const response = await fetch(`${restUrl("deadlines")}?${params.join("&")}`, {
-          headers: await authHeaders(repository)
-        });
-        if (!response.ok) {
-          const body = await safeResponseText(response);
-          console.error("[BKT deadlines] Supabase SELECT failed.", {
-            status: response.status,
-            statusText: response.statusText,
-            body
-          });
-          throw new Error(`Süreli işler okunamadı: ${response.status}`);
-        }
-        const deadlines = await response.json();
+        const query = {
+          select: "id,legacy_id,file_id,title,task,description,responsible_profile_id,responsible_name,start_date,due_date,status,completed_at,completed_late,created_at,updated_at,deleted_at,metadata",
+          deleted_at: "is.null",
+          order: "due_date.asc.nullslast,created_at.desc,id.desc"
+        };
+        if (filters.dateFrom && filters.dateTo) query.and = `(due_date.gte.${filters.dateFrom},due_date.lte.${filters.dateTo})`;
+        else if (filters.dateFrom) query.due_date = `gte.${filters.dateFrom}`;
+        else if (filters.dateTo) query.due_date = `lte.${filters.dateTo}`;
+        if (filters.fileId) query.file_id = `eq.${filters.fileId}`;
+        if (filters.status) query.status = `eq.${filters.status}`;
+        if (filters.responsibleProfileId) query.responsible_profile_id = `eq.${filters.responsibleProfileId}`;
+        const deadlines = await repositorySelectAll(repository, "deadlines", query, { label: "BKT deadlines", message: "Süreli işler okunamadı" });
         const [files, profiles] = await Promise.all([
           repository.getFiles(),
           repository.listProfiles().catch(() => [])
@@ -968,34 +929,21 @@ import {
         return rows[0];
       },
       async getTasks(filters = {}) {
-        const params = [
-          "select=id,legacy_id,task_type,file_id,title,description,responsible_profile_id,responsible_name,due_date,status,priority,completed_at,created_by_profile_id,created_at,updated_at,deleted_at,metadata",
-          "deleted_at=is.null",
-          "order=due_date.asc.nullslast",
-          "order=created_at.desc"
-        ];
-        if (filters.dateFrom) params.push(`due_date=gte.${encodeURIComponent(filters.dateFrom)}`);
-        if (filters.dateTo) params.push(`due_date=lte.${encodeURIComponent(filters.dateTo)}`);
-        if (filters.fileId) params.push(`file_id=eq.${encodeURIComponent(filters.fileId)}`);
-        if (filters.status) params.push(`status=eq.${encodeURIComponent(filters.status)}`);
-        if (filters.taskType) params.push(`task_type=eq.${encodeURIComponent(filters.taskType)}`);
-        if (filters.priority) params.push(`priority=eq.${encodeURIComponent(filters.priority)}`);
+        const query = {
+          select: "id,legacy_id,task_type,file_id,title,description,responsible_profile_id,responsible_name,due_date,status,priority,completed_at,created_by_profile_id,created_at,updated_at,deleted_at,metadata",
+          deleted_at: "is.null",
+          order: "due_date.asc.nullslast,created_at.desc,id.desc"
+        };
+        if (filters.dateFrom && filters.dateTo) query.and = `(due_date.gte.${filters.dateFrom},due_date.lte.${filters.dateTo})`;
+        else if (filters.dateFrom) query.due_date = `gte.${filters.dateFrom}`;
+        else if (filters.dateTo) query.due_date = `lte.${filters.dateTo}`;
+        if (filters.fileId) query.file_id = `eq.${filters.fileId}`;
+        if (filters.status) query.status = `eq.${filters.status}`;
+        if (filters.taskType) query.task_type = `eq.${filters.taskType}`;
+        if (filters.priority) query.priority = `eq.${filters.priority}`;
         const responsibleFilter = filters.responsibleProfileId || filters.assignedToProfileId;
-        if (responsibleFilter) params.push(`responsible_profile_id=eq.${encodeURIComponent(responsibleFilter)}`);
-
-        const response = await fetch(`${restUrl("tasks")}?${params.join("&")}`, {
-          headers: await authHeaders(repository)
-        });
-        if (!response.ok) {
-          const body = await safeResponseText(response);
-          console.error("[BKT tasks] Supabase SELECT failed.", {
-            status: response.status,
-            statusText: response.statusText,
-            body
-          });
-          throw new Error(`Görevler okunamadı: ${response.status}`);
-        }
-        const tasks = await response.json();
+        if (responsibleFilter) query.responsible_profile_id = `eq.${responsibleFilter}`;
+        const tasks = await repositorySelectAll(repository, "tasks", query, { label: "BKT tasks", message: "Görevler okunamadı" });
         const [files, profiles] = await Promise.all([
           repository.getFiles(),
           repository.listProfiles().catch(() => [])
@@ -1167,26 +1115,13 @@ import {
         return rows[0];
       },
       async getClients(filters = {}) {
-        const params = [
-          "select=id,legacy_id,name,tax_id,national_id,phone,email,address,client_type,metadata,created_at,updated_at,deleted_at",
-          "deleted_at=is.null",
-          "order=name.asc"
-        ];
-        if (filters.clientType) params.push(`client_type=eq.${encodeURIComponent(filters.clientType)}`);
-        const response = await fetch(`${restUrl("clients")}?${params.join("&")}`, {
-          headers: await authHeaders(repository)
-        });
-        if (!response.ok) {
-          const body = await safeResponseText(response);
-          console.error("[BKT clients] Supabase SELECT failed.", {
-            filters,
-            status: response.status,
-            statusText: response.statusText,
-            body
-          });
-          throw new Error(`Müvekkiller okunamadı: ${response.status}`);
-        }
-        return response.json();
+        const query = {
+          select: "id,legacy_id,name,tax_id,national_id,phone,email,address,client_type,metadata,created_at,updated_at,deleted_at",
+          deleted_at: "is.null",
+          order: "name.asc,id.asc"
+        };
+        if (filters.clientType) query.client_type = `eq.${filters.clientType}`;
+        return repositorySelectAll(repository, "clients", query, { label: "BKT clients", message: "Müvekkiller okunamadı" });
       },
       async getFileParties(filters = {}) {
         const select = [
@@ -1211,28 +1146,15 @@ import {
           "deleted_at",
           "client:clients(id,name,tax_id,national_id,phone,email,client_type)"
         ].join(",");
-        const params = [
-          `select=${select}`,
-          "deleted_at=is.null",
-          "order=is_primary.desc,created_at.asc"
-        ];
-        if (filters.fileId) params.push(`file_id=eq.${encodeURIComponent(filters.fileId)}`);
-        if (filters.clientId) params.push(`client_id=eq.${encodeURIComponent(filters.clientId)}`);
-        if (typeof filters.representedByOffice === "boolean") params.push(`represented_by_office=eq.${filters.representedByOffice}`);
-        const response = await fetch(`${restUrl("file_parties")}?${params.join("&")}`, {
-          headers: await authHeaders(repository)
-        });
-        if (!response.ok) {
-          const body = await safeResponseText(response);
-          console.error("[BKT file parties] Supabase SELECT failed.", {
-            fileId: filters.fileId,
-            status: response.status,
-            statusText: response.statusText,
-            body
-          });
-          throw new Error(`Taraflar okunamadı: ${response.status}`);
-        }
-        return response.json();
+        const query = {
+          select,
+          deleted_at: "is.null",
+          order: "is_primary.desc,created_at.asc,id.asc"
+        };
+        if (filters.fileId) query.file_id = `eq.${filters.fileId}`;
+        if (filters.clientId) query.client_id = `eq.${filters.clientId}`;
+        if (typeof filters.representedByOffice === "boolean") query.represented_by_office = `eq.${filters.representedByOffice}`;
+        return repositorySelectAll(repository, "file_parties", query, { label: "BKT file parties", message: "Taraflar okunamadı" });
       },
       async getRepresentedClients() {
         const parties = await this.getFileParties({ representedByOffice: true });
@@ -1321,17 +1243,31 @@ import {
         const rows = await response.json();
         return rows[0] || null;
       },
+      async deleteFileParty(id) {
+        const response = await fetch(`${restUrl("file_parties")}?id=eq.${encodeURIComponent(id)}&deleted_at=is.null`, {
+          method: "PATCH",
+          headers: {
+            ...(await authHeaders(repository)),
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+          },
+          body: JSON.stringify({ deleted_at: new Date().toISOString() })
+        });
+        if (!response.ok) throw new Error(`Taraf silinemedi: ${response.status} ${await safeResponseText(response)}`);
+        const rows = await response.json();
+        return rows[0] || null;
+      },
       async syncFileParties(fileId, parties = []) {
         if (!isUuid(fileId)) throw new Error("Taraf senkronizasyonu için gerçek dosya UUID gerekli.");
         const cleanParties = (Array.isArray(parties) ? parties : [])
           .map(normalizeRepositoryParty)
           .filter(party => party.name || party.nationalId || party.taxId);
         if (!cleanParties.length) return [];
-
         const existingParties = typeof repository.getFileParties === "function"
           ? await repository.getFileParties({ fileId })
           : [];
         const existingByKey = new Map(existingParties.map(party => [filePartyIdentityKey(party), party]));
+        const retainedExistingIds = new Set();
         const savedRows = [];
 
         for (const party of cleanParties) {
@@ -1391,9 +1327,14 @@ import {
             ? await repository.updateFileParty(existing.id, row)
             : await repository.createFileParty(row);
           if (saved) {
+            if (existing?.id) retainedExistingIds.add(existing.id);
             existingByKey.set(filePartyIdentityKey(saved), saved);
             savedRows.push(saved);
           }
+        }
+
+        for (const existing of existingParties) {
+          if (!retainedExistingIds.has(existing.id)) await repository.deleteFileParty(existing.id);
         }
         return savedRows;
       },
@@ -1405,7 +1346,7 @@ import {
         const query = {
           select: "id,legacy_id,file_id,payment_plan_id,payment_installment_id,amount,currency,collection_date,payment_kind,description,metadata,created_at,updated_at,deleted_at",
           deleted_at: "is.null",
-          order: "collection_date.desc,created_at.desc"
+          order: "collection_date.desc,created_at.desc,id.desc"
         };
         if (filters.fileId) query.file_id = `eq.${filters.fileId}`;
         else if (fileIds) query.file_id = `in.(${fileIds.join(",")})`;
@@ -1498,45 +1439,23 @@ import {
           "deleted_at",
           "client:clients(id,name,tax_id,national_id,client_type)"
         ].join(",");
-        const params = [
-          `select=${select}`,
-          "deleted_at=is.null",
-          "order=updated_at.desc",
-          "order=created_at.desc"
-        ];
-        if (filters.fileId) params.push(`file_id=eq.${encodeURIComponent(filters.fileId)}`);
-        if (filters.clientId) params.push(`client_id=eq.${encodeURIComponent(filters.clientId)}`);
-        const response = await fetch(`${restUrl("payment_plans")}?${params.join("&")}`, {
-          headers: await authHeaders(repository)
-        });
-        if (!response.ok) {
-          const body = await safeResponseText(response);
-          console.error("[BKT payment plans] Supabase SELECT failed.", {
-            filters,
-            status: response.status,
-            statusText: response.statusText,
-            body
-          });
-          throw new Error(`Ödeme planları okunamadı: ${response.status}`);
-        }
-        const plans = await response.json();
+        const query = {
+          select,
+          deleted_at: "is.null",
+          order: "updated_at.desc,created_at.desc,id.desc"
+        };
+        if (filters.fileId) query.file_id = `eq.${filters.fileId}`;
+        if (filters.clientId) query.client_id = `eq.${filters.clientId}`;
+        const plans = await repositorySelectAll(repository, "payment_plans", query, { label: "BKT payment plans", message: "Ödeme planları okunamadı" });
         const planIds = plans.map(plan => plan.id).filter(Boolean);
         if (!planIds.length) return plans;
-        const installmentsResponse = await fetch(
-          `${restUrl("payment_installments")}?select=*&payment_plan_id=in.(${planIds.map(encodeURIComponent).join(",")})&deleted_at=is.null&order=sequence_no.asc`,
-          { headers: await authHeaders(repository) }
-        );
-        if (!installmentsResponse.ok) {
-          const body = await safeResponseText(installmentsResponse);
-          console.error("[BKT payment installments] Supabase SELECT failed.", {
-            planIds,
-            status: installmentsResponse.status,
-            statusText: installmentsResponse.statusText,
-            body
-          });
-          throw new Error(`Ödeme taksitleri okunamadı: ${installmentsResponse.status}`);
-        }
-        const installments = await installmentsResponse.json();
+        const installmentPages = await Promise.all(chunkValues(planIds).map(ids => repositorySelectAll(repository, "payment_installments", {
+          select: "*",
+          payment_plan_id: `in.(${ids.join(",")})`,
+          deleted_at: "is.null",
+          order: "payment_plan_id.asc,sequence_no.asc,id.asc"
+        }, { label: "BKT payment installments", message: "Ödeme taksitleri okunamadı" })));
+        const installments = installmentPages.flat();
         const installmentsByPlan = new Map();
         installments.forEach(row => {
           const list = installmentsByPlan.get(row.payment_plan_id) || [];
@@ -1662,20 +1581,12 @@ import {
           "deleted_at",
           "author_profile:profiles!file_notes_author_profile_id_fkey(id,display_name)"
         ].join(",");
-        const response = await fetch(`${restUrl("file_notes")}?select=${select}&file_id=eq.${encodeURIComponent(filters.fileId)}&deleted_at=is.null&order=created_at.desc`, {
-          headers: await authHeaders(repository)
-        });
-        if (!response.ok) {
-          const body = await safeResponseText(response);
-          console.error("[BKT file notes] Supabase SELECT failed.", {
-            fileId: filters.fileId,
-            status: response.status,
-            statusText: response.statusText,
-            body
-          });
-          throw new Error(`Dosya notları okunamadı: ${response.status}`);
-        }
-        return response.json();
+        return repositorySelectAll(repository, "file_notes", {
+          select,
+          file_id: `eq.${filters.fileId}`,
+          deleted_at: "is.null",
+          order: "created_at.desc,id.desc"
+        }, { label: "BKT file notes", message: "Dosya notları okunamadı" });
       },
       async createFileNote(row) {
         const response = await fetch(`${restUrl("file_notes")}`, {
@@ -1748,20 +1659,12 @@ import {
           "deleted_at",
           "actor_profile:profiles!timeline_events_actor_profile_id_fkey(id,display_name)"
         ].join(",");
-        const response = await fetch(`${restUrl("timeline_events")}?select=${select}&file_id=eq.${encodeURIComponent(filters.fileId)}&deleted_at=is.null&order=event_date.desc&order=created_at.desc`, {
-          headers: await authHeaders(repository)
-        });
-        if (!response.ok) {
-          const body = await safeResponseText(response);
-          console.error("[BKT timeline events] Supabase SELECT failed.", {
-            fileId: filters.fileId,
-            status: response.status,
-            statusText: response.statusText,
-            body
-          });
-          throw new Error(`Zaman çizelgesi okunamadı: ${response.status}`);
-        }
-        return response.json();
+        return repositorySelectAll(repository, "timeline_events", {
+          select,
+          file_id: `eq.${filters.fileId}`,
+          deleted_at: "is.null",
+          order: "event_date.desc,created_at.desc,id.desc"
+        }, { label: "BKT timeline events", message: "Zaman çizelgesi okunamadı" });
       },
       async createTimelineEvent(row) {
         const response = await fetch(`${restUrl("timeline_events")}`, {
@@ -1877,7 +1780,7 @@ import {
           select: "*",
           deleted_at: "is.null",
           active: "eq.true",
-          order: "sort_order.asc,name.asc"
+          order: "sort_order.asc,name.asc,id.asc"
         });
       },
       async createOfficeExpenseCategory(row) {
@@ -1893,7 +1796,7 @@ import {
         const query = {
           select: "*,category:office_expense_categories!office_expenses_category_id_fkey(id,name,slug,color),subcategory:office_expense_categories!office_expenses_subcategory_id_fkey(id,name,slug,color),paid_by_profile:profiles!office_expenses_paid_by_profile_id_fkey(id,display_name),created_by_profile:profiles!office_expenses_created_by_profile_id_fkey(id,display_name)",
           deleted_at: "is.null",
-          order: "expense_date.desc,created_at.desc"
+          order: "expense_date.desc,created_at.desc,id.desc"
         };
         if (filters.id) query.id = `eq.${filters.id}`;
         const rangeFilters = [];
@@ -1932,7 +1835,7 @@ import {
         const query = {
           select: "*,category:office_expense_categories!office_expense_recurring_templates_category_id_fkey(id,name,slug,color),subcategory:office_expense_categories!office_expense_recurring_templates_subcategory_id_fkey(id,name,slug,color)",
           deleted_at: "is.null",
-          order: "next_due_date.asc.nullslast,created_at.desc"
+          order: "next_due_date.asc.nullslast,created_at.desc,id.desc"
         };
         if (filters.active !== undefined) query.active = `eq.${Boolean(filters.active)}`;
         if (filters.categoryId) query.category_id = `eq.${filters.categoryId}`;
@@ -1954,7 +1857,7 @@ import {
         const query = {
           select: "*,category:office_expense_categories!office_expense_budgets_category_id_fkey(id,name,slug,color)",
           deleted_at: "is.null",
-          order: "year.desc,month.desc.nullslast"
+          order: "year.desc,month.desc.nullslast,id.desc"
         };
         if (filters.year) query.year = `eq.${Number(filters.year)}`;
         if (filters.month !== undefined && filters.month !== "") query.month = `eq.${Number(filters.month)}`;
@@ -1980,7 +1883,7 @@ import {
         const query = {
           select: "*,profile:profiles!office_expense_partner_shares_profile_id_fkey(id,display_name)",
           deleted_at: "is.null",
-          order: "effective_from.desc"
+          order: "effective_from.desc,id.desc"
         };
         if (filters.active !== undefined) query.active = `eq.${Boolean(filters.active)}`;
         if (filters.date) {
@@ -2363,34 +2266,24 @@ import {
   }
 
   async function officeExpenseSelect(repository, table, query = {}) {
-    const params = new URLSearchParams();
-    Object.entries(query).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== "") params.set(key, String(value));
+    return repositorySelectAll(repository, table, query, {
+      label: "BKT office expenses",
+      message: "Ofis giderleri verisi okunamadı"
     });
-    const response = await fetch(`${restUrl(table)}?${params}`, {
-      headers: await authHeaders(repository)
-    });
-    if (!response.ok) {
-      const body = await safeResponseText(response);
-      console.error("[BKT office expenses] Supabase SELECT failed.", { table, status: response.status, statusText: response.statusText, body });
-      throw new Error(`Ofis giderleri verisi okunamadı: ${response.status}`);
-    }
-    return response.json();
   }
 
   async function repositorySelectAll(repository, table, query = {}, error = {}) {
     const pageSize = 1000;
-    const rows = [];
     const params = new URLSearchParams();
     Object.entries(query).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== "") params.set(key, String(value));
     });
-    for (let from = 0; ; from += pageSize) {
+    return collectPaginatedRows(async (from, to) => {
       const response = await fetch(`${restUrl(table)}?${params}`, {
         headers: {
           ...(await authHeaders(repository)),
           "Range-Unit": "items",
-          Range: `${from}-${from + pageSize - 1}`
+          Range: `${from}-${to}`
         }
       });
       if (!response.ok) {
@@ -2403,11 +2296,8 @@ import {
         });
         throw new Error(`${error.message || "Veriler yüklenemedi"}: ${response.status}`);
       }
-      const page = await response.json();
-      rows.push(...page);
-      if (page.length < pageSize) break;
-    }
-    return rows;
+      return response.json();
+    }, pageSize);
   }
 
   function calculationSelectAll(repository, table, query = {}) {

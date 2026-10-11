@@ -14,17 +14,24 @@ test("Raporlar ekranı Supabase tablolarından özet üretir ve çıktı dosyala
   await page.locator("#exportOfficeReport").click();
   await expect((await officeDownload).suggestedFilename()).toMatch(/\.csv$/i);
 
-  await page.locator("#hearingReportStart").fill(todayIso(-30));
-  await page.locator("#hearingReportEnd").fill(todayIso(30));
+  const hearingStart = todayIso(-30);
+  const hearingEnd = todayIso(30);
+  const displayDate = value => value.split("-").reverse().join(".");
+  await page.locator("#hearingReportStart").fill(hearingStart);
+  await page.locator("#hearingReportEnd").fill(hearingEnd);
   const hearingPdf = page.waitForEvent("download");
   await page.locator("#printHearingReport").click();
-  await expect((await hearingPdf).suggestedFilename()).toMatch(/durusma.*\.pdf$/i);
+  const expectedBrowserFilename = `${displayDate(hearingStart)} - ${displayDate(hearingEnd)} Duruşma Listesi.pdf`.replaceAll(".", "_").replace(/_pdf$/, ".pdf");
+  expect((await hearingPdf).suggestedFilename()).toBe(expectedBrowserFilename);
 
-  await page.locator("#deadlineReportStart").fill(todayIso(-30));
-  await page.locator("#deadlineReportEnd").fill(todayIso(30));
+  const deadlineStart = todayIso(-30);
+  const deadlineEnd = todayIso(30);
+  await page.locator("#deadlineReportStart").fill(deadlineStart);
+  await page.locator("#deadlineReportEnd").fill(deadlineEnd);
   const deadlineCsv = page.waitForEvent("download");
   await page.locator("#exportDeadlines").click();
-  await expect((await deadlineCsv).suggestedFilename()).toMatch(/sureli.*\.csv$/i);
+  const expectedDeadlineFilename = `${displayDate(deadlineStart)} - ${displayDate(deadlineEnd)} Süreli İş Raporu.csv`.replaceAll(".", "_").replace(/_csv$/, ".csv");
+  expect((await deadlineCsv).suggestedFilename()).toBe(expectedDeadlineFilename);
 
   diagnostics.assertClean();
 });

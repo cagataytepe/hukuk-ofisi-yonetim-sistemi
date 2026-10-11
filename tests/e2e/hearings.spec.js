@@ -19,6 +19,8 @@ test("Duruşmalar ekranı public.hearings üzerinde oluşturma ve soft delete ya
 
     const chip = page.locator("#hearingsPrintPanel #hearingCalendar .hearing-chip").filter({ hasText: prefix }).first();
     await expect(chip).toBeVisible({ timeout: 30_000 });
+    await chip.locator("[data-edit-hearing]").click();
+    await expect(page.locator("#hearingSubmit")).toHaveText("Güncelle");
     page.once("dialog", dialog => dialog.accept().catch(() => {}));
     await chip.locator("[data-delete-hearing]").click();
     await expect(page.locator("#hearingsPrintPanel #hearingCalendar")).not.toContainText(`${prefix} duruşma notu`, { timeout: 20_000 });

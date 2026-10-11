@@ -19,6 +19,7 @@ test("Süreli İşler ekranı public.deadlines üzerinde CRUD ve tamamlama akı�
     await page.locator("#deadlineSubmit").click();
 
     await expect(page.locator("#deadlineFullRows")).toContainText(`${prefix} süreli iş`, { timeout: 30_000 });
+    await expect(page.locator("#deadlineFullRows tr").filter({ hasText: `${prefix} süreli iş` }).first().locator('[data-label="Dosya No"]')).toHaveText(`${prefix}/1 E.`);
     await clickRowActionByText(page, "#deadlineFullRows tr", prefix, "[data-complete-deadline]");
     await expect(page.locator("#completedDeadlineRows")).toContainText(`${prefix} süreli iş`, { timeout: 20_000 });
     await clickRowActionByText(page, "#completedDeadlineRows tr", prefix, "[data-reopen-deadline]");

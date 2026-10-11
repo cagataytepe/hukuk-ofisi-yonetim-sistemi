@@ -5,10 +5,14 @@ import "../outputs/supabase-config.js";
 import { desktopRuntime } from "./platform/generatedFileSaver.js";
 import * as enforcementCalculator from "./calculations/enforcementCalculator.js";
 import * as enforcementAccountAdapters from "./calculations/enforcementAccountAdapters.js";
+import * as localDate from "./shared/localDate.mjs";
+import * as userInput from "./shared/userInput.mjs";
 
 window.BKT_DESKTOP_RUNTIME = desktopRuntime;
 window.BKT_ENFORCEMENT_CALCULATOR = enforcementCalculator;
 window.BKT_ENFORCEMENT_ACCOUNT_ADAPTERS = enforcementAccountAdapters;
+window.BKT_LOCAL_DATE = localDate;
+window.BKT_USER_INPUT = userInput;
 
 const assetMap = new Map([
   ["bkt-logo.png", bktLogoUrl]
