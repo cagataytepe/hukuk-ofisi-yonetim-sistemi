@@ -1165,10 +1165,19 @@ import {
         return [...byId.values()].sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "tr"));
       },
       async findClientForParty(party = {}) {
-        const name = normalizeTextValue(party.name);
+        const clientId = normalizeTextValue(party.clientId || party.client_id);
         const nationalId = normalizeTaxIdentifier(party.nationalId || party.national_id);
         const taxId = normalizeTaxIdentifier(party.taxId || party.tax_id);
-        const select = "id,legacy_id,name,tax_id,national_id,client_type,metadata,deleted_at";
+        const select = "id,legacy_id,name,tax_id,national_id,phone,email,client_type,metadata,deleted_at";
+        if (isUuid(clientId)) {
+          const clientResponse = await fetch(`${restUrl("clients")}?select=${select}&deleted_at=is.null&id=eq.${encodeURIComponent(clientId)}&limit=2`, {
+            headers: await authHeaders(repository)
+          });
+          if (!clientResponse.ok) throw new Error(`Müvekkil kaydı okunamadı: ${clientResponse.status} ${await safeResponseText(clientResponse)}`);
+          const clientRows = await clientResponse.json();
+          if (clientRows.length > 1) throw ambiguousClientMatchError("müvekkil kaydı");
+          if (clientRows.length === 1) return clientRows[0];
+        }
         const identifierColumn = nationalId ? "national_id" : taxId ? "tax_id" : "";
         const identifier = nationalId || taxId;
         if (identifierColumn) {
@@ -1177,15 +1186,10 @@ import {
           });
           if (!taxResponse.ok) throw new Error(`Müvekkil TC/VKN eşleşmesi okunamadı: ${taxResponse.status} ${await safeResponseText(taxResponse)}`);
           const taxRows = await taxResponse.json();
+          if (taxRows.length > 1) throw ambiguousClientMatchError("TCKN/VKN");
           if (taxRows.length === 1) return taxRows[0];
         }
-        if (!name) return null;
-        const nameResponse = await fetch(`${restUrl("clients")}?select=${select}&deleted_at=is.null&name=eq.${encodeURIComponent(name)}&limit=2`, {
-          headers: await authHeaders(repository)
-        });
-        if (!nameResponse.ok) throw new Error(`Müvekkil isim eşleşmesi okunamadı: ${nameResponse.status} ${await safeResponseText(nameResponse)}`);
-        const nameRows = await nameResponse.json();
-        return nameRows.length === 1 ? nameRows[0] : null;
+        return null;
       },
       async createClient(row) {
         const response = await fetch(`${restUrl("clients")}`, {
@@ -1288,11 +1292,11 @@ import {
           } else {
             client = await repository.updateClient(client.id, {
               name: party.name || client.name,
-              national_id: party.clientType === "person" ? party.nationalId || null : null,
-              tax_id: party.clientType === "organization" ? party.taxId || null : null,
+              national_id: party.nationalId || client.national_id || null,
+              tax_id: party.taxId || client.tax_id || null,
               phone: party.phone || client.phone || null,
               email: party.email || client.email || null,
-              client_type: party.clientType || "unknown",
+              client_type: party.clientType && party.clientType !== "unknown" ? party.clientType : client.client_type || "unknown",
               metadata: {
                 ...(client.metadata || {}),
                 source: "file-form",
@@ -2226,6 +2230,8 @@ import {
       : inferRepositoryClientType(party.name, party.nationalId || party.taxId || party.tax_id);
     const rawIdentifier = normalizeTaxIdentifier(party.nationalId || party.national_id || party.taxId || party.tax_id);
     return {
+      clientId: normalizeTextValue(party.clientId || party.client_id),
+      repositoryId: normalizeTextValue(party.repositoryId || party.repository_id || party.id),
       name: normalizeTextValue(party.name),
       nationalId: clientType === "person" ? rawIdentifier : "",
       taxId: clientType === "organization" ? rawIdentifier : "",
@@ -2243,6 +2249,10 @@ import {
       notes: normalizeTextValue(party.notes),
       isPrimary: Boolean(party.isPrimary)
     };
+  }
+
+  function ambiguousClientMatchError(matchType) {
+    return new Error(`Belirsiz ${matchType} eşleşmesi nedeniyle müvekkil kaydı güncellenmedi.`);
   }
 
   function filePartyIdentityKey(row = {}) {

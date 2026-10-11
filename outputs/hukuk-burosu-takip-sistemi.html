@@ -8042,7 +8042,7 @@
                           <div class="field" id="supportingDocumentIssueDateField" hidden><label for="supportingDocumentIssueDate" id="supportingDocumentIssueDateLabel">Düzenleme Tarihi</label><input id="supportingDocumentIssueDate" type="date"></div>
                           <div class="field" id="supportingDocumentDueDateField" hidden><label for="supportingDocumentDueDate" id="supportingDocumentDueDateLabel">Vade Tarihi</label><input id="supportingDocumentDueDate" type="date"></div>
                           <div class="field" id="supportingDocumentIssuePlaceField" hidden><label for="supportingDocumentIssuePlace">Düzenleme Yeri</label><input id="supportingDocumentIssuePlace"></div>
-                          <div class="field" id="supportingDocumentAmountField" hidden><label for="supportingDocumentAmount" id="supportingDocumentAmountLabel">Evrak Tutarı</label><input id="supportingDocumentAmount" type="number" min="0" step="0.01"></div>
+                          <div class="field" id="supportingDocumentAmountField" hidden><label for="supportingDocumentAmount" id="supportingDocumentAmountLabel">Evrak Tutarı</label><input id="supportingDocumentAmount" type="text" inputmode="decimal"></div>
                           <div class="field" id="supportingDocumentIssuerField" hidden><label for="supportingDocumentIssuer" id="supportingDocumentIssuerLabel">Keşideci / Borçlu</label><input id="supportingDocumentIssuer"></div>
                           <div class="field" id="supportingDocumentBeneficiaryField" hidden><label for="supportingDocumentBeneficiary">Lehtar</label><input id="supportingDocumentBeneficiary"></div>
                           <label class="permission-option field" id="supportingDocumentOriginalField" hidden><input id="supportingDocumentOriginalWithClient" type="checkbox"> Asıl evrak müvekkilde</label>
@@ -8057,8 +8057,8 @@
                   <details class="account-details account-calculation-details">
                     <summary>Dosya Hesabı ve Faiz Bilgileri</summary>
                     <div class="account-fields">
-                      <div class="field"><label for="casePrincipal">Asıl Alacak / Takip Tutarı</label><input id="casePrincipal" type="number" min="0" step="0.01"></div>
-                      <div class="field"><label for="casePreInterest">Takip Öncesi Faiz Tutarı</label><input id="casePreInterest" type="number" min="0" step="0.01"></div>
+                      <div class="field"><label for="casePrincipal">Asıl Alacak / Takip Tutarı</label><input id="casePrincipal" type="text" inputmode="decimal"></div>
+                      <div class="field"><label for="casePreInterest">Takip Öncesi Faiz Tutarı</label><input id="casePreInterest" type="text" inputmode="decimal"></div>
                       <div class="field calculated-field full"><label for="caseFinalizedAmount">Takipte Kesinleşen Tutar</label><input id="caseFinalizedAmount" type="text" readonly value="0,00 ₺"></div>
                       <div class="field"><label for="caseInterestType">Faiz Türü</label><select id="caseInterestType"><option value="">Seçiniz</option><option>Adi Kanuni Faiz</option><option>Reeskont Avans</option><option>Diğer</option></select></div>
                       <div class="field interest-rate-field"><label for="caseInterestRate">Faiz Oranı (%)</label><input id="caseInterestRate" type="number" min="0" step="0.01"><div class="calculation-readonly-note" id="caseInterestRateInfo">Faiz türü seçildiğinde merkezi tarife bilgisi gösterilir.</div></div>
@@ -8066,7 +8066,7 @@
                       <div class="field calculated-field full"><label for="casePostInterest">Takip Sonrası İşlemiş Faiz</label><input id="casePostInterest" type="text" readonly value="0,00 ₺"></div>
                       <div class="field"><label for="caseFeeRate">Harç Oranı (%)</label><select id="caseFeeRate"><option value="">Seçiniz</option><option value="9.10">%9,10</option><option value="4.55">%4,55</option><option value="2.275">%2,275</option><option value="11.38">%11,38</option></select></div>
                       <div class="field calculated-field"><label for="caseFees">Harç Tutarı</label><input id="caseFees" type="text" readonly value="0,00 ₺"></div>
-                      <div class="field"><label for="caseExpenses">Masraf</label><input id="caseExpenses" type="number" min="0" step="0.01"></div>
+                      <div class="field"><label for="caseExpenses">Masraf</label><input id="caseExpenses" type="text" inputmode="decimal"></div>
                       <div class="field calculated-field"><label for="caseAttorneyFee">İcra Vekalet Ücreti</label><input id="caseAttorneyFee" type="text" readonly value="0,00 ₺"></div>
                       <div class="instrument-charge-row" id="caseInstrumentChargeField" hidden>
                         <div class="field calculated-field"><label for="caseInstrumentCharge" id="caseInstrumentChargeLabel">Kambiyo Ek Tutarı</label><input id="caseInstrumentCharge" type="text" readonly value="0,00 ₺"></div>
@@ -11323,6 +11323,24 @@
       };
     }
 
+    function repositoryPartiesForEditor(file = {}, group = "") {
+      const repositoryFileId = fileDetailRepositoryId(file);
+      if (!repositoryFileId) return [];
+      const linked = repositoryFileParties.filter(party => party.fileId === repositoryFileId);
+      const normalizedSide = party => String(party.side || "").trim().toLocaleLowerCase("tr-TR");
+      const sideGroups = {
+        creditor: ["creditor", "alacaklı", "alacakli"],
+        debtor: ["debtor", "borçlu", "borclu"],
+        client: ["party", "client", "represented", "müvekkil", "muvekkil"],
+        opponent: ["other_party", "opponent", "opposing", "karşı taraf", "karsi taraf"]
+      };
+      const direct = linked.filter(party => (sideGroups[group] || []).includes(normalizedSide(party)));
+      if (direct.length) return direct;
+      if (group === "client") return linked.filter(party => party.representedByOffice === true);
+      if (group === "opponent") return linked.filter(party => party.representedByOffice === false);
+      return [];
+    }
+
     function collectionFromRepositoryRow(row = {}) {
       const metadata = row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata) ? row.metadata : {};
       return {
@@ -11687,6 +11705,8 @@
       const clientType = String(party.clientType || "person").trim().toLowerCase();
       const identifier = String(party.identifier || party.taxId || party.nationalId || "").replace(/\D/g, "");
       return {
+        clientId: String(party.clientId || party.client_id || "").trim(),
+        repositoryId: String(party.repositoryId || party.repository_id || party.id || "").trim(),
         name: String(party.name || "").trim(),
         taxId: clientType === "organization" ? identifier : "",
         nationalId: clientType === "person" ? identifier : "",
@@ -12294,6 +12314,34 @@
       return Number.isFinite(number) ? number : null;
     }
 
+    const enforcementMoneyFields = [
+      ["casePrincipal", "Asıl Alacak / Takip Tutarı"],
+      ["casePreInterest", "Takip Öncesi Faiz Tutarı"],
+      ["caseExpenses", "Masraf"]
+    ];
+
+    function enforcementMoneyInputValue(id) {
+      const raw = document.getElementById(id)?.value?.trim() || "";
+      if (!raw) return 0;
+      return parseMoneyInput(raw);
+    }
+
+    function enforcementMoneyStorageValue(id) {
+      const amount = enforcementMoneyInputValue(id);
+      return Number.isFinite(amount) && amount >= 0 ? amount.toFixed(2) : "";
+    }
+
+    function validateEnforcementMoneyInputs() {
+      const invalid = enforcementMoneyFields.find(([id]) => {
+        const amount = enforcementMoneyInputValue(id);
+        return amount === null || amount < 0;
+      });
+      if (!invalid) return true;
+      renderFileWizardStep(3);
+      showNote("caseNote", `${invalid[1]} için geçerli ve negatif olmayan bir tutar giriniz.`);
+      return false;
+    }
+
     function validIsoDateInput(value) {
       const shared = window.BKT_USER_INPUT?.isValidIsoDate?.(value);
       if (typeof shared === "boolean") return shared;
@@ -12339,8 +12387,8 @@
     function currentEnforcementAccountValues(overrides = {}) {
       const currentFile = editing.caseId ? repositoryFileById(editing.caseId) : null;
       return enforcementAccountValues({
-        principal: document.getElementById("casePrincipal").value,
-        preInterest: document.getElementById("casePreInterest").value,
+        principal: enforcementMoneyInputValue("casePrincipal") ?? 0,
+        preInterest: enforcementMoneyInputValue("casePreInterest") ?? 0,
         followUpType: document.getElementById("caseFollowUpType").value,
         negotiableInstrumentType: document.getElementById("caseNegotiableInstrumentType").value,
         includeInstrumentCharge: document.getElementById("caseIncludeInstrumentCharge").checked,
@@ -12350,7 +12398,7 @@
         accountDate: currentEnforcementAccountDate(),
         feeRate: document.getElementById("caseFeeRate").value,
         fees: document.getElementById("caseFees").dataset.value || "",
-        expenses: document.getElementById("caseExpenses").value,
+        expenses: enforcementMoneyInputValue("caseExpenses") ?? 0,
         payments: document.getElementById("casePayments").value,
         paymentEvents: enforcementPaymentEventsForRow(currentFile),
         ...overrides
@@ -13171,6 +13219,12 @@
         document.getElementById("supportingDocumentNote").textContent = "Seçilen belge türü takip türüyle uyumlu değil.";
         return;
       }
+      const amountInput = document.getElementById("supportingDocumentAmount");
+      const amount = amountInput.value.trim() ? parseMoneyInput(amountInput.value) : 0;
+      if (amount === null || amount < 0) {
+        document.getElementById("supportingDocumentNote").textContent = "Evrak tutarı için geçerli ve negatif olmayan bir tutar giriniz.";
+        return;
+      }
       const existing = caseSupportingDocuments.find(document => document.id === editingSupportingDocumentId);
       supportingDocumentSequence += 1;
       const record = {
@@ -13183,7 +13237,7 @@
         issueDate: document.getElementById("supportingDocumentIssueDate").value,
         dueDate: document.getElementById("supportingDocumentDueDate").value,
         issuePlace: document.getElementById("supportingDocumentIssuePlace").value.trim(),
-        amount: document.getElementById("supportingDocumentAmount").value,
+        amount: amountInput.value.trim() ? amount.toFixed(2) : "",
         issuer: document.getElementById("supportingDocumentIssuer").value.trim(),
         beneficiary: document.getElementById("supportingDocumentBeneficiary").value.trim(),
         originalWithClient: document.getElementById("supportingDocumentOriginalWithClient").checked,
@@ -13275,7 +13329,7 @@
       const clientType = party.clientType === "organization" ? "organization" : "person";
       const identifier = party.nationalId || party.taxId || party.identifier || "";
       return `
-        <div class="law-party-row" data-enforcement-party-row="${side}">
+        <div class="law-party-row" data-enforcement-party-row="${side}" data-client-id="${escapeHtml(party.clientId || party.client_id || "")}" data-party-id="${escapeHtml(party.repositoryId || party.repository_id || party.id || "")}">
           <div class="field"><label>Kişi / Kurum</label><select class="party-client-type"><option value="person"${clientType === "person" ? " selected" : ""}>Gerçek Kişi</option><option value="organization"${clientType === "organization" ? " selected" : ""}>Tüzel Kişi</option></select></div>
           <div class="field"><label>Ad Soyad / Kurum Unvanı</label><input class="enforcement-party-name" value="${escapeHtml(party.name || "")}"></div>
           <div class="field"><label class="party-identifier-label">${clientType === "organization" ? "Vergi Kimlik No" : "T.C. Kimlik No"}</label><input class="enforcement-party-tax" inputmode="numeric" value="${escapeHtml(identifier)}"></div>
@@ -13317,6 +13371,8 @@
     function collectEnforcementPartyRows(side) {
       return [...document.querySelectorAll(`[data-enforcement-party-row="${side}"]`)]
         .map(row => ({
+          clientId: row.dataset.clientId || "",
+          repositoryId: row.dataset.partyId || "",
           name: row.querySelector(".enforcement-party-name").value.trim(),
           identifier: row.querySelector(".enforcement-party-tax").value.trim(),
           taxId: row.querySelector(".party-client-type").value === "organization" ? row.querySelector(".enforcement-party-tax").value.trim() : "",
@@ -13368,7 +13424,7 @@
         : ["Davacı", "Davalı", "Davacı Vekili", "Davalı Vekili", "İhbar Olunan", "Fer’î Müdahil", "Aslî Müdahil", "Diğer"];
       if (!roles.includes(normalized.role)) roles.unshift(normalized.role);
       return `
-        <div class="law-party-row" data-law-party-row="${side}">
+        <div class="law-party-row" data-law-party-row="${side}" data-client-id="${escapeHtml(party.clientId || party.client_id || "")}" data-party-id="${escapeHtml(party.repositoryId || party.repository_id || party.id || "")}">
           <div class="field"><label>Kişi / Kurum</label><select class="party-client-type"><option value="person"${clientType === "person" ? " selected" : ""}>Gerçek Kişi</option><option value="organization"${clientType === "organization" ? " selected" : ""}>Tüzel Kişi</option></select></div>
           <div class="field"><label>${nameLabel}</label><input class="law-party-name" value="${escapeHtml(normalized.name)}"></div>
           <div class="field"><label class="party-identifier-label">${clientType === "organization" ? "Vergi Kimlik No" : "T.C. Kimlik No"}</label><input class="law-party-tax" inputmode="numeric" value="${escapeHtml(identifier)}"></div>
@@ -13408,6 +13464,8 @@
     function collectLawPartyRows(side) {
       return [...document.querySelectorAll(`[data-law-party-row="${side}"]`)]
         .map(row => ({
+          clientId: row.dataset.clientId || "",
+          repositoryId: row.dataset.partyId || "",
           name: row.querySelector(".law-party-name").value.trim(),
           identifier: row.querySelector(".law-party-tax").value.trim(),
           taxId: row.querySelector(".party-client-type").value === "organization" ? row.querySelector(".law-party-tax").value.trim() : "",
@@ -13647,6 +13705,7 @@
           return false;
         }
       }
+      if (!missing && activeCaseKind === "İcra" && throughStep >= 3 && !validateEnforcementMoneyInputs()) return false;
       if (!missing) return true;
       renderFileWizardStep(missing[2]);
       showNote("caseNote", `${missing[1]} alanını doldurunuz.`);
@@ -18260,7 +18319,9 @@
       const end = document.getElementById("hearingReportEnd")?.value || "";
       const rangeText = [start, end].filter(Boolean).map(formatExcelDate).join(" - ");
       const reportTitle = `${rangeText ? `${rangeText} ` : ""}Duruşma Listesi`;
-      return { start, end, reportTitle };
+      const reportFilename = window.BKT_REPORT_FILENAME?.datedReportFilename?.(start, end, "Duruşma Listesi")
+        || `${[start, end].filter(Boolean).map(value => formatExcelDate(value).replaceAll("/", ".")).join(" - ")} Duruşma Listesi`.trim();
+      return { start, end, reportTitle, reportFilename };
     }
 
     function hearingReportRows() {
@@ -18318,7 +18379,7 @@
 
     async function exportHearingsExcel() {
       if (!requirePermission("reports", "Duruşma raporunu dışa aktarma")) return;
-      const reportTitle = hearingReportRange().reportTitle;
+      const { reportTitle, reportFilename } = hearingReportRange();
       const tableRows = hearingReportTableRows(hearingReportRows());
       const workbook = `
         <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
@@ -18368,7 +18429,7 @@
         </html>
       `;
       const blob = new Blob(["\ufeff" + workbook], { type: "application/vnd.ms-excel;charset=utf-8" });
-      await saveGeneratedOutput({ filename: `${reportTitle}.xls`, mimeType: blob.type, data: blob, extensions: ["xls"] });
+      await saveGeneratedOutput({ filename: `${reportFilename}.xls`, mimeType: blob.type, data: blob, extensions: ["xls"] });
     }
 
     async function exportHearingReportPdf() {
@@ -18377,7 +18438,7 @@
       const pageHeight = 595;
       const marginX = 18;
       const marginY = 25;
-      const title = hearingReportRange().reportTitle;
+      const { reportTitle: title, reportFilename } = hearingReportRange();
       const headers = ["No", "Avukat", "Mahkeme", "Dosya No", "Tarih", "Saat", "Müvekkil", "Mazeret Durumu", "Katılacak Kişi"];
       const rows = hearingReportRows().map((h, index) => [
         String(index + 1),
@@ -18400,7 +18461,7 @@
         marginY
       });
       const pdf = buildPdfFromJpegs(pages.map(page => page.image), pageWidth, pageHeight);
-      await saveGeneratedOutput({ filename: `${title}.pdf`, mimeType: pdf.type, data: pdf, extensions: ["pdf"] });
+      await saveGeneratedOutput({ filename: `${reportFilename}.pdf`, mimeType: pdf.type, data: pdf, extensions: ["pdf"] });
     }
 
     function deadlineReportRange() {
@@ -18408,7 +18469,9 @@
       const end = document.getElementById("deadlineReportEnd")?.value || "";
       const rangeText = [start, end].filter(Boolean).map(formatExcelDate).join(" - ");
       const reportTitle = `${rangeText ? `${rangeText} ` : ""}Süreli İş Raporu`;
-      return { start, end, reportTitle };
+      const reportFilename = window.BKT_REPORT_FILENAME?.datedReportFilename?.(start, end, "Süreli İş Raporu")
+        || `${[start, end].filter(Boolean).map(value => formatExcelDate(value).replaceAll("/", ".")).join(" - ")} Süreli İş Raporu`.trim();
+      return { start, end, reportTitle, reportFilename };
     }
 
     function deadlineReportRows() {
@@ -18433,7 +18496,7 @@
       const pageHeight = 595;
       const marginX = 18;
       const marginY = 25;
-      const title = deadlineReportRange().reportTitle;
+      const { reportTitle: title, reportFilename } = deadlineReportRange();
       const headers = ["No", "Dosya", "Mahkeme", "Dosya No", "İş Türü", "Sorumlu", "Başlangıç", "Son Gün", "Durum"];
       const rows = deadlineReportRows().map((d, index) => [
         String(index + 1),
@@ -18457,7 +18520,7 @@
         emptyMessage: "Bu tarih aralığında süreli iş bulunmuyor."
       });
       const pdf = buildPdfFromJpegs(pages.map(page => page.image), pageWidth, pageHeight);
-      await saveGeneratedOutput({ filename: `${title}.pdf`, mimeType: pdf.type, data: pdf, extensions: ["pdf"] });
+      await saveGeneratedOutput({ filename: `${reportFilename}.pdf`, mimeType: pdf.type, data: pdf, extensions: ["pdf"] });
     }
 
     function renderHearingReportPdfPages({ title, headers, rows, pageWidth, pageHeight, marginX, marginY, emptyMessage = "Bu tarih aralığında duruşma bulunmuyor." }) {
@@ -19247,7 +19310,12 @@
         updateNegotiableInstrumentFields({ preserveValue: true, recalculate: false });
         document.getElementById("caseFollowUpDate").value = c.openingDate || c.followUpDate || "";
         document.getElementById("caseCurrency").value = c.currency || c.accountInfo?.currency || "TRY";
-        setEnforcementPartyRows(caseCreditors(c), caseDebtors(c));
+        const repositoryCreditors = repositoryPartiesForEditor(c, "creditor");
+        const repositoryDebtors = repositoryPartiesForEditor(c, "debtor");
+        setEnforcementPartyRows(
+          repositoryCreditors.length ? repositoryCreditors : caseCreditors(c),
+          repositoryDebtors.length ? repositoryDebtors : caseDebtors(c)
+        );
         setSupportingDocuments(c);
         document.querySelector(".supporting-document-details").open = Boolean(
           caseSupportingDocuments.length || c.hasNoSupportingDocument
@@ -19267,7 +19335,12 @@
         document.getElementById("caseFileNo").value = c.fileNo || c.file || "";
         document.getElementById("caseDecision").value = c.decision || "";
         document.getElementById("caseType").value = fileType === "Ceza Dosyası" ? "Ceza" : "Hukuk";
-        setLawPartyRows(caseClientParties(c), caseOpponentParties(c));
+        const repositoryClientsForEditor = repositoryPartiesForEditor(c, "client");
+        const repositoryOpponentsForEditor = repositoryPartiesForEditor(c, "opponent");
+        setLawPartyRows(
+          repositoryClientsForEditor.length ? repositoryClientsForEditor : caseClientParties(c),
+          repositoryOpponentsForEditor.length ? repositoryOpponentsForEditor : caseOpponentParties(c)
+        );
         document.getElementById("caseHearingInfo").value = c.hearingInfo || "";
         document.getElementById("caseOpenDate").value = c.openingDate || "";
       }
@@ -20447,6 +20520,9 @@
       const primaryLawsuitClient = allLawsuitParties.find(party => party.representedByOffice) || lawsuitClientParties[0] || {};
       const primaryLawsuitOpponent = allLawsuitParties.find(party => !party.representedByOffice) || lawsuitOpponentParties[0] || {};
       const accountValues = activeCaseKind === "İcra" ? currentEnforcementAccountValues() : null;
+      const principalValue = activeCaseKind === "İcra" ? enforcementMoneyStorageValue("casePrincipal") : "";
+      const preInterestValue = activeCaseKind === "İcra" ? enforcementMoneyStorageValue("casePreInterest") : "";
+      const expensesValue = activeCaseKind === "İcra" ? enforcementMoneyStorageValue("caseExpenses") : "";
       const creditors = activeCaseKind === "İcra" ? collectEnforcementPartyRows("creditor") : [];
       const debtors = activeCaseKind === "İcra" ? collectCaseDebtors() : [];
       const allEnforcementParties = [...creditors, ...debtors];
@@ -20491,8 +20567,8 @@
             partyRole: "Alacaklı",
             lawyer,
             status,
-            principal: document.getElementById("casePrincipal").value,
-            preInterest: document.getElementById("casePreInterest").value,
+            principal: principalValue,
+            preInterest: preInterestValue,
             finalizedAmount: accountValues.finalizedAmount.toFixed(2),
             currentDebt: accountValues.currentDebt.toFixed(2),
             interestType: document.getElementById("caseInterestType").value,
@@ -20502,7 +20578,7 @@
             postInterest: accountValues.postInterest.toFixed(2),
             feeRate: document.getElementById("caseFeeRate").value,
             fees: accountValues.fees.toFixed(2),
-            expenses: document.getElementById("caseExpenses").value,
+            expenses: expensesValue,
             attorneyFee: accountValues.attorneyFee.toFixed(2),
             attorneyFeeTariff: accountValues.attorneyFeeTariff?.name || "",
             attorneyFeeSource: localCalculationSource,
@@ -20513,8 +20589,8 @@
             currency: document.getElementById("caseCurrency").value,
             interestMethod: document.getElementById("caseInterestMethod").value,
             accountInfo: {
-              principal: document.getElementById("casePrincipal").value,
-              preInterest: document.getElementById("casePreInterest").value,
+              principal: principalValue,
+              preInterest: preInterestValue,
               finalizedAmount: accountValues.finalizedAmount.toFixed(2),
               currentDebt: accountValues.currentDebt.toFixed(2),
               interestType: document.getElementById("caseInterestType").value,
@@ -20524,7 +20600,7 @@
               postInterest: accountValues.postInterest.toFixed(2),
               feeRate: document.getElementById("caseFeeRate").value,
               fees: accountValues.fees.toFixed(2),
-              expenses: document.getElementById("caseExpenses").value,
+              expenses: expensesValue,
               attorneyFee: accountValues.attorneyFee.toFixed(2),
               payments: document.getElementById("casePayments").value,
               currency: document.getElementById("caseCurrency").value,
@@ -21052,7 +21128,7 @@
 
     document.getElementById("exportCases").addEventListener("click", exportCasesExcel);
     document.getElementById("exportHearings").addEventListener("click", exportHearingsExcel);
-    document.getElementById("exportDeadlines").addEventListener("click", () => exportCsv(`${deadlineReportRange().reportTitle}.csv`, [
+    document.getElementById("exportDeadlines").addEventListener("click", () => exportCsv(`${deadlineReportRange().reportFilename}.csv`, [
       ["Dosya", "Mahkeme", "Dosya No", "İş", "Açıklama", "Sorumlu", "Başlangıç", "Son Gün", "Durum"],
       ...deadlineReportRows().map(d => [d.file, d.court, deadlineFileNo(d), d.task, d.description, d.lawyer, d.start, d.due, deadlineStatusText(d)])
     ]));

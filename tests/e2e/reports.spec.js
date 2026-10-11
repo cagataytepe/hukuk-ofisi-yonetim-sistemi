@@ -21,7 +21,7 @@ test("Raporlar ekranı Supabase tablolarından özet üretir ve çıktı dosyala
   await page.locator("#hearingReportEnd").fill(hearingEnd);
   const hearingPdf = page.waitForEvent("download");
   await page.locator("#printHearingReport").click();
-  const expectedBrowserFilename = `${displayDate(hearingStart)} - ${displayDate(hearingEnd)} Duruşma Listesi.pdf`.replaceAll(".", "_").replace(/_pdf$/, ".pdf");
+  const expectedBrowserFilename = `${displayDate(hearingStart)} - ${displayDate(hearingEnd)} Duruşma Listesi.pdf`;
   expect((await hearingPdf).suggestedFilename()).toBe(expectedBrowserFilename);
 
   const deadlineStart = todayIso(-30);
@@ -30,7 +30,7 @@ test("Raporlar ekranı Supabase tablolarından özet üretir ve çıktı dosyala
   await page.locator("#deadlineReportEnd").fill(deadlineEnd);
   const deadlineCsv = page.waitForEvent("download");
   await page.locator("#exportDeadlines").click();
-  const expectedDeadlineFilename = `${displayDate(deadlineStart)} - ${displayDate(deadlineEnd)} Süreli İş Raporu.csv`.replaceAll(".", "_").replace(/_csv$/, ".csv");
+  const expectedDeadlineFilename = `${displayDate(deadlineStart)} - ${displayDate(deadlineEnd)} Süreli İş Raporu.csv`;
   expect((await deadlineCsv).suggestedFilename()).toBe(expectedDeadlineFilename);
 
   diagnostics.assertClean();

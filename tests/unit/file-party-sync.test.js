@@ -24,6 +24,7 @@ function duplicateParty(id) {
 function repositoryWithParties(existing = [duplicateParty(FIRST_PARTY_ID), duplicateParty(SECOND_PARTY_ID)]) {
   const repository = new SupabaseRepository({});
   const updated = [];
+  const clientUpdates = [];
   const deleted = [];
   let reads = 0;
 
@@ -32,7 +33,10 @@ function repositoryWithParties(existing = [duplicateParty(FIRST_PARTY_ID), dupli
     return existing;
   };
   repository.findClientForParty = async () => ({ id: CLIENT_ID, name: "SİNEM DİLEK", client_type: "person" });
-  repository.updateClient = async (id, row) => ({ id, ...row });
+  repository.updateClient = async (id, row) => {
+    clientUpdates.push(row);
+    return { id, ...row };
+  };
   repository.createClient = async () => assert.fail("Mevcut müvekkil yeniden oluşturulmamalı.");
   repository.createFileParty = async () => assert.fail("Aynı taraf için yeni kayıt oluşturulmamalı.");
   repository.updateFileParty = async (id, row) => {
@@ -44,11 +48,12 @@ function repositoryWithParties(existing = [duplicateParty(FIRST_PARTY_ID), dupli
     return { id };
   };
 
-  return { repository, updated, deleted, get reads() { return reads; } };
+  return { repository, updated, clientUpdates, deleted, get reads() { return reads; } };
 }
 
 function representedParty() {
   return {
+    clientId: CLIENT_ID,
     name: "SİNEM DİLEK",
     clientType: "person",
     roleLabel: "Davalı",
@@ -57,6 +62,44 @@ function representedParty() {
     representedByOffice: true
   };
 }
+
+test("Supabase senkronizasyonu boş kimlik payload'unda mevcut TCKN/VKN'yi korur", async () => {
+  const state = repositoryWithParties([duplicateParty(FIRST_PARTY_ID)]);
+  state.repository.findClientForParty = async () => ({
+    id: CLIENT_ID,
+    name: "SİNEM DİLEK",
+    national_id: "12345678901",
+    tax_id: null,
+    client_type: "person",
+    metadata: {}
+  });
+
+  await state.repository.syncFileParties(FILE_ID, [representedParty()]);
+
+  assert.equal(state.clientUpdates[0].national_id, "12345678901");
+  assert.equal(state.clientUpdates[0].tax_id, null);
+});
+
+test("Supabase senkronizasyonu boş vergi numarası payload'unda mevcut VKN'yi korur", async () => {
+  const state = repositoryWithParties([{ ...duplicateParty(FIRST_PARTY_ID), name: "ÖRNEK ŞİRKET", tax_id: "1234567890" }]);
+  state.repository.findClientForParty = async () => ({
+    id: CLIENT_ID,
+    name: "ÖRNEK ŞİRKET",
+    national_id: null,
+    tax_id: "1234567890",
+    client_type: "organization",
+    metadata: {}
+  });
+
+  await state.repository.syncFileParties(FILE_ID, [{
+    ...representedParty(),
+    name: "ÖRNEK ŞİRKET",
+    clientType: "organization"
+  }]);
+
+  assert.equal(state.clientUpdates[0].national_id, null);
+  assert.equal(state.clientUpdates[0].tax_id, "1234567890");
+});
 
 test("dosya taraf senkronizasyonu formdan kaldırılan yinelenen kaydı soft-delete eder", async () => {
   const { repository, updated, deleted } = repositoryWithParties();

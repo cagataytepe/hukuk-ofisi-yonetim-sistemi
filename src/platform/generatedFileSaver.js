@@ -6,8 +6,21 @@ function normalizeExtensions(extensions = []) {
     .filter(Boolean))];
 }
 
+export function sanitizeGeneratedFilename(filename, fallback = "dosya") {
+  const fallbackName = String(fallback || "dosya").trim() || "dosya";
+  let safeName = String(filename || fallbackName)
+    .replace(/[\u0000-\u001f<>:"/\\|?*]/g, "_")
+    .replace(/[. ]+$/g, "")
+    .trim();
+  if (!safeName) safeName = fallbackName;
+
+  const stem = safeName.replace(/\.[^.]*$/, "");
+  if (/^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(stem)) safeName = `_${safeName}`;
+  return safeName;
+}
+
 function filenameWithExtension(filename, extensions) {
-  const safeName = String(filename || "dosya").trim() || "dosya";
+  const safeName = sanitizeGeneratedFilename(filename);
   const normalized = normalizeExtensions(extensions);
   if (!normalized.length || normalized.some(extension => safeName.toLowerCase().endsWith(`.${extension}`))) {
     return safeName;

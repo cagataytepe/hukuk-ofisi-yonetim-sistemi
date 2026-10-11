@@ -962,30 +962,35 @@ export class SupabaseRepository {
 
   async findClientForParty(party = {}) {
     if (!this.available) return null;
-    const name = normalizeTextValue(party.name);
+    const clientId = normalizeTextValue(party.clientId || party.client_id);
     const nationalId = normalizeTaxIdentifier(party.nationalId || party.national_id);
     const taxId = normalizeTaxIdentifier(party.taxId || party.tax_id);
+    const select = "id,legacy_id,name,tax_id,national_id,phone,email,client_type,metadata,deleted_at";
+    if (this.isUuid(clientId)) {
+      const { data, error } = await this.supabase
+        .from("clients")
+        .select(select)
+        .eq("id", clientId)
+        .is("deleted_at", null)
+        .limit(2);
+      if (error) throw error;
+      if ((data || []).length > 1) throw ambiguousClientMatchError("müvekkil kaydı");
+      if ((data || []).length === 1) return data[0];
+    }
     const identifierColumn = nationalId ? "national_id" : taxId ? "tax_id" : "";
     const identifier = nationalId || taxId;
     if (identifierColumn) {
       const { data, error } = await this.supabase
         .from("clients")
-        .select("id,legacy_id,name,tax_id,national_id,client_type,metadata,deleted_at")
+        .select(select)
         .eq(identifierColumn, identifier)
         .is("deleted_at", null)
         .limit(2);
       if (error) throw error;
+      if ((data || []).length > 1) throw ambiguousClientMatchError("TCKN/VKN");
       if ((data || []).length === 1) return data[0];
     }
-    if (!name) return null;
-    const { data, error } = await this.supabase
-      .from("clients")
-      .select("id,legacy_id,name,tax_id,national_id,client_type,metadata,deleted_at")
-      .eq("name", name)
-      .is("deleted_at", null)
-      .limit(2);
-    if (error) throw error;
-    return (data || []).length === 1 ? data[0] : null;
+    return null;
   }
 
   async createClient(row) {
@@ -1078,11 +1083,11 @@ export class SupabaseRepository {
       } else {
         client = await this.updateClient(client.id, {
           name: party.name || client.name,
-          national_id: party.clientType === "person" ? party.nationalId || null : null,
-          tax_id: party.clientType === "organization" ? party.taxId || null : null,
+          national_id: party.nationalId || client.national_id || null,
+          tax_id: party.taxId || client.tax_id || null,
           phone: party.phone || client.phone || null,
           email: party.email || client.email || null,
-          client_type: party.clientType || "unknown",
+          client_type: party.clientType && party.clientType !== "unknown" ? party.clientType : client.client_type || "unknown",
           metadata: {
             ...(client.metadata || {}),
             source: "file-form",
@@ -2006,6 +2011,8 @@ function normalizeRepositoryParty(party = {}) {
     : inferRepositoryClientType(party.name, party.nationalId || party.taxId || party.tax_id);
   const rawIdentifier = normalizeTaxIdentifier(party.nationalId || party.national_id || party.taxId || party.tax_id);
   return {
+    clientId: normalizeTextValue(party.clientId || party.client_id),
+    repositoryId: normalizeTextValue(party.repositoryId || party.repository_id || party.id),
     name: normalizeTextValue(party.name),
     nationalId: clientType === "person" ? rawIdentifier : "",
     taxId: clientType === "organization" ? rawIdentifier : "",
@@ -2023,6 +2030,10 @@ function normalizeRepositoryParty(party = {}) {
     notes: normalizeTextValue(party.notes),
     isPrimary: Boolean(party.isPrimary)
   };
+}
+
+function ambiguousClientMatchError(matchType) {
+  return new Error(`Belirsiz ${matchType} eşleşmesi nedeniyle müvekkil kaydı güncellenmedi.`);
 }
 
 function filePartyIdentityKey(row = {}) {
