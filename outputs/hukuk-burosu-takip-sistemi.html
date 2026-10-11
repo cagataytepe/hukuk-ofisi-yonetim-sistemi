@@ -9402,6 +9402,9 @@
     let completedDeadlinePage = 1;
     const completedDeadlinePageSize = 5;
     let editing = { caseId: null, hearingId: null, deadlineId: null };
+    let casePartyEditBaseline = null;
+    let casePartyEditLoadToken = 0;
+    let casePartyEditBlocked = false;
     let caseSupportingDocuments = [];
     let editingSupportingDocumentId = null;
     let supportingDocumentSequence = 0;
@@ -11341,6 +11344,57 @@
       return [];
     }
 
+    function filePartyConcurrencyApi() {
+      const api = window.BKT_FILE_PARTY_CONCURRENCY;
+      if (!api || typeof api.loadFilePartiesForEdit !== "function" || typeof api.verifyFilePartiesUnchanged !== "function") {
+        throw new Error("Dosya tarafı eşzamanlama hizmeti kullanılamıyor.");
+      }
+      return api;
+    }
+
+    function replaceRepositoryFilePartyCache(fileId, rows = []) {
+      repositoryFileParties = filePartyConcurrencyApi().replaceFilePartyCache(repositoryFileParties, fileId, rows);
+      return rows;
+    }
+
+    async function loadFreshFilePartiesForEdit(file = {}) {
+      const repositoryFileId = fileDetailRepositoryId(file);
+      if (!repositoryFileId) throw new Error("Dosyanın public.files UUID kaydı bulunamadı.");
+      const state = await filePartyConcurrencyApi().loadFilePartiesForEdit({
+        repository: appRepository,
+        fileId: repositoryFileId,
+        mapRow: filePartyFromRepositoryRow
+      });
+      replaceRepositoryFilePartyCache(repositoryFileId, state.rows);
+      return state;
+    }
+
+    async function verifyFreshFilePartiesBeforeSave(file = {}) {
+      const repositoryFileId = fileDetailRepositoryId(file);
+      if (!casePartyEditBaseline || casePartyEditBaseline.fileId !== repositoryFileId) {
+        showNote("caseNote", "Güncel taraf bilgileri doğrulanamadığı için dosya kaydedilmedi. Dosyayı yeniden açıp tekrar deneyin.");
+        return false;
+      }
+      try {
+        // This prevents known stale-form overwrites; it is not an atomic database lock.
+        const current = await filePartyConcurrencyApi().verifyFilePartiesUnchanged({
+          repository: appRepository,
+          baseline: casePartyEditBaseline,
+          mapRow: filePartyFromRepositoryRow
+        });
+        replaceRepositoryFilePartyCache(repositoryFileId, current.rows);
+        if (!current.unchanged) {
+          showNote("caseNote", "Dosyanın taraf bilgileri siz düzenlerken başka bir kullanıcı tarafından değiştirildi. Veri kaybını önlemek için kayıt yapılmadı. Dosyayı yeniden açıp güncel tarafları kontrol edin.");
+          return false;
+        }
+        return true;
+      } catch (error) {
+        console.error("Dosya taraflarının güncelliği doğrulanamadı.", error);
+        showNote("caseNote", "Güncel taraf bilgileri okunamadığı için dosya kaydedilmedi. Bağlantıyı kontrol edip dosyayı yeniden açın.");
+        return false;
+      }
+    }
+
     function collectionFromRepositoryRow(row = {}) {
       const metadata = row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata) ? row.metadata : {};
       return {
@@ -11747,7 +11801,18 @@
       if (!repositoryFileId || typeof appRepository.syncFileParties !== "function") return [];
       const parties = repositoryPartyRowsFromFile(sourceFile);
       if (!parties.length) return [];
-      return appRepository.syncFileParties(repositoryFileId, parties);
+      const savedRows = await appRepository.syncFileParties(repositoryFileId, parties);
+      let mappedRows = (savedRows || []).map(filePartyFromRepositoryRow);
+      if (typeof appRepository.getFileParties === "function") {
+        try {
+          const currentRows = await appRepository.getFileParties({ fileId: repositoryFileId });
+          mappedRows = (currentRows || []).map(filePartyFromRepositoryRow);
+        } catch (error) {
+          console.warn("Kaydedilen dosya tarafları yeniden okunamadı; kayıt sonucu önbelleğe alındı.", error);
+        }
+      }
+      replaceRepositoryFilePartyCache(repositoryFileId, mappedRows);
+      return mappedRows;
     }
 
     async function loadRepositoryFiles({ render = true } = {}) {
@@ -19289,13 +19354,32 @@
       });
     }
 
-    function editCase(id) {
+    async function editCase(id) {
       if (!requirePermission("edit", "Dosya düzenleme")) return;
       const c = repositoryFileById(id);
       if (!c) {
         showNote("caseNote", "Dosya kaydı bulunamadı.");
         return;
       }
+      const loadToken = ++casePartyEditLoadToken;
+      casePartyEditBlocked = true;
+      let freshPartyState;
+      try {
+        freshPartyState = await loadFreshFilePartiesForEdit(c);
+      } catch (error) {
+        if (loadToken !== casePartyEditLoadToken) return;
+        console.error("Dosya düzenleme için güncel taraflar yüklenemedi.", error);
+        editing.caseId = null;
+        casePartyEditBaseline = null;
+        showNote("caseNote", "Güncel taraf bilgileri yüklenemediği için düzenleme formu açılmadı. Bağlantıyı kontrol edip tekrar deneyin.");
+        return;
+      }
+      if (loadToken !== casePartyEditLoadToken) return;
+      casePartyEditBaseline = {
+        fileId: freshPartyState.fileId,
+        revision: freshPartyState.revision
+      };
+      casePartyEditBlocked = false;
       editing.caseId = id;
       const kind = isEnforcementCase(c) ? "İcra" : "Dava";
       const fileType = normalizeFileType(c.fileType || c.type, c);
@@ -19313,8 +19397,8 @@
         const repositoryCreditors = repositoryPartiesForEditor(c, "creditor");
         const repositoryDebtors = repositoryPartiesForEditor(c, "debtor");
         setEnforcementPartyRows(
-          repositoryCreditors.length ? repositoryCreditors : caseCreditors(c),
-          repositoryDebtors.length ? repositoryDebtors : caseDebtors(c)
+          repositoryCreditors,
+          repositoryDebtors
         );
         setSupportingDocuments(c);
         document.querySelector(".supporting-document-details").open = Boolean(
@@ -19338,8 +19422,8 @@
         const repositoryClientsForEditor = repositoryPartiesForEditor(c, "client");
         const repositoryOpponentsForEditor = repositoryPartiesForEditor(c, "opponent");
         setLawPartyRows(
-          repositoryClientsForEditor.length ? repositoryClientsForEditor : caseClientParties(c),
-          repositoryOpponentsForEditor.length ? repositoryOpponentsForEditor : caseOpponentParties(c)
+          repositoryClientsForEditor,
+          repositoryOpponentsForEditor
         );
         document.getElementById("caseHearingInfo").value = c.hearingInfo || "";
         document.getElementById("caseOpenDate").value = c.openingDate || "";
@@ -19509,6 +19593,9 @@
     }
 
     function resetCaseForm(fileType = "") {
+      casePartyEditLoadToken += 1;
+      casePartyEditBaseline = null;
+      casePartyEditBlocked = false;
       editing.caseId = null;
       clearCaseModeFields("Dava");
       clearCaseModeFields("İcra");
@@ -20465,6 +20552,10 @@
 
     document.getElementById("caseForm").addEventListener("submit", async event => {
       event.preventDefault();
+      if (casePartyEditBlocked) {
+        showNote("caseNote", "Taraf bilgileri güncel olarak yüklenemediği için bu form kaydedilemez. Dosyayı yeniden açın veya yeni bir form başlatın.");
+        return;
+      }
       const permission = editing.caseId ? "edit" : "create";
       if (!requirePermission(permission, editing.caseId ? "Dosya güncelleme" : "Dosya ekleme")) return;
       const fileType = document.getElementById("caseFileType").value;
@@ -20501,6 +20592,7 @@
         }
       }
       const existingCase = editing.caseId ? repositoryFileById(editing.caseId) : null;
+      if (editing.caseId && (!existingCase || !(await verifyFreshFilePartiesBeforeSave(existingCase)))) return;
       const fileIdCandidates = editing.caseId ? repositoryFiles : await loadRepositoryFileIdCandidates();
       const id = editing.caseId || (
         activeCaseKind === "İcra"

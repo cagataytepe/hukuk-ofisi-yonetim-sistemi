@@ -965,7 +965,10 @@ export class SupabaseRepository {
     const clientId = normalizeTextValue(party.clientId || party.client_id);
     const nationalId = normalizeTaxIdentifier(party.nationalId || party.national_id);
     const taxId = normalizeTaxIdentifier(party.taxId || party.tax_id);
+    const requestedType = normalizeClientType(party.clientType || party.client_type);
+    const requestedName = normalizeComparableName(party.name);
     const select = "id,legacy_id,name,tax_id,national_id,phone,email,client_type,metadata,deleted_at";
+    let linkedClient = null;
     if (this.isUuid(clientId)) {
       const { data, error } = await this.supabase
         .from("clients")
@@ -975,7 +978,7 @@ export class SupabaseRepository {
         .limit(2);
       if (error) throw error;
       if ((data || []).length > 1) throw ambiguousClientMatchError("müvekkil kaydı");
-      if ((data || []).length === 1) return data[0];
+      linkedClient = (data || [])[0] || null;
     }
     const identifierColumn = nationalId ? "national_id" : taxId ? "tax_id" : "";
     const identifier = nationalId || taxId;
@@ -988,7 +991,28 @@ export class SupabaseRepository {
         .limit(2);
       if (error) throw error;
       if ((data || []).length > 1) throw ambiguousClientMatchError("TCKN/VKN");
-      if ((data || []).length === 1) return data[0];
+      if ((data || []).length === 1) {
+        const matchedClient = data[0];
+        if (!clientTypesCompatible(requestedType, normalizeClientType(matchedClient.client_type))) {
+          throw new Error("TCKN/VKN ile eşleşen müvekkilin kişi/kurum türü farklı olduğu için kayıt güncellenmedi.");
+        }
+        return matchedClient;
+      }
+
+      if (linkedClient) {
+        const linkedType = normalizeClientType(linkedClient.client_type);
+        const linkedIdentifier = normalizeTaxIdentifier(linkedClient[identifierColumn]);
+        const sameType = clientTypesCompatible(requestedType, linkedType);
+        const sameName = requestedName && requestedName === normalizeComparableName(linkedClient.name);
+        if (sameType && sameName && !linkedIdentifier) return linkedClient;
+      }
+      return null;
+    }
+
+    if (linkedClient) {
+      const sameType = clientTypesCompatible(requestedType, normalizeClientType(linkedClient.client_type));
+      const sameName = requestedName && requestedName === normalizeComparableName(linkedClient.name);
+      if (sameType && sameName) return linkedClient;
     }
     return null;
   }
@@ -1976,6 +2000,19 @@ function normalizeTextValue(value) {
 
 function normalizeTaxIdentifier(value) {
   return String(value || "").replace(/\s+/g, "").trim();
+}
+
+function normalizeComparableName(value) {
+  return normalizeTextValue(value).toLocaleLowerCase("tr-TR");
+}
+
+function normalizeClientType(value) {
+  const normalized = normalizeTextValue(value).toLowerCase();
+  return ["person", "organization"].includes(normalized) ? normalized : "unknown";
+}
+
+function clientTypesCompatible(requestedType, currentType) {
+  return requestedType === "unknown" || currentType === "unknown" || requestedType === currentType;
 }
 
 function inferRepositoryClientType(name, taxId) {

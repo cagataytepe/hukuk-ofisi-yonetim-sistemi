@@ -8,6 +8,7 @@ import * as enforcementAccountAdapters from "./calculations/enforcementAccountAd
 import * as localDate from "./shared/localDate.mjs";
 import * as reportFilename from "./shared/reportFilename.mjs";
 import * as userInput from "./shared/userInput.mjs";
+import * as filePartyConcurrency from "./shared/filePartyConcurrency.mjs";
 
 window.BKT_DESKTOP_RUNTIME = desktopRuntime;
 window.BKT_ENFORCEMENT_CALCULATOR = enforcementCalculator;
@@ -15,6 +16,7 @@ window.BKT_ENFORCEMENT_ACCOUNT_ADAPTERS = enforcementAccountAdapters;
 window.BKT_LOCAL_DATE = localDate;
 window.BKT_REPORT_FILENAME = reportFilename;
 window.BKT_USER_INPUT = userInput;
+window.BKT_FILE_PARTY_CONCURRENCY = filePartyConcurrency;
 
 const assetMap = new Map([
   ["bkt-logo.png", bktLogoUrl]

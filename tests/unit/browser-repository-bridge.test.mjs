@@ -4,6 +4,8 @@ import test from "node:test";
 const FILE_ID = "11111111-1111-4111-8111-111111111111";
 const CLIENT_ID = "22222222-2222-4222-8222-222222222222";
 const PARTY_ID = "33333333-3333-4333-8333-333333333333";
+const NEW_CLIENT_ID = "44444444-4444-4444-8444-444444444444";
+const NEW_PARTY_ID = "55555555-5555-4555-8555-555555555555";
 
 globalThis.window = {
   BKT_SUPABASE_CONFIG: {
@@ -163,4 +165,226 @@ test("browser bridge belirsiz TCKN/VKN eşleşmesinde yazma yapmadan durur", asy
     /Belirsiz TCKN\/VKN eşleşmesi/
   );
   assert.equal(writes, 0);
+});
+
+test("browser bridge farklı TCKN girildiğinde bağlı eski müvekkili değiştirmez", async () => {
+  const oldClient = {
+    id: CLIENT_ID,
+    name: "SİNEM DİLEK",
+    national_id: "11111111111",
+    tax_id: null,
+    client_type: "person",
+    metadata: {}
+  };
+  const clientPatches = [];
+  const createdClients = [];
+  const repository = createRepository(async (url, options = {}) => {
+    const target = String(url);
+    const method = options.method || "GET";
+    if (target.includes(`id=eq.${CLIENT_ID}`) && method === "GET") return response([oldClient]);
+    if (target.includes("national_id=eq.22222222222") && method === "GET") return response([]);
+    if (target.endsWith("/clients") && method === "POST") {
+      const body = JSON.parse(options.body);
+      createdClients.push(body);
+      return response([{ id: NEW_CLIENT_ID, ...body }]);
+    }
+    if (target.includes("/clients?") && method === "PATCH") {
+      clientPatches.push(JSON.parse(options.body));
+      return response([]);
+    }
+    if (target.endsWith("/file_parties") && method === "POST") {
+      return response([{ id: NEW_PARTY_ID, ...JSON.parse(options.body) }]);
+    }
+    if (target.includes(`/file_parties?id=eq.${PARTY_ID}`) && method === "PATCH") {
+      return response([{ ...existingParty(), deleted_at: new Date().toISOString() }]);
+    }
+    throw new Error(`Beklenmeyen REST çağrısı: ${method} ${url}`);
+  });
+  repository.getFileParties = async () => [{ ...existingParty(), client: oldClient }];
+
+  await repository.syncFileParties(FILE_ID, [representedParty({
+    name: "MEHMET KAYA",
+    nationalId: "22222222222"
+  })]);
+
+  assert.equal(clientPatches.length, 0);
+  assert.equal(createdClients.length, 1);
+  assert.equal(createdClients[0].name, "MEHMET KAYA");
+  assert.equal(createdClients[0].national_id, "22222222222");
+});
+
+test("browser bridge yeni TCKN tek bir müvekkille eşleşirse eski kayıt yerine ona bağlanır", async () => {
+  const oldClient = {
+    id: CLIENT_ID,
+    name: "SİNEM DİLEK",
+    national_id: "11111111111",
+    client_type: "person",
+    metadata: {}
+  };
+  const matchedClient = {
+    id: NEW_CLIENT_ID,
+    name: "MEHMET KAYA",
+    national_id: "22222222222",
+    client_type: "person",
+    metadata: {}
+  };
+  const patchedClientIds = [];
+  let clientCreated = false;
+  const repository = createRepository(async (url, options = {}) => {
+    const target = String(url);
+    const method = options.method || "GET";
+    if (target.includes(`id=eq.${CLIENT_ID}`) && method === "GET") return response([oldClient]);
+    if (target.includes("national_id=eq.22222222222") && method === "GET") return response([matchedClient]);
+    if (target.endsWith("/clients") && method === "POST") {
+      clientCreated = true;
+      return response([]);
+    }
+    if (target.includes(`/clients?id=eq.${NEW_CLIENT_ID}`) && method === "PATCH") {
+      patchedClientIds.push(NEW_CLIENT_ID);
+      return response([{ ...matchedClient, ...JSON.parse(options.body) }]);
+    }
+    if (target.endsWith("/file_parties") && method === "POST") {
+      const body = JSON.parse(options.body);
+      assert.equal(body.client_id, NEW_CLIENT_ID);
+      return response([{ id: NEW_PARTY_ID, ...body }]);
+    }
+    if (target.includes(`/file_parties?id=eq.${PARTY_ID}`) && method === "PATCH") {
+      return response([{ ...existingParty(), deleted_at: new Date().toISOString() }]);
+    }
+    throw new Error(`Beklenmeyen REST çağrısı: ${method} ${url}`);
+  });
+  repository.getFileParties = async () => [{ ...existingParty(), client: oldClient }];
+
+  await repository.syncFileParties(FILE_ID, [representedParty({
+    name: "MEHMET KAYA",
+    nationalId: "22222222222"
+  })]);
+
+  assert.equal(clientCreated, false);
+  assert.deepEqual(patchedClientIds, [NEW_CLIENT_ID]);
+});
+
+test("browser bridge kişi-kurum türü değiştiğinde eski müvekkili dönüştürmez", async () => {
+  const oldClient = {
+    id: CLIENT_ID,
+    name: "SİNEM DİLEK",
+    national_id: "11111111111",
+    tax_id: null,
+    client_type: "person",
+    metadata: {}
+  };
+  let oldClientPatched = false;
+  let createdType = "";
+  const repository = createRepository(async (url, options = {}) => {
+    const target = String(url);
+    const method = options.method || "GET";
+    if (target.includes(`id=eq.${CLIENT_ID}`) && method === "GET") return response([oldClient]);
+    if (target.includes("tax_id=eq.1234567890") && method === "GET") return response([]);
+    if (target.endsWith("/clients") && method === "POST") {
+      const body = JSON.parse(options.body);
+      createdType = body.client_type;
+      return response([{ id: NEW_CLIENT_ID, ...body }]);
+    }
+    if (target.includes(`id=eq.${CLIENT_ID}`) && method === "PATCH") {
+      oldClientPatched = true;
+      return response([]);
+    }
+    if (target.endsWith("/file_parties") && method === "POST") {
+      return response([{ id: NEW_PARTY_ID, ...JSON.parse(options.body) }]);
+    }
+    if (target.includes(`/file_parties?id=eq.${PARTY_ID}`) && method === "PATCH") {
+      return response([{ ...existingParty(), deleted_at: new Date().toISOString() }]);
+    }
+    throw new Error(`Beklenmeyen REST çağrısı: ${method} ${url}`);
+  });
+  repository.getFileParties = async () => [{ ...existingParty(), client: oldClient }];
+
+  await repository.syncFileParties(FILE_ID, [representedParty({
+    name: "SİNEM DİLEK LTD. ŞTİ.",
+    clientType: "organization",
+    taxId: "1234567890"
+  })]);
+
+  assert.equal(oldClientPatched, false);
+  assert.equal(createdType, "organization");
+});
+
+test("browser bridge aynı TCKN ile güvenli ad düzeltmesine izin verir", async () => {
+  const client = {
+    id: CLIENT_ID,
+    name: "SİNEM DİLEK",
+    national_id: "11111111111",
+    tax_id: null,
+    client_type: "person",
+    metadata: {}
+  };
+  const clientPatches = [];
+  const repository = createRepository(async (url, options = {}) => {
+    const target = String(url);
+    const method = options.method || "GET";
+    if (target.includes(`id=eq.${CLIENT_ID}`) && method === "GET") return response([client]);
+    if (target.includes("national_id=eq.11111111111") && method === "GET") return response([client]);
+    if (target.includes(`id=eq.${CLIENT_ID}`) && method === "PATCH" && target.includes("/clients?")) {
+      const body = JSON.parse(options.body);
+      clientPatches.push(body);
+      return response([{ ...client, ...body }]);
+    }
+    if (target.endsWith("/file_parties") && method === "POST") {
+      return response([{ id: NEW_PARTY_ID, ...JSON.parse(options.body) }]);
+    }
+    if (target.includes(`/file_parties?id=eq.${PARTY_ID}`) && method === "PATCH") {
+      return response([{ ...existingParty(), deleted_at: new Date().toISOString() }]);
+    }
+    throw new Error(`Beklenmeyen REST çağrısı: ${method} ${url}`);
+  });
+  repository.getFileParties = async () => [{ ...existingParty(), client }];
+
+  await repository.syncFileParties(FILE_ID, [representedParty({
+    name: "SİNEM DİLEK TURAN",
+    nationalId: "11111111111"
+  })]);
+
+  assert.equal(clientPatches.length, 1);
+  assert.equal(clientPatches[0].name, "SİNEM DİLEK TURAN");
+  assert.equal(clientPatches[0].national_id, "11111111111");
+});
+
+test("browser bridge kimliksiz ad değişikliğinde eski müvekkili sessizce yeniden adlandırmaz", async () => {
+  const oldClient = {
+    id: CLIENT_ID,
+    name: "SİNEM DİLEK",
+    national_id: null,
+    tax_id: null,
+    client_type: "person",
+    metadata: {}
+  };
+  let oldClientPatched = false;
+  let createdName = "";
+  const repository = createRepository(async (url, options = {}) => {
+    const target = String(url);
+    const method = options.method || "GET";
+    if (target.includes(`id=eq.${CLIENT_ID}`) && method === "GET") return response([oldClient]);
+    if (target.endsWith("/clients") && method === "POST") {
+      const body = JSON.parse(options.body);
+      createdName = body.name;
+      return response([{ id: NEW_CLIENT_ID, ...body }]);
+    }
+    if (target.includes(`id=eq.${CLIENT_ID}`) && method === "PATCH") {
+      oldClientPatched = true;
+      return response([]);
+    }
+    if (target.endsWith("/file_parties") && method === "POST") {
+      return response([{ id: NEW_PARTY_ID, ...JSON.parse(options.body) }]);
+    }
+    if (target.includes(`/file_parties?id=eq.${PARTY_ID}`) && method === "PATCH") {
+      return response([{ ...existingParty(), deleted_at: new Date().toISOString() }]);
+    }
+    throw new Error(`Beklenmeyen REST çağrısı: ${method} ${url}`);
+  });
+  repository.getFileParties = async () => [{ ...existingParty(), client: oldClient }];
+
+  await repository.syncFileParties(FILE_ID, [representedParty({ name: "MEHMET KAYA" })]);
+
+  assert.equal(oldClientPatched, false);
+  assert.equal(createdName, "MEHMET KAYA");
 });
