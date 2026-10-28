@@ -733,81 +733,81 @@
       font-size: 12px;
     }
 
-    .completed-deadline-table {
-      min-width: 680px;
+    #deadlines .completed-deadline-table {
+      min-width: 760px;
       table-layout: fixed;
     }
 
-    .completed-deadline-table th:nth-child(1) { width: 8%; }
-    .completed-deadline-table th:nth-child(2) { width: 19%; }
-    .completed-deadline-table th:nth-child(3) { width: 13%; }
-    .completed-deadline-table th:nth-child(4) { width: 16%; }
-    .completed-deadline-table th:nth-child(5) { width: 13%; }
-    .completed-deadline-table th:nth-child(6) { width: 20%; }
-    .completed-deadline-table th:nth-child(7) { width: 11%; }
+    #deadlines .completed-deadline-table th:nth-child(1) { width: 7%; }
+    #deadlines .completed-deadline-table th:nth-child(2) { width: 18%; }
+    #deadlines .completed-deadline-table th:nth-child(3) { width: 9%; }
+    #deadlines .completed-deadline-table th:nth-child(4) { width: 14%; }
+    #deadlines .completed-deadline-table th:nth-child(5) { width: 11%; }
+    #deadlines .completed-deadline-table th:nth-child(6) { width: 11%; }
+    #deadlines .completed-deadline-table th:nth-child(7) { width: 20%; }
+    #deadlines .completed-deadline-table th:nth-child(8) { width: 10%; }
 
-    .completed-deadline-table td {
+    #deadlines .completed-deadline-table td {
+      height: 50px;
       vertical-align: middle;
       overflow-wrap: anywhere;
-      padding: 10px 6px;
-      font-size: 12px;
+      padding: 8px 6px;
     }
 
-    .completed-deadline-table td:nth-child(2),
-    .completed-deadline-table td:nth-child(4),
-    .completed-deadline-table td:nth-child(5) {
+    #deadlines .completed-deadline-table td:nth-child(2),
+    #deadlines .completed-deadline-table td:nth-child(4),
+    #deadlines .completed-deadline-table td:nth-child(5) {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
-    .completed-deadline-table th {
-      padding: 10px 6px;
-      font-size: 11px;
-      white-space: normal;
-    }
-
-    .completed-deadline-table td:first-child {
+    #deadlines .completed-deadline-table th {
+      padding: 8px 6px;
       white-space: nowrap;
     }
 
-    .completed-deadline-table .row-actions {
+    #deadlines .completed-deadline-table td:nth-child(1),
+    #deadlines .completed-deadline-table td:nth-child(3),
+    #deadlines .completed-deadline-table td:nth-child(6),
+    #deadlines .completed-deadline-table td:nth-child(7),
+    #deadlines .completed-deadline-table td:nth-child(8) {
+      white-space: nowrap;
+    }
+
+    #deadlines .completed-deadline-table .row-actions {
       flex-wrap: nowrap;
       align-items: center;
+      justify-content: center;
       gap: 6px;
     }
 
-    .completed-deadline-table .icon-btn {
+    #deadlines .completed-deadline-table .icon-btn {
       padding: 5px 7px;
       min-height: 30px;
-      font-size: 12px;
     }
 
-    .completed-deadline-status .pill {
-      display: flex;
-      flex-direction: column;
+    #deadlines .completed-deadline-table .completed-deadline-status .pill {
+      display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 100%;
+      width: auto;
       max-width: 100%;
-      min-height: 38px;
-      padding: 5px 7px;
-      font-size: 10px;
-      line-height: 1.15;
+      min-height: 25px;
+      padding: 4px 7px;
+      font-size: 9px;
+      line-height: 1.2;
       text-align: center;
-      white-space: normal;
-      box-sizing: border-box;
-    }
-
-    .completed-deadline-pill-line {
-      display: block;
       white-space: nowrap;
+      box-sizing: border-box;
     }
 
     #deadlines .deadline-table th:last-child,
     #deadlines .deadline-table td:last-child,
     #deadlines .completed-deadline-table th:nth-child(6),
     #deadlines .completed-deadline-table td:nth-child(6),
+    #deadlines .completed-deadline-table th:nth-child(7),
+    #deadlines .completed-deadline-table td:nth-child(7),
     #deadlines .completed-deadline-table th:last-child,
     #deadlines .completed-deadline-table td:last-child {
       text-align: center;
@@ -6095,42 +6095,6 @@
       white-space: nowrap;
     }
 
-    #deadlines .completed-deadline-table th:nth-child(6),
-    #deadlines .completed-deadline-table td:nth-child(6) {
-      width: 170px;
-    }
-
-    #deadlines .completed-deadline-table th:nth-child(7),
-    #deadlines .completed-deadline-table td:nth-child(7) {
-      width: 128px;
-    }
-
-    #deadlines .completed-deadline-table td.completed-deadline-status {
-      overflow: visible;
-      text-overflow: clip;
-    }
-
-    #deadlines .completed-deadline-table th:last-child,
-    #deadlines .completed-deadline-table td:last-child {
-      width: 110px;
-    }
-
-    #deadlines .completed-deadline-table .completed-deadline-status .pill {
-      display: inline-flex;
-      flex-direction: column;
-      align-items: center;
-      width: 100%;
-      max-width: 100%;
-      min-height: 38px;
-      overflow: visible;
-      box-sizing: border-box;
-      justify-content: center;
-      text-align: center;
-      padding: 5px 8px;
-      line-height: 1.15;
-      white-space: normal;
-    }
-
     #deadlines .row-actions,
     #tasks .row-actions {
       flex-wrap: nowrap;
@@ -10913,8 +10877,8 @@
 
     function completedDeadlinePill(deadline) {
       return deadlineCompletedLate(deadline)
-        ? `<span class="pill darkred" title="Süresi dışında tamamlandı"><span class="completed-deadline-pill-line">Süresi Dışında</span><span class="completed-deadline-pill-line">Tamamlandı</span></span>`
-        : `<span class="pill green" title="Süresi içinde tamamlandı"><span class="completed-deadline-pill-line">Süresi İçinde</span><span class="completed-deadline-pill-line">Tamamlandı</span></span>`;
+        ? `<span class="pill darkred" title="Süresi dışında tamamlandı">Süresi Dışında Tamamlandı</span>`
+        : `<span class="pill green" title="Süresi içinde tamamlandı">Süresi İçinde Tamamlandı</span>`;
     }
 
     function statusClass(status) {
