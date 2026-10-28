@@ -1,6 +1,15 @@
 ﻿import { supabase } from "../src/supabase.js";
 
-import { getMobileSessionPersistence, setMobileSessionPersistence } from "../src/supabase.js";
+import {
+  beginDesktopSignIn as beginDesktopSignInPersistence,
+  cancelDesktopSignIn as cancelDesktopSignInPersistence,
+  clearDesktopAutomaticSignIn as clearDesktopAutomaticSignInPersistence,
+  completeDesktopSignIn as completeDesktopSignInPersistence,
+  getDesktopLoginPreferences as readDesktopLoginPreferences,
+  getDesktopSessionStatus as readDesktopSessionStatus,
+  getMobileSessionPersistence,
+  setMobileSessionPersistence
+} from "../src/supabase.js";
 import {
   isoDateInTimeZone,
   selectUpcomingHearings,
@@ -128,6 +137,29 @@ import {
         await repository.reload();
         return data;
       },
+      beginDesktopSignIn(remember) {
+        beginDesktopSignInPersistence(Boolean(remember));
+      },
+      completeDesktopSignIn(email) {
+        completeDesktopSignInPersistence(email);
+      },
+      async abortDesktopSignIn() {
+        cancelDesktopSignInPersistence();
+        if (authClient) {
+          try {
+            await authClient.auth.signOut({ scope: "local" });
+          } catch (error) {
+            console.warn("Başarısız masaüstü girişi yerel olarak kapatılırken hata oluştu.", error);
+          }
+        }
+        cancelDesktopSignInPersistence();
+      },
+      getDesktopLoginPreferences() {
+        return readDesktopLoginPreferences();
+      },
+      getDesktopSessionStatus() {
+        return readDesktopSessionStatus();
+      },
       setRememberSession(remember) {
         setMobileSessionPersistence(Boolean(remember));
       },
@@ -135,12 +167,20 @@ import {
         return getMobileSessionPersistence();
       },
       async signOut() {
-        if (authClient) {
-          const { error } = await authClient.auth.signOut();
-          if (error) throw error;
+        let signOutError = null;
+        try {
+          if (authClient) {
+            const { error } = await authClient.auth.signOut();
+            if (error) signOutError = error;
+          }
+        } catch (error) {
+          signOutError = error;
+        } finally {
+          clearDesktopAutomaticSignInPersistence();
+          cache.clear();
+          notifyStatus("unauthenticated", "Oturum kapatıldı.");
         }
-        cache.clear();
-        notifyStatus("unauthenticated", "Oturum kapatıldı.");
+        if (signOutError) throw new Error("Sunucuya çıkış bildirilemedi; bu cihazdaki otomatik giriş güvenli biçimde kapatıldı.");
       },
       async registerPushDevice(token, previousToken = null, { platform = 'android', environment = null } = {}) {
         if (!authClient) throw new Error('Supabase unavailable');

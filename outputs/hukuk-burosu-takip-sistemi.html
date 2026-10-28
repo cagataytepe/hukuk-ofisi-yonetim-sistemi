@@ -9637,14 +9637,48 @@
       users = uniqueProfileUsers(users);
     }
 
-    function showLoginScreen() {
+    function desktopLoginPreferences() {
+      try {
+        return appRepository.getDesktopLoginPreferences?.() || { lastEmail: "", remember: false };
+      } catch (error) {
+        console.warn("Masaüstü giriş tercihleri okunamadı.", error);
+        return { lastEmail: "", remember: false };
+      }
+    }
+
+    function desktopSessionWarning() {
+      try {
+        const status = appRepository.getDesktopSessionStatus?.();
+        if (status?.isTauriRuntime && !status.hasTrustedLogonSession) {
+          return "Windows oturumu doğrulanamadığı için otomatik giriş kapatıldı. Şifrenizle güvenli biçimde giriş yapabilirsiniz.";
+        }
+      } catch (error) {
+        console.warn("Windows oturum durumu okunamadı.", error);
+      }
+      return "";
+    }
+
+    function showLoginScreen(message = "") {
       currentUser = null;
       legacyState = null;
       users = [];
       clearSession();
       document.body.classList.remove("is-authenticated");
-      document.getElementById("loginForm").reset();
-      document.getElementById("loginError").textContent = "";
+      const preferences = desktopLoginPreferences();
+      const form = document.getElementById("loginForm");
+      const email = document.getElementById("loginEmail");
+      const password = document.getElementById("loginPassword");
+      const remember = document.getElementById("rememberLogin");
+      form.reset();
+      email.value = preferences.lastEmail || "";
+      password.value = "";
+      password.type = "password";
+      remember.checked = preferences.remember === true;
+      const passwordToggle = document.getElementById("passwordToggle");
+      passwordToggle.classList.remove("is-visible");
+      passwordToggle.setAttribute("aria-label", "Şifreyi göster");
+      passwordToggle.title = "Şifreyi göster";
+      document.getElementById("loginError").textContent = message || desktopSessionWarning();
       window.setTimeout(() => document.getElementById("loginEmail").focus(), 0);
     }
 
@@ -9660,18 +9694,20 @@
         return true;
       } catch (error) {
         console.warn("Supabase oturumu geri yüklenemedi.", error);
-        showLoginScreen();
+        showLoginScreen(error?.message || "Oturum kontrolü tamamlanamadı. Şifrenizle tekrar giriş yapın.");
         return false;
       }
     }
 
     async function logoutCurrentUser() {
+      let message = "";
       try {
         await appRepository.signOut();
       } catch (error) {
         console.warn("Supabase çıkış işlemi tamamlanamadı.", error);
+        message = error?.message || "Sunucuya çıkış bildirilemedi; bu cihazdaki oturum güvenli biçimde kapatıldı.";
       }
-      showLoginScreen();
+      showLoginScreen(message);
     }
 
     function failedLoginState() {
@@ -19674,16 +19710,21 @@
 
       const email = document.getElementById("loginEmail").value.trim();
       const password = document.getElementById("loginPassword").value;
+      const remember = document.getElementById("rememberLogin").checked;
       try {
         error.textContent = "";
+        appRepository.beginDesktopSignIn?.(remember);
         await appRepository.signIn(email, password);
         const user = await appRepository.getCurrentUser();
         if (!user) throw new Error("Bu kullanıcı için uygulama profili bulunamadı. Sistem yöneticinizle iletişime geçin.");
         if (user.active === false) throw new Error("Kullanıcı hesabınız pasif durumdadır.");
         users = await loadProfileUsers(user);
+        appRepository.completeDesktopSignIn?.(email);
         clearFailedLogins();
         await openAuthenticatedApp(user);
       } catch (loginError) {
+        await appRepository.abortDesktopSignIn?.();
+        document.getElementById("loginPassword").value = "";
         console.error("Supabase Auth girişi başarısız.", loginError);
         const failed = registerFailedLogin();
         error.textContent = failed.lockedUntil
@@ -21257,6 +21298,7 @@
       console.error("Uygulama başlatılamadı.", error);
       users = users.length ? users : loadUsers();
       resetUserForm();
+      showLoginScreen("Oturum kontrolü tamamlanamadı. İnternet bağlantınızı kontrol edip şifrenizle tekrar deneyin.");
     });
     let lastEnforcementBalanceDate = currentIsoDate();
     window.setInterval(() => {

@@ -133,6 +133,7 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-fs",
  "tauri-plugin-push",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

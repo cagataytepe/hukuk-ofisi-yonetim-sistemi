@@ -2,6 +2,7 @@ import appHtml from "../outputs/hukuk-burosu-takip-sistemi.html?raw";
 import bktLogoUrl from "../outputs/bkt-logo.png";
 import appRuntimeUrl from "virtual:bkt-app-runtime-url";
 import "../outputs/supabase-config.js";
+import { invoke, isTauri } from "@tauri-apps/api/core";
 import { desktopRuntime } from "./platform/generatedFileSaver.js";
 import * as enforcementCalculator from "./calculations/enforcementCalculator.js";
 import * as enforcementAccountAdapters from "./calculations/enforcementAccountAdapters.js";
@@ -63,7 +64,28 @@ function loadAppRuntime() {
   });
 }
 
+async function prepareWindowsAuthBootstrap() {
+  const isWindowsTauri = isTauri() && /Windows/i.test(String(globalThis.navigator?.userAgent || ""));
+  let logonSessionId = "";
+  let error = "";
+  if (isWindowsTauri) {
+    try {
+      logonSessionId = String(await invoke("get_windows_logon_session_id") || "").trim();
+      if (!logonSessionId) throw new Error("Windows oturum kimliği boş döndü.");
+    } catch (sessionError) {
+      error = sessionError?.message || String(sessionError);
+      console.warn("Windows oturum kimliği doğrulanamadı; otomatik giriş kapatıldı.", sessionError);
+    }
+  }
+  Object.defineProperty(window, "BKT_WINDOWS_AUTH_BOOTSTRAP", {
+    value: Object.freeze({ isWindowsTauri, logonSessionId, error }),
+    writable: false,
+    configurable: false
+  });
+}
+
 async function bootstrapApplication() {
+  await prepareWindowsAuthBootstrap();
   await import("../services/browserRepositoryBridge.js");
 
   const parser = new DOMParser();
