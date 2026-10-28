@@ -785,16 +785,23 @@
 
     .completed-deadline-status .pill {
       display: flex;
+      flex-direction: column;
+      align-items: center;
       justify-content: center;
       width: 100%;
       max-width: 100%;
-      min-height: 20px;
-      padding: 2px 7px;
+      min-height: 38px;
+      padding: 5px 7px;
       font-size: 10px;
-      line-height: 1.25;
+      line-height: 1.15;
       text-align: center;
-      white-space: nowrap;
+      white-space: normal;
       box-sizing: border-box;
+    }
+
+    .completed-deadline-pill-line {
+      display: block;
+      white-space: nowrap;
     }
 
     #deadlines .deadline-table th:last-child,
@@ -6093,6 +6100,16 @@
       width: 170px;
     }
 
+    #deadlines .completed-deadline-table th:nth-child(7),
+    #deadlines .completed-deadline-table td:nth-child(7) {
+      width: 128px;
+    }
+
+    #deadlines .completed-deadline-table td.completed-deadline-status {
+      overflow: visible;
+      text-overflow: clip;
+    }
+
     #deadlines .completed-deadline-table th:last-child,
     #deadlines .completed-deadline-table td:last-child {
       width: 110px;
@@ -6100,13 +6117,18 @@
 
     #deadlines .completed-deadline-table .completed-deadline-status .pill {
       display: inline-flex;
-      width: auto;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
       max-width: 100%;
-      overflow: hidden;
+      min-height: 38px;
+      overflow: visible;
       box-sizing: border-box;
       justify-content: center;
       text-align: center;
-      padding-inline: 9px;
+      padding: 5px 8px;
+      line-height: 1.15;
+      white-space: normal;
     }
 
     #deadlines .row-actions,
@@ -10891,8 +10913,8 @@
 
     function completedDeadlinePill(deadline) {
       return deadlineCompletedLate(deadline)
-        ? `<span class="pill darkred" title="Süresi dışında tamamlandı">Süresi Dışında Tamamlandı</span>`
-        : `<span class="pill green">Süresi İçinde Tamamlandı</span>`;
+        ? `<span class="pill darkred" title="Süresi dışında tamamlandı"><span class="completed-deadline-pill-line">Süresi Dışında</span><span class="completed-deadline-pill-line">Tamamlandı</span></span>`
+        : `<span class="pill green" title="Süresi içinde tamamlandı"><span class="completed-deadline-pill-line">Süresi İçinde</span><span class="completed-deadline-pill-line">Tamamlandı</span></span>`;
     }
 
     function statusClass(status) {
@@ -10928,6 +10950,12 @@
     function formatDate(value) {
       if (!value) return "";
       return new Intl.DateTimeFormat("tr-TR", { day: "2-digit", month: "long", year: "numeric" }).format(new Date(value + "T12:00:00+03:00"));
+    }
+
+    function formatDeadlineTableDate(value) {
+      if (!value) return "";
+      const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value));
+      return match ? `${match[3]}.${match[2]}.${match[1]}` : formatDate(value);
     }
 
     function formatExcelDate(value) {
@@ -16376,14 +16404,14 @@
         document.getElementById("deadlineFullRows").innerHTML = activeDeadlines.map(d => `
           <tr>
             <td data-label="Dosya">${escapeHtml(d.file)}</td><td data-label="Mahkeme / İcra Dairesi" title="${escapeHtml(d.court || "-")}">${escapeHtml(d.court)}</td><td data-label="Dosya No">${escapeHtml(deadlineFileNo(d) || "-")}</td><td data-label="İş Tanımı" title="${escapeHtml(d.task || "-")}">${escapeHtml(d.task)}</td><td data-label="Sorumlu">${escapeHtml(personDisplayName(d.lawyer))}</td>
-            <td data-label="Son Tarih">${formatDate(d.due)}</td><td data-label="Kalan Süre">${deadlinePill(d.due)}</td><td data-label="Durum">${renderStatusBadge(daysLeft(d.due) < 0 ? "Gecikmiş" : "Aktif")}</td><td data-label="İşlem">${deadlineActions(d)}</td>
+            <td data-label="Son Tarih">${formatDeadlineTableDate(d.due)}</td><td data-label="Kalan Süre">${deadlinePill(d.due)}</td><td data-label="Durum">${renderStatusBadge(daysLeft(d.due) < 0 ? "Gecikmiş" : "Aktif")}</td><td data-label="İşlem">${deadlineActions(d)}</td>
           </tr>
         `).join("") || `<tr><td colspan="9">Aktif süreli iş bulunmuyor.</td></tr>`;
 
         document.getElementById("completedDeadlineRows").innerHTML = visibleCompletedDeadlines.map(d => `
           <tr>
             <td data-label="Dosya">${escapeHtml(d.file)}</td><td data-label="Mahkeme / İcra Dairesi" title="${escapeHtml(d.court || "-")}">${escapeHtml(d.court)}</td><td data-label="Dosya No">${escapeHtml(deadlineFileNo(d) || "-")}</td><td data-label="İş Tanımı" title="${escapeHtml(d.task || "-")}">${escapeHtml(d.task)}</td><td data-label="Sorumlu">${escapeHtml(personDisplayName(d.lawyer))}</td>
-            <td data-label="Tamamlanma">${formatDate(deadlineCompletionDate(d) || d.due)}</td><td data-label="Durum" class="completed-deadline-status">${completedDeadlinePill(d)}</td><td data-label="İşlem">${deadlineActions(d)}</td>
+            <td data-label="Tamamlanma">${formatDeadlineTableDate(deadlineCompletionDate(d) || d.due)}</td><td data-label="Durum" class="completed-deadline-status">${completedDeadlinePill(d)}</td><td data-label="İşlem">${deadlineActions(d)}</td>
           </tr>
         `).join("") || `<tr><td colspan="8">Tamamlanan iş bulunmuyor.</td></tr>`;
         renderCompletedDeadlinePagination(completedDeadlines.length, completedTotalPages);
