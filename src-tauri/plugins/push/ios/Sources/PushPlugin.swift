@@ -55,6 +55,9 @@ private struct EmptyPayload: Encodable {}
 /// Firebase yerine Apple'ın kendi APNs cihaz jetonunu döndürür.
 class PushPlugin: Plugin, UNUserNotificationCenterDelegate {
   private static weak var current: PushPlugin?
+  /// UIApplicationMain'in oluşturduğu temsilcinin tek güçlü sahibi UIKit'tir ve `delegate = nil`
+  /// ataması onu serbest bırakır. Yeniden atama boyunca ve sonrasında nesneyi canlı tutar.
+  private static var retainedApplicationDelegate: UIApplicationDelegate?
 
   /// TestFlight ve App Store derlemelerinde embedded.mobileprovision bulunmaz; bu durumda üretim APNs ortamı kullanılır.
   private static let apnsEnvironment: String = {
@@ -209,7 +212,10 @@ class PushPlugin: Plugin, UNUserNotificationCenterDelegate {
     }
 
     // UIApplication, temsilcinin hangi metodlara yanıt verdiğini atama anında önbelleğe alır;
-    // yeniden atama yeni eklenen metodların görülmesini sağlar.
+    // yeniden atama yeni eklenen metodların görülmesini sağlar. `delegate = nil` UIKit'in tuttuğu
+    // referansı bıraktığı için nesne önce kalıcı olarak sahiplenilir; aksi halde serbest kalır ve
+    // UIKit'in sonraki erişimi uygulamayı çökertir (EXC_BAD_ACCESS, objc_retain).
+    PushPlugin.retainedApplicationDelegate = delegate
     let application = UIApplication.shared
     application.delegate = nil
     application.delegate = delegate

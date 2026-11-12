@@ -87,7 +87,16 @@ jobs:
           fi
 
       - name: Provision push notification entitlement
-        run: npm run prepare:ios
+        shell: bash
+        run: |
+          if ! npm run prepare:ios > prepare-ios.log 2>&1; then
+            cat prepare-ios.log
+            grep -E "Error|error" prepare-ios.log | head -n 5 | while IFS= read -r line; do
+              echo "::error title=iOS hazırlık::${line}"
+            done
+            exit 1
+          fi
+          cat prepare-ios.log
 
       - name: Compile Swift plugin and Rust library for the iOS simulator
         shell: bash
@@ -102,22 +111,50 @@ jobs:
           echo "### iOS simulator compile" >> "${GITHUB_STEP_SUMMARY}"
           echo "Swift plugin and Rust library compiled for aarch64-apple-ios-sim." >> "${GITHUB_STEP_SUMMARY}"
 
-      - name: Full simulator build (informational, no signing)
-        id: full
-        continue-on-error: true
+      - name: Full simulator build (no signing)
         shell: bash
         run: |
           set -o pipefail
           if ! npm run tauri -- ios build --target aarch64-sim --debug --ci 2>&1 | tee ios-build.log; then
             grep -E "error:|\.swift:[0-9]+:[0-9]+: error|requires a development team|Signing" ios-build.log | sort -u | head -n 25 | while IFS= read -r line; do
-              echo "::warning title=Tam simülatör derlemesi::${line}"
+              echo "::error title=Tam simülatör derlemesi::${line}"
             done
             exit 1
           fi
 
-      - name: Summarize full build result
-        if: always()
+      - name: Launch app in the simulator and check it stays alive
+        # Derlemek yetmez: açılışta çöken bir sürüm TestFlight'a gitmeden burada yakalanır.
         shell: bash
         run: |
-          echo "Full simulator build outcome: ${{ steps.full.outcome }}"
-          echo "::notice title=Tam simülatör derlemesi::${{ steps.full.outcome }}"
+          set -euo pipefail
+          BUNDLE_ID="tr.com.bkthukuk.ofisyonetim"
+          APP=""
+          while IFS= read -r candidate; do
+            [[ -f "${candidate}/Info.plist" ]] || continue
+            id="$(plutil -extract CFBundleIdentifier raw "${candidate}/Info.plist" 2>/dev/null || true)"
+            platform="$(plutil -extract DTPlatformName raw "${candidate}/Info.plist" 2>/dev/null || true)"
+            if [[ "${id}" == "${BUNDLE_ID}" && "${platform}" == "iphonesimulator" ]]; then APP="${candidate}"; break; fi
+          done < <(find src-tauri/gen/apple "${HOME}/Library/Developer/Xcode/DerivedData" -type d -name "*.app" 2>/dev/null)
+          if [[ -z "${APP}" ]]; then
+            echo "::error title=Simülatör testi::Simülatör için derlenmiş .app bulunamadı."
+            exit 1
+          fi
+          DEVICE="$(xcrun simctl list devices available | grep -E '^\s+iPhone' | head -n 1 | grep -oE '[0-9A-F-]{36}')"
+          if [[ -z "${DEVICE}" ]]; then
+            echo "::error title=Simülatör testi::Kullanılabilir iPhone simülatörü yok."
+            exit 1
+          fi
+          xcrun simctl boot "${DEVICE}"
+          xcrun simctl bootstatus "${DEVICE}" -b
+          xcrun simctl install "${DEVICE}" "${APP}"
+          PID="$(xcrun simctl launch "${DEVICE}" "${BUNDLE_ID}" | awk '{print $NF}')"
+          echo "Launched ${BUNDLE_ID} (pid ${PID}) from ${APP}"
+          sleep 25
+          if kill -0 "${PID}" 2>/dev/null; then
+            echo "::notice title=Simülatör testi::Uygulama açıldı ve 25 saniye boyunca çökmedi."
+            xcrun simctl terminate "${DEVICE}" "${BUNDLE_ID}" || true
+            exit 0
+          fi
+          REPORT="$(ls -t "${HOME}"/Library/Logs/DiagnosticReports/*.ips 2>/dev/null | head -n 1 || true)"
+          node scripts/ios-crash-summary.mjs "${REPORT}"
+          exit 1

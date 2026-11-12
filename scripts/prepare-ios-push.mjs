@@ -37,3 +37,28 @@ if (!projectYml.includes(`${targets[0].name}.entitlements`)) {
 }
 
 console.log(`Push Notifications entitlement provisioned in ${path.relative(process.cwd(), entitlementsPath)}.`);
+
+// `tauri ios init` Tauri'nin varsayılan ikonlarını yazar; BKT ikonları kaynaktan kopyalanır.
+// Kaynak ikonlar saydamlık kanalı içermez (App Store 1024px ikonda alfa kabul etmez).
+function findAppIconSet(dir) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const full = path.join(dir, entry.name);
+    if (entry.name === 'AppIcon.appiconset') return full;
+    if (entry.name === 'build' || entry.name === 'Externals') continue;
+    const nested = findAppIconSet(full);
+    if (nested) return nested;
+  }
+  return null;
+}
+const iconSource = path.resolve('src-tauri/icons/ios');
+const iconSet = findAppIconSet(root);
+if (!iconSet) throw new Error('Generated AppIcon.appiconset was not found.');
+const contents = JSON.parse(fs.readFileSync(path.join(iconSet, 'Contents.json'), 'utf8'));
+const expected = [...new Set((contents.images || []).map((image) => image.filename).filter(Boolean))];
+const missing = expected.filter((name) => !fs.existsSync(path.join(iconSource, name)));
+if (!expected.length || missing.length) {
+  throw new Error(`BKT iOS icons missing for: ${missing.join(', ') || 'Contents.json has no filenames'}.`);
+}
+for (const name of expected) fs.copyFileSync(path.join(iconSource, name), path.join(iconSet, name));
+console.log(`${expected.length} BKT app icons copied into ${path.relative(process.cwd(), iconSet)}.`);
