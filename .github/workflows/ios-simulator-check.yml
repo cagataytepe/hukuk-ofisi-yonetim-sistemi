@@ -1,0 +1,109 @@
+name: iOS Simulator Compile Check
+
+# Apple hesabı ve imza gerektirmeden iOS tarafının (Swift bildirim eklentisi ve Rust kütüphanesi)
+# derlendiğini doğrular. Hatalar, giriş yapmadan da görülebilen iş akışı uyarılarına yazılır.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex/android-push-notifications
+    paths:
+      - "src-tauri/**"
+      - "src/**"
+      - "mobile.html"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/ios-simulator-check.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-simulator-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios-simulator-check:
+    name: Compile iOS targets for the simulator
+    runs-on: macos-15
+    timeout-minutes: 75
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios-sim
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          cache-on-failure: true
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Run push tests
+        run: npm run test:push
+
+      - name: Build mobile frontend
+        run: npm run build
+
+      - name: Install XcodeGen
+        run: brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+
+      - name: Initialize iOS project
+        shell: bash
+        run: |
+          set -o pipefail
+          if ! npm run tauri -- ios init --ci 2>&1 | tee ios-init.log; then
+            grep -iE "error|failed" ios-init.log | sort -u | head -n 15 | while IFS= read -r line; do
+              echo "::error title=iOS proje hazırlığı::${line}"
+            done
+            exit 1
+          fi
+
+      - name: Provision push notification entitlement
+        run: npm run prepare:ios
+
+      - name: Compile Swift plugin and Rust library for the iOS simulator
+        shell: bash
+        run: |
+          set -o pipefail
+          if ! cargo build --manifest-path src-tauri/Cargo.toml --lib --target aarch64-apple-ios-sim 2>&1 | tee cargo-ios.log; then
+            grep -E "error(\[[A-Z0-9]+\])?:|\.swift:[0-9]+:[0-9]+: error" cargo-ios.log | sort -u | head -n 25 | while IFS= read -r line; do
+              echo "::error title=iOS derleme hatası::${line}"
+            done
+            exit 1
+          fi
+          echo "### iOS simulator compile" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Swift plugin and Rust library compiled for aarch64-apple-ios-sim." >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Full simulator build (informational, no signing)
+        id: full
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          if ! npm run tauri -- ios build --target aarch64-sim --debug --ci 2>&1 | tee ios-build.log; then
+            grep -E "error:|\.swift:[0-9]+:[0-9]+: error|requires a development team|Signing" ios-build.log | sort -u | head -n 25 | while IFS= read -r line; do
+              echo "::warning title=Tam simülatör derlemesi::${line}"
+            done
+            exit 1
+          fi
+
+      - name: Summarize full build result
+        if: always()
+        shell: bash
+        run: |
+          echo "Full simulator build outcome: ${{ steps.full.outcome }}"
+          echo "::notice title=Tam simülatör derlemesi::${{ steps.full.outcome }}"
