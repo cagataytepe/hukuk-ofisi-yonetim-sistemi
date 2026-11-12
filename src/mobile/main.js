@@ -412,13 +412,20 @@ function homeSection(title, route, rows, renderer, emptyText) {
   return `<section class="mobile-section home-section-${escapeHtml(route)}"><div class="section-heading"><h2>${title}</h2><button data-route="${route}">Tümünü Gör</button></div>${rows.length ? `<div class="mobile-list">${rows.map(renderer).join("")}</div>` : emptyState(emptyText, "Yeni kayıtlar oluştuğunda burada gösterilir.")}</section>`;
 }
 
-function hearingCard(row) {
+function hearingCard(row, { linkFile = true } = {}) {
   const court = row.court || row.file?.court_or_office || "Mahkeme belirtilmedi";
   const fileNo = row.case_file_no || row.file?.file_no || "Dosya no yok";
   const participant = row.participant_profile?.display_name || row.participant_profile?.displayName || row.participant_name || row.attendee_name || "Belirtilmedi";
   const rawExcuse = String(row.excuse_type || "").trim();
   const excuse = !rawExcuse || ["yok", "hayır", "hayir", "none", "no"].includes(rawExcuse.toLocaleLowerCase("tr-TR")) ? "Mazeret Yok" : rawExcuse;
-  return `<article class="mobile-list-card hearing-card hearing-${fileTypeClass(row.file || row)}"><span class="hearing-time"><strong>${formatTime(row.hearing_time)}</strong><small>${formatDate(row.hearing_date, { day: "2-digit", month: "short" })}</small></span><div class="list-content"><span class="list-title hearing-title">${escapeHtml(court)} · ${escapeHtml(fileNo)}</span><div class="list-meta hearing-meta"><span>${escapeHtml(excuse)} - ${escapeHtml(participant)}</span></div></div></article>`;
+  const party = [row.client_name || row.file?.client_name, row.party_role].map(value => String(value || "").trim()).filter(Boolean).join(" · ");
+  const fileId = linkFile ? String(row.file_id || row.file?.id || "") : "";
+  const content = `<span class="hearing-time"><strong>${formatTime(row.hearing_time)}</strong><small>${formatDate(row.hearing_date, { day: "2-digit", month: "short" })}</small></span><span class="list-content"><span class="list-title hearing-title">${escapeHtml(court)} · ${escapeHtml(fileNo)}</span><span class="list-meta hearing-meta">${party ? `<span class="hearing-party">${escapeHtml(party)}</span>` : ""}<span>${escapeHtml(excuse)} - ${escapeHtml(participant)}</span></span></span>`;
+  const className = `mobile-list-card hearing-card hearing-${fileTypeClass(row.file || row)}`;
+  // Dosyası olan duruşma, Dosyalar listesindeki kartlarla aynı yoldan dosya detayını açar.
+  return fileId
+    ? `<button type="button" class="${className}" data-file-id="${escapeHtml(fileId)}" aria-label="${escapeHtml(`${court} ${fileNo} dosyasını aç`)}">${content}<span class="chevron" aria-hidden="true">›</span></button>`
+    : `<article class="${className}">${content}</article>`;
 }
 
 function deadlineCard(row) {
@@ -659,7 +666,7 @@ function detailPanel(data) {
   if (state.detailTab === "general") return infoCard([["Dosya ID", file.display_id || file.legacy_id],["Mahkeme / Daire", file.court_or_office],["Dosya No", file.file_no],["Müvekkil", file.client_name],["Karşı Taraf", file.opponent_name],["Konu", file.subject],["Sorumlu", file.responsible_profile?.display_name || file.responsible_name],["Açılış", formatDate(file.opening_date)],["Durum", file.status]]);
   if (state.detailTab === "parties") return data.parties.length ? `<div class="mobile-list">${data.parties.map(party => `<article class="mobile-list-card"><span class="list-icon">${icon(party.client?.client_type === "legal" ? "building" : "user")}</span><div class="list-content"><span class="list-title">${escapeHtml(party.client?.name || party.name || "Taraf")}</span><div class="list-meta"><span>${escapeHtml(party.role_label || party.role || party.party_type || "Rol belirtilmedi")}</span><span>${party.represented_by_office ? "Büromuzca temsil ediliyor" : "Karşı taraf"}</span></div></div></article>`).join("")}</div>` : emptyState("Taraf bulunmuyor", "Bu dosyaya bağlı taraf kaydı yok.");
   if (state.detailTab === "account") return enforcementAccountPanel(file, data.enforcementAccount);
-  if (state.detailTab === "hearings") return listOrEmpty(data.hearings, hearingCard, "Duruşma bulunmuyor");
+  if (state.detailTab === "hearings") return listOrEmpty(data.hearings, row => hearingCard(row, { linkFile: false }), "Duruşma bulunmuyor");
   if (state.detailTab === "deadlines") return listOrEmpty(data.deadlines, deadlineCard, "Süreli iş bulunmuyor");
   if (state.detailTab === "tasks") return listOrEmpty(data.tasks, taskCard, "Görev bulunmuyor");
   if (state.detailTab === "payments") return listOrEmpty([...data.collections, ...data.plans], paymentCard, "Ödeme kaydı bulunmuyor");

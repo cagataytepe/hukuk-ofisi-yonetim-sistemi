@@ -217,6 +217,8 @@ button.mobile-list-card:active { transform: scale(.995); }
 .hearing-title { overflow: visible; font-size: 13px; text-overflow: clip; white-space: normal; }
 .hearing-meta { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hearing-meta span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hearing-meta .hearing-party { color: var(--mobile-text-2); font-weight: 600; }
+.hearing-card > .chevron { flex: 0 0 auto; align-self: center; }
 .file-list-card.is-law .list-icon { color: #237553; background: var(--mobile-success-soft); }
 .file-list-card.is-criminal .list-icon { color: #ab3f42; background: var(--mobile-danger-soft); }
 .file-list-card.is-enforcement .list-icon { color: #9a6800; background: #fff2cc; }
