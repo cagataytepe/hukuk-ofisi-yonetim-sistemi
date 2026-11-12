@@ -7,6 +7,11 @@ on:
         description: "Derlenen IPA'yı TestFlight'a yükle"
         type: boolean
         default: true
+  # "Run workflow" butonu yalnızca main dalındaki iş akışlarında görünür.
+  # Bu yüzden ios-v ile başlayan bir etiket gönderildiğinde de derlenip TestFlight'a yüklenir.
+  push:
+    tags:
+      - "ios-v*"
 
 permissions:
   contents: read
@@ -162,7 +167,7 @@ jobs:
           retention-days: 14
 
       - name: Upload to TestFlight
-        if: ${{ inputs.upload }}
+        if: ${{ github.event_name == 'push' || inputs.upload }}
         run: |
           xcrun altool --upload-app --type ios \
             --file "${{ steps.ipa.outputs.path }}" \
