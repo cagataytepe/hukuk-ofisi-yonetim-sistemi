@@ -44,6 +44,8 @@ impl<R: Runtime> Push<R> {
   }
 
   pub fn request_permission(&self) -> crate::Result<serde_json::Value> {
-    self.0.run_mobile_plugin("requestPermissions", serde_json::json!({})).map_err(Into::into)
+    // Android, Tauri'nin yerleşik izin akışını kullanır; iOS eklentisi kendi komutunu sunar.
+    let command = if cfg!(target_os = "ios") { "requestNotificationPermission" } else { "requestPermissions" };
+    self.0.run_mobile_plugin(command, serde_json::json!({})).map_err(Into::into)
   }
 }

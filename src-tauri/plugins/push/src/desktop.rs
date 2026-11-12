@@ -15,7 +15,7 @@ pub struct Push<R: Runtime>(AppHandle<R>);
 
 impl<R: Runtime> Push<R> {
   pub fn get_token(&self) -> crate::Result<TokenResponse> {
-    Ok(TokenResponse { token: None })
+    Ok(TokenResponse { token: None, platform: None, environment: None })
   }
 
   pub fn get_pending_navigation(&self) -> crate::Result<NavigationResponse> {

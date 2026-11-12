@@ -1,0 +1,170 @@
+name: iOS TestFlight
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: "Derlenen IPA'yı TestFlight'a yükle"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-testflight-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-ios:
+    name: Build signed iOS IPA
+    runs-on: macos-15
+    timeout-minutes: 90
+    env:
+      SOURCE_SHA: ${{ github.sha }}
+      BUNDLE_ID: tr.com.bkthukuk.ofisyonetim
+      APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
+      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+      APPLE_API_KEY: ${{ secrets.APPLE_API_KEY_ID }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+
+      - name: Check required Apple secrets
+        env:
+          APPLE_API_PRIVATE_KEY_BASE64: ${{ secrets.APPLE_API_PRIVATE_KEY_BASE64 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in APPLE_DEVELOPMENT_TEAM APPLE_API_ISSUER APPLE_API_KEY APPLE_API_PRIVATE_KEY_BASE64; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::GitHub secret eksik: ${name}"
+              missing=1
+            fi
+          done
+          exit "${missing}"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          cache-on-failure: true
+
+      - name: Install XcodeGen
+        run: brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Run calculation unit and parity tests
+        run: npm run test:calculations
+
+      - name: Run push tests
+        run: npm run test:push
+
+      - name: Check browser sources for privileged Supabase secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RIEq \
+            --exclude-dir=node_modules \
+            --exclude-dir=.git \
+            --exclude-dir=test-artifacts \
+            --exclude-dir=playwright-report \
+            'SUPABASE_SERVICE_ROLE_KEY[[:space:]]*[:=]|sb_secret_[A-Za-z0-9_-]{20,}' \
+            mobile.html src services outputs/supabase-config.js; then
+            echo "Privileged Supabase secret pattern detected in browser sources."
+            exit 1
+          fi
+
+      - name: Install App Store Connect API key
+        env:
+          APPLE_API_PRIVATE_KEY_BASE64: ${{ secrets.APPLE_API_PRIVATE_KEY_BASE64 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${HOME}/private_keys"
+          KEY_PATH="${HOME}/private_keys/AuthKey_${APPLE_API_KEY}.p8"
+          printf '%s' "${APPLE_API_PRIVATE_KEY_BASE64}" | base64 --decode > "${KEY_PATH}"
+          chmod 600 "${KEY_PATH}"
+          grep -q 'BEGIN PRIVATE KEY' "${KEY_PATH}"
+          echo "APPLE_API_KEY_PATH=${KEY_PATH}" >> "${GITHUB_ENV}"
+
+      - name: Initialize iOS project
+        run: npm run tauri -- ios init --ci
+
+      - name: Provision push notification entitlement
+        run: npm run prepare:ios
+
+      - name: Build App Store IPA
+        env:
+          IOS_BUILD_CONFIG: '{"bundle":{"iOS":{"bundleVersion":"${{ github.run_number }}"}}}'
+        run: npm run tauri -- ios build --export-method app-store-connect --ci --config "${IOS_BUILD_CONFIG}"
+
+      - name: Locate and verify IPA
+        id: ipa
+        shell: bash
+        run: |
+          set -euo pipefail
+          IPA="$(find src-tauri/gen/apple/build -type f -name '*.ipa' | head -n 1)"
+          if [[ -z "${IPA}" ]]; then
+            echo "iOS build completed without an IPA under src-tauri/gen/apple/build."
+            exit 1
+          fi
+          WORK="$(mktemp -d)"
+          unzip -q "${IPA}" -d "${WORK}"
+          APP="$(find "${WORK}/Payload" -maxdepth 1 -name '*.app' | head -n 1)"
+          IPA_BUNDLE_ID="$(plutil -extract CFBundleIdentifier raw "${APP}/Info.plist")"
+          IPA_VERSION="$(plutil -extract CFBundleShortVersionString raw "${APP}/Info.plist")"
+          IPA_BUILD="$(plutil -extract CFBundleVersion raw "${APP}/Info.plist")"
+          test "${IPA_BUNDLE_ID}" = "${BUNDLE_ID}"
+          codesign -d --entitlements - --xml "${APP}" > "${WORK}/entitlements.plist" 2>/dev/null
+          APS_ENVIRONMENT="$(plutil -extract aps-environment raw "${WORK}/entitlements.plist")"
+          test "${APS_ENVIRONMENT}" = "production"
+          mkdir -p artifacts
+          cp "${IPA}" artifacts/BKT-Hukuk-iOS.ipa
+          (cd artifacts && shasum -a 256 BKT-Hukuk-iOS.ipa > SHA256SUMS.txt)
+          printf 'source_sha=%s\nversion=%s\nbuild=%s\nbundle_id=%s\n' \
+            "${SOURCE_SHA}" "${IPA_VERSION}" "${IPA_BUILD}" "${IPA_BUNDLE_ID}" > artifacts/VERSION.txt
+          {
+            echo "### iOS artifact"
+            echo "- Source SHA: \`${SOURCE_SHA}\`"
+            echo "- Bundle ID: \`${IPA_BUNDLE_ID}\`"
+            echo "- Version: \`${IPA_VERSION}\` (build ${IPA_BUILD})"
+            echo "- Push ortamı: \`${APS_ENVIRONMENT}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
+          echo "path=artifacts/BKT-Hukuk-iOS.ipa" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BKT-Hukuk-iOS
+          path: |
+            ${{ steps.ipa.outputs.path }}
+            artifacts/SHA256SUMS.txt
+            artifacts/VERSION.txt
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload to TestFlight
+        if: ${{ inputs.upload }}
+        run: |
+          xcrun altool --upload-app --type ios \
+            --file "${{ steps.ipa.outputs.path }}" \
+            --apiKey "${APPLE_API_KEY}" \
+            --apiIssuer "${APPLE_API_ISSUER}"

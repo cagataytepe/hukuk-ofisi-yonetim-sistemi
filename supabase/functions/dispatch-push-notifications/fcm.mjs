@@ -33,10 +33,9 @@ async function accessToken(serviceAccount, fetcher = fetch, now = Date.now()) {
   return cached.value;
 }
 
-export async function sendFcm(serviceAccount, device, delivery, fetcher = fetch, tokenProvider = accessToken) {
-  const auth = await tokenProvider(serviceAccount, fetcher);
-  const url = `https://fcm.googleapis.com/v1/projects/${encodeURIComponent(serviceAccount.project_id)}/messages:send`;
-  const data = Object.fromEntries(Object.entries({
+/** Android ve iOS bildirimlerinin taşıdığı ortak yönlendirme verisi. */
+export function deliveryData(delivery) {
+  return Object.fromEntries(Object.entries({
     ...delivery.navigation, type: delivery.event_type, entity_id: delivery.entity_id,
     event_key: delivery.event_key,
     bkt_push_route: delivery.navigation?.route,
@@ -45,6 +44,12 @@ export async function sendFcm(serviceAccount, device, delivery, fetcher = fetch,
     bkt_push_date: delivery.navigation?.date,
     bkt_push_hearing_id: delivery.navigation?.hearing_id
   }).filter(([, value]) => value != null).map(([key, value]) => [key, String(value)]));
+}
+
+export async function sendFcm(serviceAccount, device, delivery, fetcher = fetch, tokenProvider = accessToken) {
+  const auth = await tokenProvider(serviceAccount, fetcher);
+  const url = `https://fcm.googleapis.com/v1/projects/${encodeURIComponent(serviceAccount.project_id)}/messages:send`;
+  const data = deliveryData(delivery);
   const response = await fetcher(url, {
     method: 'POST',
     headers: { authorization: `Bearer ${auth}`, 'content-type': 'application/json' },

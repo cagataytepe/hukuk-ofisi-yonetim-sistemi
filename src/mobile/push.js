@@ -1,7 +1,10 @@
 import { addPluginListener, invoke, isTauri } from '@tauri-apps/api/core';
 import { createNavigationQueue, registrationPlan } from './push-state.mjs';
 
-const android = () => isTauri() && /Android/i.test(navigator.userAgent);
+// iPadOS kendini masaüstü Safari olarak tanıtır; dokunmatik nokta sayısı onu Mac'ten ayırır.
+const appleMobile = () => /iPhone|iPad|iPod/i.test(navigator.userAgent)
+  || (/Macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+const nativeMobile = () => isTauri() && (/Android/i.test(navigator.userAgent) || appleMobile());
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const navigationQueue = createNavigationQueue();
 let repository = null;
@@ -37,9 +40,9 @@ async function captureNativePending(fallback = null) {
 }
 
 async function registerCurrentToken() {
-  if (!android() || !currentUserId || !repository) return;
+  if (!nativeMobile() || !currentUserId || !repository) return;
   const { granted } = await invoke('plugin:push|get_permission_state');
-  const { token } = await invoke('plugin:push|get_token');
+  const { token, platform, environment } = await invoke('plugin:push|get_token');
   const plan = registrationPlan({ permissionGranted: granted, token, currentUserId,
     registeredToken: currentToken, registeredUserId });
   if (plan.action === 'disable') {
@@ -47,14 +50,16 @@ async function registerCurrentToken() {
     currentToken = null;
     registeredUserId = null;
   } else if (plan.action === 'register') {
-    await repository.registerPushDevice(plan.token, plan.previousToken);
+    await repository.registerPushDevice(plan.token, plan.previousToken, {
+      platform: platform || 'android', environment: environment || null
+    });
     currentToken = plan.token;
     registeredUserId = currentUserId;
   }
 }
 
 export async function initializePush(onNavigate) {
-  if (!android()) return;
+  if (!nativeMobile()) return;
   navigate = onNavigate;
   await captureNativePending();
   await addPluginListener('push', 'navigation', async (value) => {
@@ -72,7 +77,7 @@ export async function initializePush(onNavigate) {
 }
 
 export async function authenticatedPush(repo, userId) {
-  if (!android()) return;
+  if (!nativeMobile()) return;
   repository = repo;
   currentUserId = userId;
   await navigatePending();
@@ -89,7 +94,7 @@ export async function authenticatedPush(repo, userId) {
 }
 
 export async function logoutPush() {
-  if (!android()) return;
+  if (!nativeMobile()) return;
   const { token } = await invoke('plugin:push|get_token');
   if (token && repository && currentUserId) await repository.disablePushDevice(token);
   currentUserId = null;

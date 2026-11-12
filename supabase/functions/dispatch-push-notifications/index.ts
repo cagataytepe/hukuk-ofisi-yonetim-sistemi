@@ -1,6 +1,7 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { addDays, allowed, dailyEvents, eventKey, hearingDigestEvents, hearingEvents, localDate } from './logic.mjs';
 import { sendFcm } from './fcm.mjs';
+import { apnsConfigFromEnv, sendApns } from './apns.mjs';
 import { failurePlan } from './delivery.mjs';
 
 const required = (name: string) => {
@@ -20,7 +21,7 @@ const failureUpdate = async (db: any, delivery: any, result: any) => {
   const plan = failurePlan(attempts, result.kind);
   const { error } = await db.from('push_notification_deliveries').update({
     ...plan,
-    last_error: String(result.code || 'FCM unavailable').slice(0, 100), updated_at: new Date().toISOString()
+    last_error: String(result.code || 'Push provider unavailable').slice(0, 100), updated_at: new Date().toISOString()
   }).eq('id', delivery.id);
   if (error) throw error;
   if (result.kind === 'invalid') {
@@ -29,12 +30,14 @@ const failureUpdate = async (db: any, delivery: any, result: any) => {
   }
 };
 
-async function dispatch(db: any, serviceAccount: any, delivery: any, device: any) {
+async function dispatch(db: any, providers: any, delivery: any, device: any) {
   let result;
   try {
-    result = await sendFcm(serviceAccount, device, delivery);
+    result = device.platform === 'ios'
+      ? await sendApns(providers.apns, device, delivery)
+      : await sendFcm(providers.firebase, device, delivery);
   } catch {
-    result = { kind: 'retry', code: 'transport_or_oauth_failure' };
+    result = { kind: 'retry', code: 'transport_or_auth_failure' };
   }
   if (result.kind === 'sent') {
     const { error } = await db.from('push_notification_deliveries').update({
@@ -58,7 +61,10 @@ Deno.serve(async (request) => {
     const db = createClient(required('SUPABASE_URL'), secretKeys.default || required('PUSH_SUPABASE_SECRET_KEY'), {
       auth: { persistSession: false, autoRefreshToken: false }
     });
-    const serviceAccount = JSON.parse(required('FIREBASE_SERVICE_ACCOUNT_JSON'));
+    const providers = {
+      firebase: JSON.parse(required('FIREBASE_SERVICE_ACCOUNT_JSON')),
+      apns: apnsConfigFromEnv((name: string) => Deno.env.get(name))
+    };
     const now = new Date();
     const today = localDate(now);
     const hearingRows = await get(db.from('hearings').select(
@@ -78,7 +84,7 @@ Deno.serve(async (request) => {
       ...dailyEvents(deadlines, 'deadline', now), ...dailyEvents(tasks, 'task', now)
     ];
     const ids = [...new Set(events.map((item: any) => item.userId))];
-    const devices = ids.length ? await get(db.from('push_devices').select('id,user_id,fcm_token')
+    const devices = ids.length ? await get(db.from('push_devices').select('id,user_id,fcm_token,platform,apns_environment')
       .in('user_id', ids).eq('enabled', true)) : [];
     const preferences = ids.length ? await get(db.from('push_notification_preferences').select('*')
       .in('user_id', ids)) : [];
@@ -99,12 +105,12 @@ Deno.serve(async (request) => {
         }).select('*').single();
         if (error?.code === '23505') continue;
         if (error) throw error;
-        const result = await dispatch(db, serviceAccount, data, device);
+        const result = await dispatch(db, providers, data, device);
         if (result === 'sent') sent++; else queued++;
       }
     }
     const retries = await get(db.from('push_notification_deliveries')
-      .select('*,push_devices!inner(id,user_id,fcm_token,enabled)')
+      .select('*,push_devices!inner(id,user_id,fcm_token,platform,apns_environment,enabled)')
       .eq('status', 'retry').lte('next_attempt_at', now.toISOString())
       .lt('attempt_count', 5).limit(100));
     const retryUserIds = [...new Set(retries.map((row: any) => row.user_id))];
@@ -129,7 +135,7 @@ Deno.serve(async (request) => {
         .select('*').maybeSingle();
       if (error) throw error;
       if (!data) continue;
-      const result = await dispatch(db, serviceAccount, data, row.push_devices);
+      const result = await dispatch(db, providers, data, row.push_devices);
       if (result === 'sent') sent++; else queued++;
     }
     return Response.json({ sent, queued, candidates: events.length });
