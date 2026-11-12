@@ -44,3 +44,7 @@ playwright-report/
 Thumbs.db
 desktop.ini
 $RECYCLE.BIN/
+
+# Locally downloaded installers and local preview tooling
+artifacts/
+.claude/launch.json
