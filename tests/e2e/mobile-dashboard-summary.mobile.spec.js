@@ -21,7 +21,7 @@ test("mobil ana sayfa özet alanı hedef genişliklerde taşmadan görünür", a
   ]);
   await expect(page.locator(".dashboard-summary-card")).toHaveCount(3);
   await expect(page.locator(".dashboard-summary-card").nth(0)).toContainText("Haftanın Duruşmaları");
-  await expect(page.locator(".dashboard-summary-card").nth(1)).toContainText("Süreli İşler");
+  await expect(page.locator(".dashboard-summary-card").nth(1)).toContainText("Bekleyen Süreli İşler");
   await expect(page.locator(".dashboard-summary-card").nth(2)).toContainText("Bana Atanmış Görevler");
 
   for (const width of [390, 414, 430]) {

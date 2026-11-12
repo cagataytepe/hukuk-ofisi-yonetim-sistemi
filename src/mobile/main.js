@@ -387,7 +387,7 @@ async function renderHome(force = false) {
       </section>
       <section class="dashboard-summary-grid" aria-label="Genel sayaçlar">
         ${dashboardSummaryCard("calendarWeek", "Haftanın Duruşmaları", weeklyHearings.length, "hearings")}
-        ${dashboardSummaryCard("clock", "Süreli İşler", activeDeadlines.length, "deadlines")}
+        ${dashboardSummaryCard("clock", "Bekleyen Süreli İşler", activeDeadlines.length, "deadlines")}
         ${dashboardSummaryCard("tasks", "Bana Atanmış Görevler", assignedTasks.length, "tasks")}
       </section>
       ${homeSection("Yaklaşan Duruşmalar", "hearings", upcomingHearings, hearingCard, "Yaklaşan duruşma bulunmuyor.")}
